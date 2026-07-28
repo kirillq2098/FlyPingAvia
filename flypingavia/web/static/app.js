@@ -18,6 +18,66 @@
       setBoot("Браузерный режим");
     }
 
+    (function flyPlane() {
+      const el = document.getElementById("plane");
+      if (!el) return;
+      let x = Math.random() * window.innerWidth;
+      let y = 40 + Math.random() * Math.max(80, window.innerHeight * 0.35);
+      let vx = (Math.random() * 1.4 + 0.6) * (Math.random() < 0.5 ? -1 : 1);
+      let vy = (Math.random() - 0.5) * 0.9;
+      let angle = 0;
+      let nextTurn = 0;
+      let last = performance.now();
+
+      function wander(t) {
+        if (t >= nextTurn) {
+          nextTurn = t + 800 + Math.random() * 2200;
+          vx += (Math.random() - 0.5) * 1.8;
+          vy += (Math.random() - 0.5) * 1.4;
+          const speed = Math.hypot(vx, vy) || 1;
+          const target = 1.1 + Math.random() * 1.6;
+          vx = (vx / speed) * target;
+          vy = (vy / speed) * (0.35 + Math.random() * 0.9);
+          if (Math.random() < 0.12) {
+            vx *= -1;
+          }
+        }
+      }
+
+      function frame(now) {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        wander(now);
+
+        x += vx * dt * 60;
+        y += vy * dt * 60;
+
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const m = 28;
+        if (x < -m) x = w + m;
+        if (x > w + m) x = -m;
+        if (y < 16) { y = 16; vy = Math.abs(vy) + 0.2; }
+        if (y > h * 0.55) { y = h * 0.55; vy = -Math.abs(vy) - 0.15; }
+
+        const targetAngle = Math.atan2(vy, vx) * 180 / Math.PI;
+        angle += (targetAngle - angle) * Math.min(1, dt * 6);
+        const flip = Math.abs(angle) > 90 ? -1 : 1;
+        const bank = Math.max(-18, Math.min(18, -vy * 10));
+
+        el.style.transform =
+          "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) rotate(" +
+          angle.toFixed(1) + "deg) scaleY(" + flip + ") rotate(" + bank.toFixed(1) + "deg)";
+
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+
+      document.addEventListener("visibilitychange", () => {
+        el.style.opacity = document.hidden ? "0" : "0.35";
+      });
+    })();
+
     const state = {
       quote: null,
       origin: "",
