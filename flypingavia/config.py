@@ -34,8 +34,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AFFILIATE_MARKER", "affiliate_marker"),
     )
     free_watch_limit: int = Field(
-        default=2,
+        default=0,
         validation_alias=AliasChoices("FREE_WATCH_LIMIT", "free_watch_limit"),
+        description="0 = без лимита",
     )
     check_interval_minutes: int = Field(
         default=30,

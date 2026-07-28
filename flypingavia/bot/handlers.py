@@ -56,8 +56,7 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
         mode = "demo-цены" if settings.is_demo_prices else "Travelpayouts API"
         await message.answer(
             f"Привет! Я слежу за ценами на авиабилеты и пишу, когда стало дешевле.\n"
-            f"Режим цен: <b>{mode}</b>\n"
-            f"Лимит бесплатных маршрутов: <b>{settings.free_watch_limit}</b>\n\n"
+            f"Режим цен: <b>{mode}</b>\n\n"
             f"{HELP_TEXT}",
             parse_mode="HTML",
         )
@@ -81,17 +80,11 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
         if not origin or not destination:
             await message.answer("Коды аэропортов должны быть IATA из 3 латинских букв (MOW, IST, AYT).")
             return
-        if origin == destination:
-            await message.answer("Откуда и куда не должны совпадать.")
-            return
 
         try:
             max_price = float(parts[2].replace(",", ".").replace(" ", ""))
         except ValueError:
             await message.answer("Цена должна быть числом, например 15000.")
-            return
-        if max_price <= 0:
-            await message.answer("Порог цены должен быть больше нуля.")
             return
 
         depart_date = None
@@ -100,9 +93,6 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
             if depart_date is None:
                 await message.answer("Дата в формате YYYY-MM-DD, например 2026-09-10.")
                 return
-            if depart_date < date.today():
-                await message.answer("Дата вылета не может быть в прошлом.")
-                return
 
         async with session_scope() as session:
             user = await repo.get_or_create_user(
@@ -110,29 +100,15 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
                 telegram_id=message.from_user.id,
                 username=message.from_user.username,
             )
-            active = await repo.count_active_watches(session, user.id)
-            if active >= settings.free_watch_limit:
-                await message.answer(
-                    f"Лимит бесплатного тарифа: {settings.free_watch_limit} маршрута.\n"
-                    "Удалите лишнее через /unwatch ID или дождитесь платной подписки."
-                )
-                return
-
-            try:
-                watch = await repo.add_watch(
-                    session,
-                    user=user,
-                    origin=origin,
-                    destination=destination,
-                    max_price=max_price,
-                    depart_date=depart_date,
-                    currency=settings.currency,
-                )
-            except Exception:
-                await message.answer(
-                    "Такая подписка уже есть. Посмотрите /list или удалите через /unwatch."
-                )
-                return
+            watch = await repo.add_watch(
+                session,
+                user=user,
+                origin=origin,
+                destination=destination,
+                max_price=max_price,
+                depart_date=depart_date,
+                currency=settings.currency,
+            )
 
             watch_id = watch.id
             label = watch.route_label

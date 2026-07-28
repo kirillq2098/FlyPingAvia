@@ -53,10 +53,8 @@ class PriceChecker:
 
                 fresh.last_price = quote.price
                 fresh.last_checked_at = datetime.now(timezone.utc)
-                should_alert = quote.price <= fresh.max_price and (
-                    fresh.last_alert_price is None
-                    or quote.price < fresh.last_alert_price * 0.98
-                )
+                # Пока без антиспама: алерт при каждом попадании под порог
+                should_alert = quote.price <= fresh.max_price
                 if should_alert:
                     fresh.last_alert_price = quote.price
 
