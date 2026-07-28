@@ -14,7 +14,7 @@ from flypingavia.config import Settings, get_settings
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
-from flypingavia.services.prices import build_affiliate_url, build_price_provider
+from flypingavia.services.prices import align_band_to_quote, build_affiliate_url, build_price_provider
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 
@@ -52,6 +52,8 @@ class QuoteOut(BaseModel):
     children: int = 0
     infants: int = 0
     trip_type: str = "oneway"
+    price_for: str = "adult"  # adult | passengers
+    source: Optional[str] = None
 
 
 class WatchIn(BaseModel):
@@ -127,10 +129,22 @@ def create_api(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health")
     async def health() -> dict:
+        live_status = "disabled"
+        if settings.live_search_enabled:
+            live = getattr(provider, "_live", None)
+            if live is None:
+                live_status = "disabled"
+            elif live.access_denied:
+                live_status = "denied"
+            else:
+                live_status = "configured"
         return {
             "ok": True,
             "demo_prices": settings.is_demo_prices,
             "webapp_url": settings.webapp_url or None,
+            "live_search_mode": settings.live_search_mode,
+            "live_search": live_status,
+            "search_marker": settings.search_marker or None,
         }
 
     @app.get("/api/me")
@@ -194,10 +208,14 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             infants=infants,
             currency=settings.currency,
         )
+        band = align_band_to_quote(band, quote)
         level = band.classify(quote.price).value if quote and band else None
         note = None
         if origin_place.kind == "city" and len(origin_place.airport_codes) > 1:
             note = f"Проверены аэропорты: {', '.join(origin_place.airport_codes)}"
+        if quote and not quote.is_live and (adults > 1 or children or infants):
+            extra = "Живой поиск за состав недоступен — цена за 1 взр."
+            note = f"{note}. {extra}" if note else extra
 
         return QuoteOut(
             origin=origin_place.code,
@@ -232,6 +250,8 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             children=children,
             infants=infants,
             trip_type="round" if return_date else "oneway",
+            price_for="passengers" if (quote and quote.is_live) else "adult",
+            source=quote.source if quote else None,
         )
 
     def _watch_out(w) -> WatchOut:

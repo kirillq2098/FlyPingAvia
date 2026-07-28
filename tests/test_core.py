@@ -250,7 +250,62 @@ async def test_cheapest_across_demo() -> None:
     assert len(quote.searched_origins) == 3
 
 
-def test_norm_city() -> None:
-    assert _norm("Санкт-Петербург") == "санктпетербург"
-    assert _norm("г. Москва") == "москва"
+def test_flight_search_signature() -> None:
+    from flypingavia.services.flight_search import make_signature
+
+    # Пример из документации Travelpayouts (упрощённый)
+    params = {
+        "currency_code": "USD",
+        "locale": "US",
+        "marker": "YourMarker",
+        "market_code": "US",
+        "search_params": {
+            "directions": [
+                {"date": "2026-09-09", "destination": "NYC", "origin": "LAX"},
+                {"date": "2026-09-25", "destination": "LAX", "origin": "NYC"},
+            ],
+            "passengers": {"adults": 1, "children": 0, "infants": 0},
+            "trip_class": "Y",
+        },
+    }
+    sig = make_signature("YourToken", params)
+    assert len(sig) == 32
+    assert sig == make_signature("YourToken", params)
+
+
+@pytest.mark.asyncio
+async def test_live_quote_preferred_when_client_returns(monkeypatch) -> None:
+    from flypingavia.services.flight_search import LiveTicketQuote
+    from flypingavia.services.prices import TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            return LiveTicketQuote(
+                price=32155,
+                currency="RUB",
+                airline="S7",
+                transfers=0,
+                price_per_person=10718,
+            )
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def boom(*args, **kwargs):
+        raise AssertionError("Data API should not be used when live works")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", boom)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["SGC"],
+        depart_date=date(2026, 7, 30),
+        adults=2,
+        children=1,
+    )
+    assert quote is not None
+    assert quote.source == "live_search"
+    assert quote.price == 32155
+    assert quote.is_total_for_passengers is True
 

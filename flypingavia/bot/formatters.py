@@ -113,10 +113,25 @@ def format_price_card(
 
     if quote is not None:
         level = band.classify(quote.price) if band else PriceLevel.UNKNOWN
-        lines.append(f"Сейчас: <b>{money(quote.price, currency)}</b> за 1 взр.  ·  {level_label(level)}")
-        if return_date is not None:
-            lines.append("Туда+обратно ≈ сумма двух one-way (за 1 взр.)")
-        lines.append("<i>Точная сумма за всех — на Aviasales; кэш Data API часто чуть другой</i>")
+        if quote.is_live:
+            lines.append(
+                f"Сейчас: <b>{money(quote.price, currency)}</b> за всех  ·  {level_label(level)}"
+            )
+            lines.append("Источник: <b>живой поиск Aviasales</b>")
+            if quote.price_per_adult is not None:
+                lines.append(f"Ориентир на человека: {money(quote.price_per_adult, currency)}")
+        else:
+            lines.append(
+                f"Сейчас: <b>{money(quote.price, currency)}</b> за 1 взр.  ·  {level_label(level)}"
+            )
+            if return_date is not None:
+                lines.append("Туда+обратно ≈ сумма двух one-way (за 1 взр.)")
+            if adults > 1 or children or infants:
+                lines.append(
+                    "<i>Живой поиск за состав недоступен — показан кэш за 1 взр.</i>"
+                )
+            else:
+                lines.append("<i>Кэш Data API — на сайте сумма может чуть отличаться</i>")
         extras = []
         if quote.transfers is not None:
             extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
@@ -150,7 +165,10 @@ def format_price_card(
 
     if threshold is not None:
         lines.append("")
-        lines.append(f"Ваш порог (к цене за 1 взр.): <b>{money(threshold, currency)}</b>")
+        lines.append(
+            f"Ваш порог ({'за всех' if (quote and quote.is_live) else 'к цене за 1 взр.'}): "
+            f"<b>{money(threshold, currency)}</b>"
+        )
         if quote is not None:
             if quote.price <= threshold:
                 lines.append("✅ уже ниже порога")
@@ -167,7 +185,7 @@ def welcome_text() -> str:
         "Слежу за ценами на авиабилеты и пишу, когда стало выгодно.\n\n"
         "Можно писать <b>город</b> словами, выбрать <b>пассажиров</b> "
         "(взрослые / дети / младенцы) и билет <b>туда-обратно</b>.\n\n"
-        "Покажу вилку цен за 1 взрослого и помогу поставить порог."
+        "При живом поиске покажу цену <b>за всех</b>, иначе — кэш за 1 взр."
     )
 
 
@@ -177,8 +195,9 @@ def help_text() -> str:
         "1. Нажмите <b>➕ Добавить</b> или откройте приложение\n"
         "2. Укажите города, дату, тип поездки и пассажиров\n"
         "3. Выберите порог по вилке\n\n"
-        "Дети и младенцы учитываются в ссылке на билеты; "
-        "порог сравнивается с ценой за 1 взрослого из кэша.\n\n"
+        "Живой поиск (Flight Search API) считает цену за ваш состав. "
+        "Если доступа к API ещё нет — бот показывает кэш за 1 взрослого, "
+        "а состав всё равно попадает в ссылку на Aviasales.\n\n"
         "Команда:\n"
         "<code>/watch Москва Анталья 25000</code>"
     )

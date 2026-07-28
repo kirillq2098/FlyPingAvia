@@ -33,6 +33,25 @@ class Settings(BaseSettings):
         default="flypingavia",
         validation_alias=AliasChoices("AFFILIATE_MARKER", "affiliate_marker"),
     )
+    # Числовой partner ID из кабинета Travelpayouts (для Flight Search API).
+    # Если пусто — берётся AFFILIATE_MARKER.
+    travelpayouts_search_marker: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TRAVELPAYOUTS_SEARCH_MARKER",
+            "TRAVELPAYOUTS_MARKER",
+            "travelpayouts_search_marker",
+        ),
+    )
+    # off | multi | always — когда звать живой поиск за состав пассажиров
+    live_search_mode: str = Field(
+        default="multi",
+        validation_alias=AliasChoices("LIVE_SEARCH_MODE", "live_search_mode"),
+    )
+    live_search_host: str = Field(
+        default="flypingavia.app",
+        validation_alias=AliasChoices("LIVE_SEARCH_HOST", "live_search_host"),
+    )
     free_watch_limit: int = Field(
         default=0,
         validation_alias=AliasChoices("FREE_WATCH_LIMIT", "free_watch_limit"),
@@ -87,6 +106,17 @@ class Settings(BaseSettings):
     @property
     def is_demo_prices(self) -> bool:
         return not bool(self.travelpayouts_token.strip())
+
+    @property
+    def search_marker(self) -> str:
+        return (self.travelpayouts_search_marker or self.affiliate_marker or "").strip()
+
+    @property
+    def live_search_enabled(self) -> bool:
+        mode = (self.live_search_mode or "off").strip().lower()
+        return mode in {"multi", "always", "on", "1", "true"} and bool(
+            self.travelpayouts_token.strip() and self.search_marker
+        )
 
     @property
     def poll_interval_seconds(self) -> int:

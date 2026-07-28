@@ -12,7 +12,7 @@ from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Watch
 from flypingavia.db.session import session_scope
-from flypingavia.services.prices import PriceProvider, build_affiliate_url
+from flypingavia.services.prices import PriceProvider, align_band_to_quote, build_affiliate_url
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class PriceChecker:
                     infants=watch.infants,
                     currency=watch.currency.lower(),
                 )
+                band = align_band_to_quote(band, quote)
             except Exception:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
                 continue

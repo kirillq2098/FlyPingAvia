@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
@@ -11,6 +12,13 @@ from urllib.parse import urlencode
 import httpx
 
 from flypingavia.config import Settings
+from flypingavia.services.flight_search import (
+    FlightSearchAccessDenied,
+    FlightSearchClient,
+    FlightSearchError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class PriceLevel(str, Enum):
@@ -22,7 +30,8 @@ class PriceLevel(str, Enum):
 
 @dataclass(frozen=True)
 class PriceQuote:
-    price: float  # цена за 1 взрослого (туда+обратно = сумма двух one-way, если RT)
+    # live_search: итого за всех пассажиров; иначе обычно за 1 взрослого
+    price: float
     currency: str
     airline: Optional[str] = None
     transfers: Optional[int] = None
@@ -38,6 +47,13 @@ class PriceQuote:
     return_date: Optional[date] = None
     return_origin_code: Optional[str] = None
 
+    @property
+    def is_live(self) -> bool:
+        return self.source == "live_search"
+
+    @property
+    def is_total_for_passengers(self) -> bool:
+        return self.is_live
 
 def passenger_total(base_per_adult: float, adults: int = 1, children: int = 0, infants: int = 0) -> float:
     """Грубая оценка суммы (Data API не отдаёт реальные цены за состав)."""
@@ -321,16 +337,124 @@ class DemoPriceProvider(PriceProvider):
 
 
 class TravelpayoutsPriceProvider(PriceProvider):
-    """Цены через Travelpayouts / Aviasales Data API."""
+    """Цены через Travelpayouts / Aviasales Data API (+ опционально Flight Search)."""
 
     CHEAP_URL = "https://api.travelpayouts.com/v1/prices/cheap"
     LATEST_URL = "https://api.travelpayouts.com/v2/prices/latest"
     CALENDAR_URL = "https://api.travelpayouts.com/v1/prices/calendar"
     MONTH_MATRIX_URL = "https://api.travelpayouts.com/v2/prices/month-matrix"
 
-    def __init__(self, token: str, timeout: float = 20.0) -> None:
+    def __init__(
+        self,
+        token: str,
+        timeout: float = 20.0,
+        *,
+        live_client: FlightSearchClient | None = None,
+        live_mode: str = "multi",
+    ) -> None:
         self._token = token
         self._timeout = timeout
+        self._live = live_client
+        self._live_mode = (live_mode or "off").strip().lower()
+
+    def _want_live(self, adults: int, children: int, infants: int) -> bool:
+        if self._live is None or not self._live.enabled:
+            return False
+        if self._live_mode in {"always", "on", "1", "true"}:
+            return True
+        if self._live_mode in {"multi", "multipax", "passengers"}:
+            return adults > 1 or children > 0 or infants > 0
+        return False
+
+    async def get_trip_quote(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        *,
+        depart_date: Optional[date] = None,
+        return_date: Optional[date] = None,
+        adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
+        currency: str = "rub",
+    ) -> Optional[PriceQuote]:
+        adults = max(1, int(adults))
+        children = max(0, int(children))
+        infants = max(0, min(int(infants), adults))
+
+        if depart_date is not None and self._want_live(adults, children, infants):
+            origin = next((c for c in origins if c), None)
+            destination = next((c for c in destinations if c), None)
+            if origin and destination and self._live is not None:
+                try:
+                    live = await self._live.search(
+                        origin=origin,
+                        destination=destination,
+                        depart_date=depart_date,
+                        return_date=return_date,
+                        adults=adults,
+                        children=children,
+                        infants=infants,
+                        currency=currency,
+                    )
+                    if live is not None:
+                        return PriceQuote(
+                            price=float(live.price),
+                            currency=live.currency or currency.upper(),
+                            airline=live.airline,
+                            transfers=live.transfers,
+                            source="live_search",
+                            origin_code=live.origin_code or origin.upper(),
+                            destination_code=live.destination_code or destination.upper(),
+                            searched_origins=tuple(c.upper() for c in origins if c),
+                            searched_destinations=tuple(c.upper() for c in destinations if c),
+                            price_per_adult=live.price_per_person,
+                            adults=adults,
+                            children=children,
+                            infants=infants,
+                            return_date=return_date,
+                        )
+                except FlightSearchAccessDenied as exc:
+                    logger.warning("%s", exc)
+                except FlightSearchError as exc:
+                    logger.warning("Live search failed, fallback to Data API: %s", exc)
+                except Exception:
+                    logger.exception("Live search unexpected error, fallback to Data API")
+
+        return await super().get_trip_quote(
+            origins,
+            destinations,
+            depart_date=depart_date,
+            return_date=return_date,
+            adults=adults,
+            children=children,
+            infants=infants,
+            currency=currency,
+        )
+
+    async def get_trip_band(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        *,
+        depart_date: Optional[date] = None,
+        return_date: Optional[date] = None,
+        adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        # Вилка строится по Data API (за 1 взр.); для live-цены масштабируем снаружи.
+        return await super().get_trip_band(
+            origins,
+            destinations,
+            depart_date=depart_date,
+            return_date=return_date,
+            adults=adults,
+            children=children,
+            infants=infants,
+            currency=currency,
+        )
 
     async def _get_json(self, url: str, params: dict[str, str]) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -618,10 +742,31 @@ class TravelpayoutsPriceProvider(PriceProvider):
         return compute_price_band(samples, currency=currency, source="travelpayouts")
 
 
+def align_band_to_quote(band: Optional[PriceBand], quote: Optional[PriceQuote]) -> Optional[PriceBand]:
+    """Если цена живая за всех — подтянуть вилку к тому же масштабу."""
+    if band is None or quote is None or not quote.is_live:
+        return band
+    seats = passenger_total(1.0, quote.adults, quote.children, quote.infants)
+    if seats <= 1.0:
+        return band
+    return scale_band(band, seats)
+
+
 def build_price_provider(settings: Settings) -> PriceProvider:
     if settings.is_demo_prices:
         return DemoPriceProvider()
-    return TravelpayoutsPriceProvider(settings.travelpayouts_token)
+    live = None
+    if settings.live_search_enabled:
+        live = FlightSearchClient(
+            settings.travelpayouts_token,
+            settings.search_marker,
+            host=settings.live_search_host or "flypingavia.app",
+        )
+    return TravelpayoutsPriceProvider(
+        settings.travelpayouts_token,
+        live_client=live,
+        live_mode=settings.live_search_mode,
+    )
 
 
 def build_affiliate_url(

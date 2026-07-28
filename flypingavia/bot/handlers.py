@@ -22,6 +22,7 @@ from flypingavia.services.locations import Place, get_location_directory, resolv
 from flypingavia.services.prices import (
     PriceProvider,
     PriceQuote,
+    align_band_to_quote,
     build_affiliate_url,
     build_price_provider,
 )
@@ -158,7 +159,7 @@ async def _fetch_quote_band(
         infants=infants,
         currency=currency,
     )
-    return quote, band
+    return quote, align_band_to_quote(band, quote)
 
 
 def _airport_note(origin: Place, destination: Place) -> Optional[str]:
@@ -186,8 +187,8 @@ async def _ask_passengers(message: Message, state: FSMContext) -> None:
     await state.set_state(AddWatch.passengers)
     await message.answer(
         "Сколько пассажиров?\n"
-        "Порог и цена — <b>за 1 взрослого</b> (так отдаёт Data API).\n"
-        "Состав пассажиров попадёт в ссылку на Aviasales — там живая сумма за всех.",
+        "Если доступен живой поиск — цена и порог <b>за всех</b>.\n"
+        "Иначе бот покажет кэш за 1 взрослого, а состав уйдёт в ссылку Aviasales.",
         parse_mode="HTML",
         reply_markup=kb.passengers_kb(adults, children, infants),
     )
@@ -258,7 +259,7 @@ async def _show_route_preview(
         children=children,
         infants=infants,
     )
-    text += "\n\nНажмите кнопку вилки или введите свою цену <b>за 1 взрослого</b>."
+    text += "\n\nНажмите кнопку вилки или введите свою цену-порог."
 
     markup = kb.threshold_kb(draft_id, int(band.cheap_max), int(band.typical)) if band else None
     try:
@@ -708,7 +709,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await state.set_state(AddWatch.custom_price)
             await callback.answer()
             await callback.message.answer(
-                "Введите свою цену-порог <b>за 1 взрослого</b>, например <code>13500</code>",
+                "Введите свою цену-порог числом, например <code>32000</code>",
                 parse_mode="HTML",
                 reply_markup=kb.cancel_kb(),
             )
@@ -884,6 +885,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 infants=w.infants,
                 currency=w.currency.lower(),
             )
+            band = align_band_to_quote(band, quote)
         except Exception:
             pass
         if quote is None and w.last_price is not None:

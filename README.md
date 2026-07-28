@@ -16,6 +16,7 @@ Telegram-бот для мониторинга цен на авиабилеты.
 - фоновая проверка цен (APScheduler)
 - цены через Travelpayouts API или **demo-режим** без токена
 - партнёрские ссылки Aviasales с `marker`
+- живой поиск за взрослых/детей (Flight Search API, если Travelpayouts выдал доступ)
 
 ## Быстрый старт
 
@@ -84,6 +85,8 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" flypingavia
 | `DATABASE_URL` | `DB_PATH` | SQLite |
 | `CURRENCY` | — | Валюта (по умолчанию `rub`) |
 | `AFFILIATE_MARKER` | — | Маркер CPA в ссылках |
+| `TRAVELPAYOUTS_SEARCH_MARKER` | — | Числовой partner ID для Flight Search |
+| `LIVE_SEARCH_MODE` | `multi` | `off` / `multi` / `always` |
 | `FREE_WATCH_LIMIT` | — | Лимит маршрутов (0 = без лимита) |
 
 Файл `.env` в git не коммитится.
