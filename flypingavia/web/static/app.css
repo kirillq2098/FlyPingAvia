@@ -34,7 +34,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 50;
   overflow: hidden;
 }
 .plane {
@@ -44,9 +44,9 @@ body {
   width: 36px;
   height: 36px;
   color: #2AABEE;
-  opacity: 0.55;
+  opacity: 0.7;
   will-change: transform;
-  filter: drop-shadow(0 2px 8px rgba(42, 171, 238, 0.35));
+  filter: drop-shadow(0 2px 8px rgba(42, 171, 238, 0.45));
   transition: opacity 0.4s ease;
 }
 .plane svg {

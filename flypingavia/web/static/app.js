@@ -74,7 +74,7 @@
       requestAnimationFrame(frame);
 
       document.addEventListener("visibilitychange", () => {
-        el.style.opacity = document.hidden ? "0" : "0.55";
+        el.style.opacity = document.hidden ? "0" : "0.7";
       });
     })();
 
