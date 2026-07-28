@@ -84,3 +84,19 @@ def test_settings_demo_flag() -> None:
     assert s.is_demo_prices is True
     s2 = Settings(bot_token="x", travelpayouts_token="tok")
     assert s2.is_demo_prices is False
+
+
+def test_settings_aliases_from_user_env(monkeypatch) -> None:
+    monkeypatch.setenv("TELEGRAM_TOKEN", "111:AAA")
+    monkeypatch.setenv("AVIASALES_API_TOKEN", "secret")
+    monkeypatch.setenv("CHECK_INTERVAL_SECONDS", "60")
+    monkeypatch.setenv("DB_PATH", "data/avia_bot.sqlite3")
+    monkeypatch.setenv("CURRENCY", "rub")
+    # сбрасываем кэш не нужен — создаём Settings напрямую
+    s = Settings(_env_file=None)
+    assert s.bot_token == "111:AAA"
+    assert s.travelpayouts_token == "secret"
+    assert s.is_demo_prices is False
+    assert s.poll_interval_seconds == 60
+    assert "avia_bot.sqlite3" in s.database_url
+    assert s.currency == "rub"

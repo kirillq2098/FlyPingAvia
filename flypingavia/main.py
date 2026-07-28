@@ -40,20 +40,22 @@ async def _async_main() -> None:
     )
     dp, checker = create_dispatcher(settings, bot)
 
+    interval = settings.poll_interval_seconds
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         checker.run_once,
         trigger="interval",
-        minutes=settings.check_interval_minutes,
+        seconds=interval,
         id="price_check",
         max_instances=1,
         coalesce=True,
     )
     scheduler.start()
     logger.info(
-        "FlyPingAvia v0.1.0 started (interval=%s min, demo=%s)",
-        settings.check_interval_minutes,
+        "FlyPingAvia v0.1.0 started (interval=%ss, demo=%s, currency=%s)",
+        interval,
         settings.is_demo_prices,
+        settings.currency.upper(),
     )
 
     try:

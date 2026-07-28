@@ -41,6 +41,7 @@ async def add_watch(
     destination: str,
     max_price: float,
     depart_date: Optional[date],
+    currency: str = "RUB",
 ) -> Watch:
     watch = Watch(
         user_id=user.id,
@@ -48,6 +49,7 @@ async def add_watch(
         destination=destination.upper(),
         max_price=max_price,
         depart_date=depart_date,
+        currency=currency.upper(),
     )
     session.add(watch)
     await session.flush()

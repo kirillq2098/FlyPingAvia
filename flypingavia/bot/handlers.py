@@ -126,6 +126,7 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
                     destination=destination,
                     max_price=max_price,
                     depart_date=depart_date,
+                    currency=settings.currency,
                 )
             except Exception:
                 await message.answer(
@@ -144,7 +145,7 @@ def create_router(settings: Settings, checker: PriceChecker) -> Router:
         )
         await message.answer(
             f"✅ Подписка #{watch_id}: {label}\n"
-            f"Порог: {int(max_price)} RUB\n"
+            f"Порог: {int(max_price)} {settings.currency.upper()}\n"
             f'<a href="{link}">Открыть поиск</a>\n\n'
             "Проверка идёт по расписанию; /check — прямо сейчас.",
             parse_mode="HTML",
