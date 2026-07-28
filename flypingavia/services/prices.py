@@ -27,6 +27,10 @@ class PriceQuote:
     airline: Optional[str] = None
     transfers: Optional[int] = None
     source: str = "demo"
+    origin_code: Optional[str] = None
+    destination_code: Optional[str] = None
+    searched_origins: tuple[str, ...] = ()
+    searched_destinations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,6 +112,78 @@ class PriceProvider:
     ) -> Optional[PriceBand]:
         raise NotImplementedError
 
+    async def get_cheapest_across(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        depart_date: Optional[date] = None,
+        currency: str = "rub",
+    ) -> Optional[PriceQuote]:
+        """Ищет по всем парам origin×destination и возвращает самый дешёвый вариант."""
+        best: Optional[PriceQuote] = None
+        origin_list = [c.upper() for c in origins if c]
+        dest_list = [c.upper() for c in destinations if c]
+        if not origin_list or not dest_list:
+            return None
+
+        for origin in origin_list:
+            for destination in dest_list:
+                try:
+                    quote = await self.get_cheapest(origin, destination, depart_date, currency)
+                except Exception:
+                    continue
+                if quote is None:
+                    continue
+                enriched = PriceQuote(
+                    price=quote.price,
+                    currency=quote.currency,
+                    airline=quote.airline,
+                    transfers=quote.transfers,
+                    source=quote.source,
+                    origin_code=origin,
+                    destination_code=destination,
+                    searched_origins=tuple(origin_list),
+                    searched_destinations=tuple(dest_list),
+                )
+                if best is None or enriched.price < best.price:
+                    best = enriched
+        return best
+
+    async def get_price_band_across(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        depart_date: Optional[date] = None,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        bands: list[PriceBand] = []
+        for origin in origins:
+            for destination in destinations:
+                try:
+                    band = await self.get_price_band(origin, destination, depart_date, currency)
+                except Exception:
+                    continue
+                if band is not None:
+                    bands.append(band)
+        if not bands:
+            return None
+        # Агрегируем вилки: дёшево = min cheap, обычно = median typical, дорого = max expensive
+        cheap = min(b.cheap_max for b in bands)
+        typical = float(median([b.typical for b in bands]))
+        expensive = max(b.expensive_min for b in bands)
+        if cheap >= typical:
+            cheap = typical * 0.85
+        if expensive <= typical:
+            expensive = typical * 1.2
+        return PriceBand(
+            cheap_max=round(cheap),
+            typical=round(typical),
+            expensive_min=round(expensive),
+            sample_size=sum(b.sample_size for b in bands),
+            currency=bands[0].currency,
+            source=bands[0].source,
+        )
+
 
 class DemoPriceProvider(PriceProvider):
     """Синтетические цены для локальной разработки без API-токена."""
@@ -133,6 +209,8 @@ class DemoPriceProvider(PriceProvider):
             airline="DP",
             transfers=base % 3,
             source="demo",
+            origin_code=origin.upper(),
+            destination_code=destination.upper(),
         )
 
     async def get_price_band(
@@ -197,6 +275,8 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 airline=offer.get("airline"),
                 transfers=offer.get("transfers"),
                 source="travelpayouts",
+                origin_code=origin.upper(),
+                destination_code=destination.upper(),
             )
 
         params["period_type"] = "year"
@@ -212,6 +292,8 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 airline=offer.get("airline"),
                 transfers=offer.get("number_of_changes"),
                 source="travelpayouts",
+                origin_code=origin.upper(),
+                destination_code=destination.upper(),
             )
         return None
 

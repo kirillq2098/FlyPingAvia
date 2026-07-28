@@ -102,6 +102,19 @@ def after_watch_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def places_kb(prefix: str, places: list) -> InlineKeyboardMarkup:
+    """prefix: pick_origin | pick_dest"""
+    builder = InlineKeyboardBuilder()
+    for place in places[:10]:
+        builder.row(
+            InlineKeyboardButton(
+                text=place.short_label[:64],
+                callback_data=f"{prefix}:{place.code}",
+            )
+        )
+    return builder.as_markup()
+
+
 def list_empty_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="➕ Добавить маршрут", callback_data="menu:add"))

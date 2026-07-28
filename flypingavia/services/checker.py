@@ -24,7 +24,6 @@ class PriceChecker:
         self.provider = provider
 
     async def run_once(self) -> int:
-        """Проверяет все активные подписки. Возвращает число отправленных алертов."""
         alerts = 0
         async with session_scope() as session:
             watches = list(await repo.get_active_watches(session))
@@ -32,17 +31,17 @@ class PriceChecker:
         for watch in watches:
             telegram_id = watch.user.telegram_id
             try:
-                quote = await self.provider.get_cheapest(
-                    origin=watch.origin,
-                    destination=watch.destination,
-                    depart_date=watch.depart_date,
-                    currency=watch.currency.lower(),
+                quote = await self.provider.get_cheapest_across(
+                    watch.origin_codes,
+                    watch.destination_codes,
+                    watch.depart_date,
+                    watch.currency.lower(),
                 )
                 band = await self.provider.get_price_band(
-                    origin=watch.origin,
-                    destination=watch.destination,
-                    depart_date=watch.depart_date,
-                    currency=watch.currency.lower(),
+                    watch.origin,
+                    watch.destination,
+                    watch.depart_date,
+                    watch.currency.lower(),
                 )
             except Exception:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
@@ -61,6 +60,8 @@ class PriceChecker:
 
                 fresh.last_price = quote.price
                 fresh.last_checked_at = datetime.now(timezone.utc)
+                fresh.last_origin_airport = quote.origin_code
+                fresh.last_destination_airport = quote.destination_code
                 should_alert = quote.price <= fresh.max_price
                 if should_alert:
                     fresh.last_alert_price = quote.price
@@ -71,10 +72,16 @@ class PriceChecker:
                     user_id=fresh.user_id,
                     origin=fresh.origin,
                     destination=fresh.destination,
+                    origin_name=fresh.origin_name,
+                    destination_name=fresh.destination_name,
+                    origin_search=fresh.origin_search,
+                    destination_search=fresh.destination_search,
                     max_price=fresh.max_price,
                     depart_date=fresh.depart_date,
                     currency=fresh.currency,
                     last_price=fresh.last_price,
+                    last_origin_airport=fresh.last_origin_airport,
+                    last_destination_airport=fresh.last_destination_airport,
                     is_active=fresh.is_active,
                 )
 
@@ -82,10 +89,10 @@ class PriceChecker:
                 continue
 
             link = build_affiliate_url(
-                origin=snapshot.origin,
-                destination=snapshot.destination,
-                marker=self.settings.affiliate_marker,
-                depart_date=snapshot.depart_date,
+                snapshot.origin,
+                snapshot.destination,
+                self.settings.affiliate_marker,
+                snapshot.depart_date,
             )
             text = fmt.format_price_card(
                 origin=snapshot.origin,
@@ -96,6 +103,8 @@ class PriceChecker:
                 threshold=snapshot.max_price,
                 title="Цена ниже порога!",
                 watch_id=snapshot.id,
+                origin_name=snapshot.origin_name,
+                destination_name=snapshot.destination_name,
             )
 
             try:

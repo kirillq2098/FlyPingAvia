@@ -34,6 +34,15 @@ async def _async_main() -> None:
 
     await init_db()
 
+    # Справочник городов/аэропортов
+    from flypingavia.services.locations import get_location_directory
+
+    try:
+        await get_location_directory().ensure_loaded()
+        logger.info("Справочник городов загружен")
+    except Exception:
+        logger.exception("Не удалось загрузить справочник городов — распознавание имён может не работать")
+
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),

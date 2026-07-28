@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Base
+from flypingavia.services.locations import _norm, resolve_place
 from flypingavia.services.prices import (
     DemoPriceProvider,
     PriceLevel,
@@ -141,8 +142,46 @@ def test_money_and_card_format() -> None:
         band=band,
         threshold=8000,
         watch_id=1,
+        origin_name="Москва",
+        destination_name="Анталья",
     )
-    assert "MOW → AYT" in text
+    assert "Москва" in text
     assert "Вилка по маршруту" in text
     assert "дёшево" in text
+
+
+@pytest.mark.asyncio
+async def test_resolve_moscow_city() -> None:
+    place, cands = await resolve_place("Москва")
+    assert place is not None
+    assert place.code == "MOW"
+    assert place.kind == "city"
+    assert "SVO" in place.airport_codes
+    assert "DME" in place.airport_codes
+    assert "VKO" in place.airport_codes
+    assert "ZIA" in place.airport_codes
+    assert "XRK" not in place.airport_codes  # вокзал
+    assert len(place.airport_codes) == 4
+    assert len(place.search_codes) == 5  # MOW + 4 а/п
+
+
+@pytest.mark.asyncio
+async def test_resolve_alias_spb() -> None:
+    place, _ = await resolve_place("Питер")
+    assert place is not None
+    assert place.code == "LED"
+
+
+@pytest.mark.asyncio
+async def test_cheapest_across_demo() -> None:
+    provider = DemoPriceProvider()
+    quote = await provider.get_cheapest_across(["MOW", "SVO", "DME"], ["AYT"])
+    assert quote is not None
+    assert quote.origin_code in {"MOW", "SVO", "DME"}
+    assert len(quote.searched_origins) == 3
+
+
+def test_norm_city() -> None:
+    assert _norm("Санкт-Петербург") == "санктпетербург"
+    assert _norm("г. Москва") == "москва"
 
