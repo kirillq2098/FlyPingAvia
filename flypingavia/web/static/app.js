@@ -275,13 +275,18 @@
     $("#watch-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!state.quote) return;
+      const threshold = Math.round(Number($("#threshold").value));
+      if (!Number.isFinite(threshold) || threshold < 1) {
+        toast("Введите порог числом, например 12000");
+        return;
+      }
       try {
         await api("/api/watches", {
           method: "POST",
           body: JSON.stringify({
             origin: state.quote.origin,
             destination: state.quote.destination,
-            max_price: Number($("#threshold").value),
+            max_price: threshold,
             depart_date: state.depart || null,
             return_date: state.returnDate || null,
             adults: state.adults,

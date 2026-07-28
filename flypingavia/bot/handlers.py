@@ -48,10 +48,25 @@ def _parse_date(value: str) -> date | None:
 
 
 def _parse_price(value: str) -> float | None:
+    raw = (
+        value.strip()
+        .replace("\u00a0", "")
+        .replace("\u202f", "")
+        .replace(" ", "")
+        .replace("₽", "")
+        .replace("руб.", "")
+        .replace("руб", "")
+        .replace(",", ".")
+    )
+    if not raw:
+        return None
     try:
-        return float(value.replace(",", ".").replace(" ", "").replace("₽", ""))
+        price = float(raw)
     except ValueError:
         return None
+    if price <= 0:
+        return None
+    return price
 
 
 def _place_payload(place: Place) -> dict:
@@ -714,7 +729,10 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     async def add_custom_price(message: Message, state: FSMContext) -> None:
         max_price = _parse_price(message.text or "")
         if max_price is None:
-            await message.answer("Введите число, например 12000.")
+            await message.answer(
+                "Введите положительное число, например <code>12000</code> или <code>12 000</code>.",
+                parse_mode="HTML",
+            )
             return
         data = await state.get_data()
         if not data.get("origin_code"):
