@@ -30,6 +30,16 @@ def format_band_block(band: PriceBand, currency: str = "RUB") -> str:
     )
 
 
+def _fmt_day(value: Optional[date]) -> str:
+    if not value:
+        return "любая дата"
+    months = (
+        "янв", "фев", "мар", "апр", "мая", "июн",
+        "июл", "авг", "сен", "окт", "ноя", "дек",
+    )
+    return f"{value.day} {months[value.month - 1]} {value.year}"
+
+
 def format_route(
     origin: str,
     destination: str,
@@ -37,18 +47,26 @@ def format_route(
     *,
     origin_name: Optional[str] = None,
     destination_name: Optional[str] = None,
+    return_date: Optional[date] = None,
 ) -> str:
-    if depart_date:
-        months = (
-            "янв", "фев", "мар", "апр", "мая", "июн",
-            "июл", "авг", "сен", "окт", "ноя", "дек",
-        )
-        date_part = f"{depart_date.day} {months[depart_date.month - 1]} {depart_date.year}"
-    else:
-        date_part = "любая дата"
     left = f"{origin_name} ({origin})" if origin_name else origin
     right = f"{destination_name} ({destination})" if destination_name else destination
-    return f"<b>{left} → {right}</b> · {date_part}"
+    if return_date is not None:
+        date_part = f"{_fmt_day(depart_date)} ⇄ {_fmt_day(return_date)}"
+        trip = "туда-обратно"
+    else:
+        date_part = _fmt_day(depart_date)
+        trip = "в одну сторону"
+    return f"<b>{left} → {right}</b> · {date_part} · {trip}"
+
+
+def passengers_text(adults: int = 1, children: int = 0, infants: int = 0) -> str:
+    parts = [f"взр. {max(1, adults)}"]
+    if children:
+        parts.append(f"дет. {children}")
+    if infants:
+        parts.append(f"мл. {infants}")
+    return ", ".join(parts)
 
 
 def format_price_card(
@@ -64,8 +82,18 @@ def format_price_card(
     origin_name: Optional[str] = None,
     destination_name: Optional[str] = None,
     airport_note: Optional[str] = None,
+    return_date: Optional[date] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
 ) -> str:
     currency = (quote.currency if quote else None) or (band.currency if band else "RUB")
+    if quote is not None:
+        adults = quote.adults
+        children = quote.children
+        infants = quote.infants
+        return_date = quote.return_date if quote.return_date is not None else return_date
+
     lines: list[str] = []
     if title:
         lines.append(f"<b>{title}</b>")
@@ -75,15 +103,23 @@ def format_price_card(
         depart_date,
         origin_name=origin_name,
         destination_name=destination_name,
+        return_date=return_date,
     )
     if watch_id is not None:
         header = f"#{watch_id} · {header}"
     lines.append(header)
+    lines.append(f"Пассажиры: {passengers_text(adults, children, infants)}")
     lines.append("")
 
     if quote is not None:
         level = band.classify(quote.price) if band else PriceLevel.UNKNOWN
-        lines.append(f"Сейчас: <b>{money(quote.price, currency)}</b>  ·  {level_label(level)}")
+        lines.append(f"Итого: <b>{money(quote.price, currency)}</b>  ·  {level_label(level)}")
+        if quote.price_per_adult is not None:
+            per = money(quote.price_per_adult, currency)
+            lines.append(
+                f"Ориентир на 1 взр.: {per}"
+                + (" (туда+обратно)" if return_date is not None else "")
+            )
         extras = []
         if quote.transfers is not None:
             extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
@@ -97,6 +133,8 @@ def format_price_card(
                 via.append(f"вылет {quote.origin_code}")
             if quote.destination_code:
                 via.append(f"прилёт {quote.destination_code}")
+            if quote.return_origin_code:
+                via.append(f"обратно из {quote.return_origin_code}")
             lines.append("Самый дешёвый вариант: " + " · ".join(via))
         if len(quote.searched_origins) > 1 or len(quote.searched_destinations) > 1:
             lines.append(
@@ -115,7 +153,7 @@ def format_price_card(
 
     if threshold is not None:
         lines.append("")
-        lines.append(f"Ваш порог: <b>{money(threshold, currency)}</b>")
+        lines.append(f"Ваш порог (за всех): <b>{money(threshold, currency)}</b>")
         if quote is not None:
             if quote.price <= threshold:
                 lines.append("✅ уже ниже порога")
@@ -130,23 +168,19 @@ def welcome_text() -> str:
     return (
         "<b>FlyPingAvia</b>\n"
         "Слежу за ценами на авиабилеты и пишу, когда стало выгодно.\n\n"
-        "Можно писать <b>город</b> словами — аэропорт подставлю сам. "
-        "Если в городе несколько аэропортов, проверю все и возьму <b>самый дешёвый</b>.\n\n"
-        "Покажу вилку: что дёшево, обычно и дорого — и помогу поставить порог.\n\n"
-        "Можно пользоваться чатом или кнопкой <b>Открыть приложение</b> (Mini App)."
+        "Можно писать <b>город</b> словами, выбрать <b>пассажиров</b> "
+        "(взрослые / дети / младенцы) и билет <b>туда-обратно</b>.\n\n"
+        "Покажу вилку цен и помогу поставить порог."
     )
 
 
 def help_text() -> str:
     return (
         "<b>Как пользоваться</b>\n\n"
-        "1. Нажмите <b>🛩 Открыть приложение</b> или <b>➕ Добавить</b>\n"
-        "2. Напишите город или код: <code>Москва</code>, <code>MOW</code>, <code>Шереметьево</code>\n"
-        "3. Укажите дату (или «любая дата»)\n"
-        "4. Выберите порог по вилке\n\n"
-        "Если аэропортов несколько — ищу по всем, в подписке остаётся самый выгодный вариант.\n\n"
-        "Mini App работает внутри Telegram (нужен HTTPS URL в WEBAPP_URL).\n\n"
+        "1. Нажмите <b>➕ Добавить</b> или откройте приложение\n"
+        "2. Укажите города, дату, тип поездки и пассажиров\n"
+        "3. Выберите порог по вилке\n\n"
+        "Дети 2–12 и младенцы 0–2 учитываются в сумме и в ссылке на билеты.\n\n"
         "Команда:\n"
-        "<code>/watch Москва Анталья 12000</code>\n"
-        "<code>/watch MOW AYT 12000 2026-09-10</code>"
+        "<code>/watch Москва Анталья 25000</code>"
     )

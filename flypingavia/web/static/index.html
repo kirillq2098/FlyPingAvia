@@ -34,9 +34,49 @@
           <div id="destination-hint" class="hint"></div>
         </label>
         <label class="field">
-          <span>Дата (необязательно)</span>
+          <span>Дата вылета (необязательно)</span>
           <input id="depart" name="depart" type="date" />
         </label>
+
+        <div class="trip-toggle" role="group" aria-label="Тип билета">
+          <button type="button" class="trip-btn active" data-trip="oneway">В одну сторону</button>
+          <button type="button" class="trip-btn" data-trip="round">Туда и обратно</button>
+        </div>
+
+        <label class="field hidden" id="return-field">
+          <span>Дата возврата</span>
+          <input id="return" name="return" type="date" />
+        </label>
+
+        <div class="pax-block">
+          <div class="pax-title">Пассажиры</div>
+          <div class="pax-row">
+            <span>Взрослые</span>
+            <div class="stepper">
+              <button type="button" data-pax="adults" data-delta="-1">−</button>
+              <strong id="adults-val">1</strong>
+              <button type="button" data-pax="adults" data-delta="1">+</button>
+            </div>
+          </div>
+          <div class="pax-row">
+            <span>Дети 2–12</span>
+            <div class="stepper">
+              <button type="button" data-pax="children" data-delta="-1">−</button>
+              <strong id="children-val">0</strong>
+              <button type="button" data-pax="children" data-delta="1">+</button>
+            </div>
+          </div>
+          <div class="pax-row">
+            <span>Младенцы 0–2</span>
+            <div class="stepper">
+              <button type="button" data-pax="infants" data-delta="-1">−</button>
+              <strong id="infants-val">0</strong>
+              <button type="button" data-pax="infants" data-delta="1">+</button>
+            </div>
+          </div>
+          <p class="meta pax-hint">Порог и цена — за всех. Младенцы ≈ 10% тарифа.</p>
+        </div>
+
         <button class="btn primary" type="submit" id="search-btn">Показать вилку цен</button>
       </form>
 

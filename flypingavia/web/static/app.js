@@ -18,7 +18,17 @@
       setBoot("Браузерный режим");
     }
 
-    const state = { quote: null, origin: "", destination: "", depart: "" };
+    const state = {
+      quote: null,
+      origin: "",
+      destination: "",
+      depart: "",
+      returnDate: "",
+      trip: "oneway",
+      adults: 1,
+      children: 0,
+      infants: 0,
+    };
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
 
@@ -65,15 +75,48 @@
       return ["", "нет оценки"];
     }
 
+    function paxLabel(q) {
+      const parts = ["взр. " + (q.adults || 1)];
+      if (q.children) parts.push("дет. " + q.children);
+      if (q.infants) parts.push("мл. " + q.infants);
+      return parts.join(", ");
+    }
+
+    function syncPaxUi() {
+      $("#adults-val").textContent = String(state.adults);
+      $("#children-val").textContent = String(state.children);
+      $("#infants-val").textContent = String(state.infants);
+    }
+
+    function setTrip(trip) {
+      state.trip = trip;
+      $$(".trip-btn").forEach((b) => b.classList.toggle("active", b.getAttribute("data-trip") === trip));
+      $("#return-field").classList.toggle("hidden", trip !== "round");
+      if (trip !== "round") {
+        state.returnDate = "";
+        $("#return").value = "";
+      } else if (!state.returnDate && state.depart) {
+        const d = new Date(state.depart + "T12:00:00");
+        d.setDate(d.getDate() + 7);
+        state.returnDate = d.toISOString().slice(0, 10);
+        $("#return").value = state.returnDate;
+      }
+    }
+
     function renderQuote(q) {
       state.quote = q;
       const box = $("#quote");
       const lvl = levelLabel(q.level);
+      const tripLabel = q.return_date ? "туда-обратно" : "в одну сторону";
       box.classList.remove("hidden");
       box.innerHTML =
         "<h2>" + q.origin_name + " → " + q.destination_name + "</h2>" +
+        "<div class=\"meta\">" + tripLabel + " · " + paxLabel(q) + "</div>" +
         "<div class=\"price-now\">" + (q.price != null ? money(q.price) : "—") + "</div>" +
-        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + "</div>" +
+        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + " · за всех</div>" +
+        (q.price_per_adult != null
+          ? ("<div class=\"meta\">ориентир на 1 взр.: " + money(q.price_per_adult) + "</div>")
+          : "") +
         "<div class=\"meta\">" +
           (q.origin_airport ? ("вылет " + q.origin_airport) : "") +
           (q.destination_airport ? (" · прилёт " + q.destination_airport) : "") +
@@ -121,24 +164,49 @@
           box.innerHTML = "<div class=\"quote\"><h2>Пока пусто</h2><p class=\"meta\">Соберите маршрут на вкладке «Поиск».</p></div>";
           return;
         }
-        box.innerHTML = items.map((w) =>
-          "<article class=\"watch-card\" data-id=\"" + w.id + "\">" +
-            "<h3>" + (w.origin_name || w.origin) + " → " + (w.destination_name || w.destination) + "</h3>" +
-            "<div class=\"meta mono\">#" + w.id + " · порог " + money(w.max_price) + "</div>" +
-            "<div class=\"meta\">сейчас: " + (w.last_price != null ? money(w.last_price) : "ещё не проверяли") +
-              (w.last_origin_airport ? (" · вылет " + w.last_origin_airport) : "") + "</div>" +
-            "<div class=\"actions\">" +
-              "<a class=\"btn ghost\" href=\"" + w.tickets_url + "\" target=\"_blank\" rel=\"noopener\">Билеты</a>" +
-              "<button class=\"btn ghost\" data-del=\"" + w.id + "\" type=\"button\">Удалить</button>" +
-            "</div>" +
-          "</article>"
-        ).join("");
+        box.innerHTML = items.map((w) => {
+          const trip = w.return_date ? "туда-обратно" : "в одну сторону";
+          const pax = w.passengers_label || paxLabel(w);
+          return (
+            "<article class=\"watch-card\" data-id=\"" + w.id + "\">" +
+              "<h3>" + (w.origin_name || w.origin) + " → " + (w.destination_name || w.destination) + "</h3>" +
+              "<div class=\"meta\">" + trip + " · " + pax + "</div>" +
+              "<div class=\"meta mono\">#" + w.id + " · порог " + money(w.max_price) + "</div>" +
+              "<div class=\"meta\">сейчас: " + (w.last_price != null ? money(w.last_price) : "ещё не проверяли") +
+                (w.last_origin_airport ? (" · вылет " + w.last_origin_airport) : "") + "</div>" +
+              "<div class=\"actions\">" +
+                "<a class=\"btn ghost\" href=\"" + w.tickets_url + "\" target=\"_blank\" rel=\"noopener\">Билеты</a>" +
+                "<button class=\"btn ghost\" data-del=\"" + w.id + "\" type=\"button\">Удалить</button>" +
+              "</div>" +
+            "</article>"
+          );
+        }).join("");
       } catch (err) {
         box.innerHTML = "<div class=\"quote\"><h2>Не удалось загрузить</h2><p class=\"meta\">" + err.message + "</p></div>";
       }
     }
 
     $$(".tab").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab"))));
+
+    $$(".trip-btn").forEach((btn) => {
+      btn.addEventListener("click", () => setTrip(btn.getAttribute("data-trip")));
+    });
+
+    $$("[data-pax]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const field = btn.getAttribute("data-pax");
+        const delta = Number(btn.getAttribute("data-delta"));
+        if (field === "adults") {
+          state.adults = Math.max(1, Math.min(9, state.adults + delta));
+          if (state.infants > state.adults) state.infants = state.adults;
+        } else if (field === "children") {
+          state.children = Math.max(0, Math.min(9, state.children + delta));
+        } else if (field === "infants") {
+          state.infants = Math.max(0, Math.min(state.adults, state.infants + delta));
+        }
+        syncPaxUi();
+      });
+    });
 
     let originTimer, destTimer;
     $("#origin").addEventListener("input", () => {
@@ -149,6 +217,18 @@
       clearTimeout(destTimer);
       destTimer = setTimeout(() => resolveHint("#destination", "#destination-hint"), 280);
     });
+    $("#depart").addEventListener("change", () => {
+      state.depart = $("#depart").value || "";
+      if (state.trip === "round" && state.depart && !state.returnDate) {
+        const d = new Date(state.depart + "T12:00:00");
+        d.setDate(d.getDate() + 7);
+        state.returnDate = d.toISOString().slice(0, 10);
+        $("#return").value = state.returnDate;
+      }
+    });
+    $("#return").addEventListener("change", () => {
+      state.returnDate = $("#return").value || "";
+    });
 
     $("#search-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -156,11 +236,23 @@
       state.origin = $("#origin").value.trim();
       state.destination = $("#destination").value.trim();
       state.depart = $("#depart").value || "";
+      state.returnDate = state.trip === "round" ? ($("#return").value || "") : "";
+      if (state.trip === "round" && !state.returnDate) {
+        toast("Укажите дату возврата");
+        return;
+      }
       btn.disabled = true;
       btn.textContent = "Считаем…";
       try {
-        const params = new URLSearchParams({ origin: state.origin, destination: state.destination });
+        const params = new URLSearchParams({
+          origin: state.origin,
+          destination: state.destination,
+          adults: String(state.adults),
+          children: String(state.children),
+          infants: String(state.infants),
+        });
         if (state.depart) params.set("depart_date", state.depart);
+        if (state.returnDate) params.set("return_date", state.returnDate);
         const q = await api("/api/quote?" + params.toString());
         renderQuote(q);
         if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
@@ -191,6 +283,10 @@
             destination: state.quote.destination,
             max_price: Number($("#threshold").value),
             depart_date: state.depart || null,
+            return_date: state.returnDate || null,
+            adults: state.adults,
+            children: state.children,
+            infants: state.infants,
           }),
         });
         toast("Подписка создана");
@@ -214,6 +310,7 @@
     });
 
     $("#refresh-watches").addEventListener("click", loadWatches);
+    syncPaxUi();
 
     api("/api/me").then(() => setBoot("Готово")).catch((err) => {
       setBoot("Auth: " + err.message);

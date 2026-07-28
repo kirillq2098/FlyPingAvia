@@ -19,6 +19,10 @@ _SQLITE_EXTRA_COLUMNS = {
     "destination_search": "TEXT",
     "last_origin_airport": "VARCHAR(3)",
     "last_destination_airport": "VARCHAR(3)",
+    "return_date": "DATE",
+    "adults": "INTEGER DEFAULT 1",
+    "children": "INTEGER DEFAULT 0",
+    "infants": "INTEGER DEFAULT 0",
 }
 
 

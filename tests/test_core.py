@@ -15,6 +15,7 @@ from flypingavia.services.prices import (
     PriceLevel,
     build_affiliate_url,
     compute_price_band,
+    passenger_total,
 )
 from flypingavia.bot.formatters import format_band_block, format_price_card, money
 
@@ -85,6 +86,71 @@ def test_affiliate_url_contains_marker() -> None:
     assert "destination_iata=DXB" in url
     assert "marker=flypingavia" in url
     assert "depart_date=2026-10-01" in url
+    assert "one_way=true" in url
+    assert "adults=1" in url
+
+
+def test_affiliate_url_round_trip_and_passengers() -> None:
+    url = build_affiliate_url(
+        "MOW",
+        "AYT",
+        marker="flypingavia",
+        depart_date=date(2026, 10, 1),
+        return_date=date(2026, 10, 10),
+        adults=2,
+        children=1,
+        infants=1,
+    )
+    assert "return_date=2026-10-10" in url
+    assert "one_way=false" in url
+    assert "adults=2" in url
+    assert "children=1" in url
+    assert "infants=1" in url
+
+
+def test_passenger_total() -> None:
+    # 2 взр + 1 реб (полный тариф) + 1 мл (10%) = 2+1+0.1
+    assert passenger_total(10_000, adults=2, children=1, infants=1) == 31_000
+
+
+@pytest.mark.asyncio
+async def test_trip_quote_round_trip() -> None:
+    provider = DemoPriceProvider()
+    ow = await provider.get_trip_quote(["MOW"], ["AYT"], depart_date=date(2026, 9, 1), adults=1)
+    rt = await provider.get_trip_quote(
+        ["MOW"],
+        ["AYT"],
+        depart_date=date(2026, 9, 1),
+        return_date=date(2026, 9, 10),
+        adults=2,
+        children=1,
+    )
+    assert ow is not None and rt is not None
+    assert rt.return_date == date(2026, 9, 10)
+    assert rt.adults == 2
+    assert rt.children == 1
+    assert rt.price > ow.price
+
+
+@pytest.mark.asyncio
+async def test_add_watch_with_passengers(session: AsyncSession) -> None:
+    user = await repo.get_or_create_user(session, telegram_id=99, username="pax")
+    watch = await repo.add_watch(
+        session,
+        user=user,
+        origin="MOW",
+        destination="AYT",
+        max_price=45000,
+        depart_date=date(2026, 9, 1),
+        return_date=date(2026, 9, 12),
+        adults=2,
+        children=1,
+        infants=0,
+    )
+    await session.commit()
+    assert watch.is_round_trip is True
+    assert "дет. 1" in watch.passengers_label
+    assert "туда-обратно" in watch.route_label
 
 
 def test_settings_demo_flag() -> None:

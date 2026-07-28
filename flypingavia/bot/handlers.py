@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from aiogram import Bot, Dispatcher, F, Router
@@ -31,6 +31,9 @@ class AddWatch(StatesGroup):
     origin = State()
     destination = State()
     depart_date = State()
+    trip_type = State()
+    return_date = State()
+    passengers = State()
     custom_price = State()
 
 
@@ -95,21 +98,51 @@ async def _ask_place_choice(
     )
 
 
+def _pax_from_data(data: dict) -> tuple[int, int, int]:
+    return (
+        max(1, int(data.get("adults") or 1)),
+        max(0, int(data.get("children") or 0)),
+        max(0, int(data.get("infants") or 0)),
+    )
+
+
+def _return_from_data(data: dict) -> Optional[date]:
+    raw = data.get("return_date")
+    return date.fromisoformat(raw) if raw else None
+
+
 async def _fetch_quote_band(
     provider: PriceProvider,
     origin: Place,
     destination: Place,
     depart_date: Optional[date],
     currency: str,
+    *,
+    return_date: Optional[date] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
 ):
-    quote = await provider.get_cheapest_across(
+    quote = await provider.get_trip_quote(
         origin.search_codes,
         destination.search_codes,
-        depart_date,
-        currency,
+        depart_date=depart_date,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
+        currency=currency,
     )
-    # Вилку считаем по основному коду города — быстрее и стабильнее
-    band = await provider.get_price_band(origin.code, destination.code, depart_date, currency)
+    band = await provider.get_trip_band(
+        origin.search_codes,
+        destination.search_codes,
+        depart_date=depart_date,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
+        currency=currency,
+    )
     return quote, band
 
 
@@ -122,6 +155,28 @@ def _airport_note(origin: Place, destination: Place) -> Optional[str]:
     return "\n".join(notes) if notes else None
 
 
+async def _ask_trip_type(message: Message, state: FSMContext, depart_date: Optional[date]) -> None:
+    await state.update_data(depart_date=depart_date.isoformat() if depart_date else None)
+    await state.set_state(AddWatch.trip_type)
+    await message.answer(
+        "Тип билета:",
+        reply_markup=kb.trip_type_kb(),
+    )
+
+
+async def _ask_passengers(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    adults, children, infants = _pax_from_data(data)
+    await state.update_data(adults=adults, children=children, infants=infants)
+    await state.set_state(AddWatch.passengers)
+    await message.answer(
+        "Сколько пассажиров?\n"
+        "Порог и цена считаются <b>за всех</b>. Младенцы ~10% тарифа.",
+        parse_mode="HTML",
+        reply_markup=kb.passengers_kb(adults, children, infants),
+    )
+
+
 async def _show_route_preview(
     message: Message,
     settings: Settings,
@@ -130,13 +185,31 @@ async def _show_route_preview(
     origin: Place,
     destination: Place,
     depart_date: Optional[date],
+    *,
+    return_date: Optional[date] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
 ) -> None:
-    wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=menu())
+    wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=kb.cancel_kb())
     quote, band = await _fetch_quote_band(
-        provider, origin, destination, depart_date, settings.currency
+        provider,
+        origin,
+        destination,
+        depart_date,
+        settings.currency,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
     )
 
-    draft_id = f"{origin.code}{destination.code}{depart_date.isoformat() if depart_date else 'any'}"
+    draft_id = (
+        f"{origin.code}{destination.code}"
+        f"{depart_date.isoformat() if depart_date else 'any'}"
+        f"{return_date.isoformat() if return_date else 'ow'}"
+        f"a{adults}c{children}i{infants}"
+    )
     await state.update_data(
         origin_code=origin.code,
         origin_name=origin.name,
@@ -147,6 +220,10 @@ async def _show_route_preview(
         destination_kind=destination.kind,
         destination_search=",".join(destination.search_codes),
         depart_date=depart_date.isoformat() if depart_date else None,
+        return_date=return_date.isoformat() if return_date else None,
+        adults=adults,
+        children=children,
+        infants=infants,
         draft_id=draft_id,
     )
 
@@ -160,8 +237,12 @@ async def _show_route_preview(
         origin_name=origin.name,
         destination_name=destination.name,
         airport_note=_airport_note(origin, destination),
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
     )
-    text += "\n\nНажмите кнопку вилки или введите свою цену."
+    text += "\n\nНажмите кнопку вилки или введите свою цену <b>за всех пассажиров</b>."
 
     markup = kb.threshold_kb(draft_id, int(band.cheap_max), int(band.typical)) if band else None
     try:
@@ -187,6 +268,8 @@ async def _create_watch_from_state(
     max_price: float,
 ) -> int:
     depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
+    return_date = _return_from_data(data)
+    adults, children, infants = _pax_from_data(data)
     async with session_scope() as session:
         user = await repo.get_or_create_user(session, telegram_id=telegram_id, username=username)
         watch = await repo.add_watch(
@@ -200,6 +283,10 @@ async def _create_watch_from_state(
             destination_search=data.get("destination_search"),
             max_price=max_price,
             depart_date=depart_date,
+            return_date=return_date,
+            adults=adults,
+            children=children,
+            infants=infants,
             currency=settings.currency,
         )
         return watch.id
@@ -217,11 +304,28 @@ async def _confirm_watch_message(
     destination = _place_from_data("destination", data)
     assert origin and destination
     depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
+    return_date = _return_from_data(data)
+    adults, children, infants = _pax_from_data(data)
     quote, band = await _fetch_quote_band(
-        provider, origin, destination, depart_date, settings.currency
+        provider,
+        origin,
+        destination,
+        depart_date,
+        settings.currency,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
     )
     link = build_affiliate_url(
-        origin.code, destination.code, settings.affiliate_marker, depart_date
+        origin.code,
+        destination.code,
+        settings.affiliate_marker,
+        depart_date,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
     )
     text = fmt.format_price_card(
         origin=origin.code,
@@ -235,6 +339,10 @@ async def _confirm_watch_message(
         origin_name=origin.name,
         destination_name=destination.name,
         airport_note=_airport_note(origin, destination),
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
     )
     await target.answer(
         text,
@@ -242,7 +350,7 @@ async def _confirm_watch_message(
         reply_markup=kb.after_watch_kb(watch_id, link),
         disable_web_page_preview=True,
     )
-    await target.answer("Главное меню:", reply_markup=menu())
+    await target.answer("Главное меню:", reply_markup=kb.main_menu(settings.webapp_url or None))
 
 
 def create_router(settings: Settings, checker: PriceChecker, provider: PriceProvider) -> Router:
@@ -429,13 +537,11 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     @router.message(AddWatch.depart_date, F.text == "📅 Любая дата")
     async def add_any_date(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
-        origin = _place_from_data("origin", data)
-        destination = _place_from_data("destination", data)
-        if not origin or not destination:
+        if not data.get("origin_code") or not data.get("destination_code"):
             await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             await state.clear()
             return
-        await _show_route_preview(message, settings, provider, state, origin, destination, None)
+        await _ask_trip_type(message, state, None)
 
     @router.message(AddWatch.depart_date)
     async def add_date(message: Message, state: FSMContext) -> None:
@@ -447,13 +553,128 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             )
             return
         data = await state.get_data()
-        origin = _place_from_data("origin", data)
-        destination = _place_from_data("destination", data)
-        if not origin or not destination:
+        if not data.get("origin_code") or not data.get("destination_code"):
             await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             await state.clear()
             return
-        await _show_route_preview(message, settings, provider, state, origin, destination, depart_date)
+        await _ask_trip_type(message, state, depart_date)
+
+    @router.callback_query(AddWatch.trip_type, F.data.startswith("trip:"))
+    async def choose_trip_type(callback: CallbackQuery, state: FSMContext) -> None:
+        kind = callback.data.split(":")[1]
+        await callback.answer()
+        data = await state.get_data()
+        if not data.get("origin_code"):
+            await callback.message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+            await state.clear()
+            return
+
+        if kind == "round":
+            await state.update_data(return_date=None)
+            await state.set_state(AddWatch.return_date)
+            depart_raw = data.get("depart_date")
+            hint = ""
+            if depart_raw:
+                hint = f"\nДата вылета: <b>{depart_raw}</b>"
+            await callback.message.answer(
+                f"Дата обратного вылета?{hint}\n"
+                "Формат <code>20.09.2026</code> или нажмите «Обратно +7 дней».",
+                parse_mode="HTML",
+                reply_markup=kb.skip_return_kb(),
+            )
+            return
+
+        await state.update_data(return_date=None)
+        await _ask_passengers(callback.message, state)
+
+    @router.message(AddWatch.return_date, F.text == "📅 Обратно +7 дней")
+    async def add_return_plus7(message: Message, state: FSMContext) -> None:
+        data = await state.get_data()
+        depart_raw = data.get("depart_date")
+        if depart_raw:
+            return_date = date.fromisoformat(depart_raw) + timedelta(days=7)
+        else:
+            return_date = date.today() + timedelta(days=14)
+        await state.update_data(return_date=return_date.isoformat())
+        await _ask_passengers(message, state)
+
+    @router.message(AddWatch.return_date)
+    async def add_return_date(message: Message, state: FSMContext) -> None:
+        return_date = _parse_date(message.text or "")
+        if return_date is None:
+            await message.answer(
+                "Дата в формате <code>2026-09-20</code> или <code>20.09.2026</code>",
+                parse_mode="HTML",
+            )
+            return
+        data = await state.get_data()
+        depart_raw = data.get("depart_date")
+        if depart_raw:
+            depart_date = date.fromisoformat(depart_raw)
+            if return_date < depart_date:
+                await message.answer("Дата возврата не может быть раньше вылета.")
+                return
+        await state.update_data(return_date=return_date.isoformat())
+        await _ask_passengers(message, state)
+
+    @router.callback_query(AddWatch.passengers, F.data.startswith("pax:"))
+    async def choose_passengers(callback: CallbackQuery, state: FSMContext) -> None:
+        parts = callback.data.split(":")
+        action = parts[1] if len(parts) > 1 else ""
+        data = await state.get_data()
+        adults, children, infants = _pax_from_data(data)
+
+        if action == "noop":
+            await callback.answer()
+            return
+
+        if action == "done":
+            await callback.answer()
+            origin = _place_from_data("origin", data)
+            destination = _place_from_data("destination", data)
+            if not origin or not destination:
+                await callback.message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+                await state.clear()
+                return
+            depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
+            return_date = _return_from_data(data)
+            await _show_route_preview(
+                callback.message,
+                settings,
+                provider,
+                state,
+                origin,
+                destination,
+                depart_date,
+                return_date=return_date,
+                adults=adults,
+                children=children,
+                infants=infants,
+            )
+            return
+
+        if len(parts) < 3:
+            await callback.answer()
+            return
+        field, delta = parts[1], parts[2]
+        step = 1 if delta == "+" else -1
+        if field == "adults":
+            adults = max(1, min(9, adults + step))
+        elif field == "children":
+            children = max(0, min(9, children + step))
+        elif field == "infants":
+            infants = max(0, min(adults, infants + step))
+        await state.update_data(adults=adults, children=children, infants=infants)
+        await callback.answer()
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=kb.passengers_kb(adults, children, infants)
+            )
+        except Exception:
+            await callback.message.answer(
+                "Пассажиры:",
+                reply_markup=kb.passengers_kb(adults, children, infants),
+            )
 
     @router.callback_query(F.data.startswith("thr:"))
     async def choose_threshold(callback: CallbackQuery, state: FSMContext) -> None:
@@ -471,7 +692,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await state.set_state(AddWatch.custom_price)
             await callback.answer()
             await callback.message.answer(
-                "Введите свою цену-порог числом, например <code>13500</code>",
+                "Введите свою цену-порог <b>за всех пассажиров</b>, например <code>13500</code>",
                 parse_mode="HTML",
                 reply_markup=kb.cancel_kb(),
             )
@@ -590,6 +811,10 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             "destination_kind": destination.kind,
             "destination_search": ",".join(destination.search_codes),
             "depart_date": depart_date.isoformat() if depart_date else None,
+            "return_date": None,
+            "adults": 1,
+            "children": 0,
+            "infants": 0,
         }
         await state.clear()
         await state.update_data(**data)
@@ -606,9 +831,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             return
 
         if depart_date is not None:
-            await _show_route_preview(
-                message, settings, provider, state, origin, destination, depart_date
-            )
+            await _ask_trip_type(message, state, depart_date)
         else:
             await state.set_state(AddWatch.depart_date)
             await message.answer(
@@ -622,11 +845,25 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         quote = None
         band = None
         try:
-            quote = await provider.get_cheapest_across(
-                w.origin_codes, w.destination_codes, w.depart_date, w.currency.lower()
+            quote = await provider.get_trip_quote(
+                w.origin_codes,
+                w.destination_codes,
+                depart_date=w.depart_date,
+                return_date=w.return_date,
+                adults=w.adults,
+                children=w.children,
+                infants=w.infants,
+                currency=w.currency.lower(),
             )
-            band = await provider.get_price_band(
-                w.origin, w.destination, w.depart_date, w.currency.lower()
+            band = await provider.get_trip_band(
+                w.origin_codes,
+                w.destination_codes,
+                depart_date=w.depart_date,
+                return_date=w.return_date,
+                adults=w.adults,
+                children=w.children,
+                infants=w.infants,
+                currency=w.currency.lower(),
             )
         except Exception:
             pass
@@ -637,8 +874,21 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 source="cache",
                 origin_code=w.last_origin_airport,
                 destination_code=w.last_destination_airport,
+                adults=w.adults,
+                children=w.children,
+                infants=w.infants,
+                return_date=w.return_date,
             )
-        link = build_affiliate_url(w.origin, w.destination, settings.affiliate_marker, w.depart_date)
+        link = build_affiliate_url(
+            w.origin,
+            w.destination,
+            settings.affiliate_marker,
+            w.depart_date,
+            return_date=w.return_date,
+            adults=w.adults,
+            children=w.children,
+            infants=w.infants,
+        )
         text = fmt.format_price_card(
             origin=w.origin,
             destination=w.destination,
@@ -650,6 +900,10 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             watch_id=w.id,
             origin_name=w.origin_name,
             destination_name=w.destination_name,
+            return_date=w.return_date,
+            adults=w.adults,
+            children=w.children,
+            infants=w.infants,
         )
         await message.answer(
             text,
@@ -732,11 +986,15 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 return
             snapshot = watch
 
-        quote = await provider.get_cheapest_across(
+        quote = await provider.get_trip_quote(
             snapshot.origin_codes,
             snapshot.destination_codes,
-            snapshot.depart_date,
-            snapshot.currency.lower(),
+            depart_date=snapshot.depart_date,
+            return_date=snapshot.return_date,
+            adults=snapshot.adults,
+            children=snapshot.children,
+            infants=snapshot.infants,
+            currency=snapshot.currency.lower(),
         )
         if quote is not None:
             async with session_scope() as session:

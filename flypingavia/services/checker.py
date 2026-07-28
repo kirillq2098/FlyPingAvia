@@ -31,17 +31,25 @@ class PriceChecker:
         for watch in watches:
             telegram_id = watch.user.telegram_id
             try:
-                quote = await self.provider.get_cheapest_across(
+                quote = await self.provider.get_trip_quote(
                     watch.origin_codes,
                     watch.destination_codes,
-                    watch.depart_date,
-                    watch.currency.lower(),
+                    depart_date=watch.depart_date,
+                    return_date=watch.return_date,
+                    adults=watch.adults,
+                    children=watch.children,
+                    infants=watch.infants,
+                    currency=watch.currency.lower(),
                 )
-                band = await self.provider.get_price_band(
-                    watch.origin,
-                    watch.destination,
-                    watch.depart_date,
-                    watch.currency.lower(),
+                band = await self.provider.get_trip_band(
+                    watch.origin_codes,
+                    watch.destination_codes,
+                    depart_date=watch.depart_date,
+                    return_date=watch.return_date,
+                    adults=watch.adults,
+                    children=watch.children,
+                    infants=watch.infants,
+                    currency=watch.currency.lower(),
                 )
             except Exception:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
@@ -78,6 +86,10 @@ class PriceChecker:
                     destination_search=fresh.destination_search,
                     max_price=fresh.max_price,
                     depart_date=fresh.depart_date,
+                    return_date=fresh.return_date,
+                    adults=fresh.adults,
+                    children=fresh.children,
+                    infants=fresh.infants,
                     currency=fresh.currency,
                     last_price=fresh.last_price,
                     last_origin_airport=fresh.last_origin_airport,
@@ -93,6 +105,10 @@ class PriceChecker:
                 snapshot.destination,
                 self.settings.affiliate_marker,
                 snapshot.depart_date,
+                return_date=snapshot.return_date,
+                adults=snapshot.adults,
+                children=snapshot.children,
+                infants=snapshot.infants,
             )
             text = fmt.format_price_card(
                 origin=snapshot.origin,
@@ -105,6 +121,10 @@ class PriceChecker:
                 watch_id=snapshot.id,
                 origin_name=snapshot.origin_name,
                 destination_name=snapshot.destination_name,
+                return_date=snapshot.return_date,
+                adults=snapshot.adults,
+                children=snapshot.children,
+                infants=snapshot.infants,
             )
 
             try:

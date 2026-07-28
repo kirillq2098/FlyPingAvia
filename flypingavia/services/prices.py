@@ -22,7 +22,7 @@ class PriceLevel(str, Enum):
 
 @dataclass(frozen=True)
 class PriceQuote:
-    price: float
+    price: float  # итого за всех пассажиров (и туда-обратно, если выбран RT)
     currency: str
     airline: Optional[str] = None
     transfers: Optional[int] = None
@@ -31,6 +31,34 @@ class PriceQuote:
     destination_code: Optional[str] = None
     searched_origins: tuple[str, ...] = ()
     searched_destinations: tuple[str, ...] = ()
+    price_per_adult: Optional[float] = None
+    adults: int = 1
+    children: int = 0
+    infants: int = 0
+    return_date: Optional[date] = None
+    return_origin_code: Optional[str] = None
+
+
+def passenger_total(base_per_adult: float, adults: int = 1, children: int = 0, infants: int = 0) -> float:
+    """Ориентир суммы: дети ≈ полный тариф, младенцы ≈ 10%."""
+    adults = max(1, int(adults))
+    children = max(0, int(children))
+    infants = max(0, int(infants))
+    return float(base_per_adult * adults + base_per_adult * children + base_per_adult * 0.1 * infants)
+
+
+def scale_band(band: Optional[PriceBand], multiplier: float) -> Optional[PriceBand]:
+    if band is None:
+        return None
+    mult = max(multiplier, 1.0)
+    return PriceBand(
+        cheap_max=round(band.cheap_max * mult),
+        typical=round(band.typical * mult),
+        expensive_min=round(band.expensive_min * mult),
+        sample_size=band.sample_size,
+        currency=band.currency,
+        source=band.source,
+    )
 
 
 @dataclass(frozen=True)
@@ -167,7 +195,6 @@ class PriceProvider:
                     bands.append(band)
         if not bands:
             return None
-        # Агрегируем вилки: дёшево = min cheap, обычно = median typical, дорого = max expensive
         cheap = min(b.cheap_max for b in bands)
         typical = float(median([b.typical for b in bands]))
         expensive = max(b.expensive_min for b in bands)
@@ -183,6 +210,74 @@ class PriceProvider:
             currency=bands[0].currency,
             source=bands[0].source,
         )
+
+    async def get_trip_quote(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        *,
+        depart_date: Optional[date] = None,
+        return_date: Optional[date] = None,
+        adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
+        currency: str = "rub",
+    ) -> Optional[PriceQuote]:
+        outbound = await self.get_cheapest_across(origins, destinations, depart_date, currency)
+        if outbound is None:
+            return None
+
+        per_adult = outbound.price
+        return_origin = None
+        inbound = None
+        if return_date is not None:
+            inbound = await self.get_cheapest_across(destinations, origins, return_date, currency)
+            if inbound is None:
+                # запасной вариант: удвоить one-way как ориентир
+                per_adult = outbound.price * 2
+            else:
+                per_adult = outbound.price + inbound.price
+                return_origin = inbound.origin_code
+
+        total = passenger_total(per_adult, adults, children, infants)
+        return PriceQuote(
+            price=total,
+            currency=outbound.currency,
+            airline=outbound.airline,
+            transfers=outbound.transfers,
+            source=outbound.source,
+            origin_code=outbound.origin_code,
+            destination_code=outbound.destination_code,
+            searched_origins=outbound.searched_origins,
+            searched_destinations=outbound.searched_destinations,
+            price_per_adult=per_adult,
+            adults=max(1, adults),
+            children=max(0, children),
+            infants=max(0, infants),
+            return_date=return_date,
+            return_origin_code=return_origin,
+        )
+
+    async def get_trip_band(
+        self,
+        origins: Sequence[str],
+        destinations: Sequence[str],
+        *,
+        depart_date: Optional[date] = None,
+        return_date: Optional[date] = None,
+        adults: int = 1,
+        children: int = 0,
+        infants: int = 0,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        band = await self.get_price_band_across(origins, destinations, depart_date, currency)
+        if band is None:
+            return None
+        # пассажиры
+        pax_mult = passenger_total(1.0, adults, children, infants)
+        # туда-обратно ≈ ×2 к вилке one-way
+        rt_mult = 2.0 if return_date is not None else 1.0
+        return scale_band(band, pax_mult * rt_mult)
 
 
 class DemoPriceProvider(PriceProvider):
@@ -420,6 +515,11 @@ def build_affiliate_url(
     destination: str,
     marker: str,
     depart_date: Optional[date] = None,
+    *,
+    return_date: Optional[date] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
 ) -> str:
     """Партнёрская ссылка Aviasales через Travelpayouts marker."""
     params = {
@@ -427,7 +527,15 @@ def build_affiliate_url(
         "destination_iata": destination.upper(),
         "marker": marker,
         "with_request": "true",
+        "adults": str(max(1, adults)),
+        "children": str(max(0, children)),
+        "infants": str(max(0, infants)),
     }
     if depart_date is not None:
         params["depart_date"] = depart_date.isoformat()
+    if return_date is not None:
+        params["return_date"] = return_date.isoformat()
+        params["one_way"] = "false"
+    else:
+        params["one_way"] = "true"
     return f"https://www.aviasales.ru/search?{urlencode(params)}"

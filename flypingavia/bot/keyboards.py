@@ -144,6 +144,45 @@ def places_kb(prefix: str, places: list) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def trip_type_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="➡ В одну сторону", callback_data="trip:oneway"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🔁 Туда и обратно", callback_data="trip:round"),
+    )
+    return builder.as_markup()
+
+
+def skip_return_kb() -> ReplyKeyboardMarkup:
+    builder = ReplyKeyboardBuilder()
+    builder.row(KeyboardButton(text="📅 Обратно +7 дней"))
+    builder.row(KeyboardButton(text="❌ Отмена"))
+    return builder.as_markup()
+
+
+def passengers_kb(adults: int, children: int, infants: int = 0) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="➖", callback_data="pax:adults:-"),
+        InlineKeyboardButton(text=f"Взрослые: {adults}", callback_data="pax:noop"),
+        InlineKeyboardButton(text="➕", callback_data="pax:adults:+"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="➖", callback_data="pax:children:-"),
+        InlineKeyboardButton(text=f"Дети 2–12: {children}", callback_data="pax:noop"),
+        InlineKeyboardButton(text="➕", callback_data="pax:children:+"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="➖", callback_data="pax:infants:-"),
+        InlineKeyboardButton(text=f"Младенцы 0–2: {infants}", callback_data="pax:noop"),
+        InlineKeyboardButton(text="➕", callback_data="pax:infants:+"),
+    )
+    builder.row(InlineKeyboardButton(text="✅ Далее", callback_data="pax:done"))
+    return builder.as_markup()
+
+
 def list_empty_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="➕ Добавить маршрут", callback_data="menu:add"))

@@ -46,6 +46,10 @@ async def add_watch(
     destination_name: Optional[str] = None,
     origin_search: Optional[str] = None,
     destination_search: Optional[str] = None,
+    return_date: Optional[date] = None,
+    adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
 ) -> Watch:
     watch = Watch(
         user_id=user.id,
@@ -57,6 +61,10 @@ async def add_watch(
         destination_search=destination_search or destination.upper(),
         max_price=max_price,
         depart_date=depart_date,
+        return_date=return_date,
+        adults=max(1, adults),
+        children=max(0, children),
+        infants=max(0, infants),
         currency=currency.upper(),
     )
     session.add(watch)
