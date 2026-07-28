@@ -50,16 +50,19 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" flypingavia
 
 ## Конфигурация
 
-См. `.env.example`:
+См. `.env.example`. Поддерживаются оба стиля имён:
 
-| Переменная | Назначение |
-|------------|------------|
-| `BOT_TOKEN` | Токен Telegram-бота |
-| `TRAVELPAYOUTS_TOKEN` | API-токен; пусто = demo-цены |
-| `AFFILIATE_MARKER` | Маркер CPA в ссылках |
-| `FREE_WATCH_LIMIT` | Лимит маршрутов free-тира |
-| `CHECK_INTERVAL_MINUTES` | Интервал фоновой проверки |
-| `DATABASE_URL` | SQLite / будущий Postgres |
+| Наше имя | Ваш алиас | Назначение |
+|----------|-----------|------------|
+| `BOT_TOKEN` | `TELEGRAM_TOKEN` | Токен Telegram-бота |
+| `TRAVELPAYOUTS_TOKEN` | `AVIASALES_API_TOKEN` | API цен |
+| `CHECK_INTERVAL_MINUTES` | `CHECK_INTERVAL_SECONDS` | Интервал проверки |
+| `DATABASE_URL` | `DB_PATH` | SQLite |
+| `CURRENCY` | — | Валюта (по умолчанию `rub`) |
+| `AFFILIATE_MARKER` | — | Маркер CPA в ссылках |
+| `FREE_WATCH_LIMIT` | — | Лимит маршрутов free-тира |
+
+Файл `.env` в git не коммитится.
 
 ## Тесты
 

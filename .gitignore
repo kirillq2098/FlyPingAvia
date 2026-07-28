@@ -219,4 +219,5 @@ __marimo__/
 
 # FlyPingAvia local DB
 data/*.db
+data/*.sqlite3
 .env
