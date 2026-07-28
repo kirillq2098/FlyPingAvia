@@ -402,16 +402,15 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
 
             host = urlparse(webapp).hostname or webapp
             await message.answer(
-                "Приложение внутри Telegram:\n\n"
-                "Если на телефоне не открывается — один раз укажите домен в @BotFather:\n"
-                "1. Откройте @BotFather → /mybots → ваш бот\n"
-                "2. Bot Settings → Domain\n"
-                f"3. Вставьте: <code>{host}</code>\n\n"
-                "Либо откройте через кнопку «в браузере».",
+                fmt.mini_app_text(host),
                 parse_mode="HTML",
                 reply_markup=app_kb,
             )
-        await message.answer("Популярные направления:", reply_markup=kb.popular_routes_kb())
+        await message.answer(
+            "<b>Быстрый старт</b> — популярные направления:",
+            parse_mode="HTML",
+            reply_markup=kb.popular_routes_kb(),
+        )
 
     @router.message(Command("help"))
     @router.message(F.text == "ℹ️ Помощь")
