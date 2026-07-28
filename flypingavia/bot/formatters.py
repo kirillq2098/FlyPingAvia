@@ -108,7 +108,9 @@ def format_price_card(
     if watch_id is not None:
         header = f"#{watch_id} · {header}"
     lines.append(header)
-    lines.append(f"Пассажиры в поиске: {passengers_text(adults, children, infants)}")
+    # Пассажиров в UI временно скрыли — строку показываем только если состав ≠ 1 взр.
+    if adults > 1 or children or infants:
+        lines.append(f"Пассажиры в поиске: {passengers_text(adults, children, infants)}")
     lines.append("")
 
     if quote is not None:
@@ -122,16 +124,11 @@ def format_price_card(
                 lines.append(f"Ориентир на человека: {money(quote.price_per_adult, currency)}")
         else:
             lines.append(
-                f"Сейчас: <b>{money(quote.price, currency)}</b> за 1 взр.  ·  {level_label(level)}"
+                f"Сейчас: <b>{money(quote.price, currency)}</b>  ·  {level_label(level)}"
             )
             if return_date is not None:
-                lines.append("Туда+обратно ≈ сумма двух one-way (за 1 взр.)")
-            if adults > 1 or children or infants:
-                lines.append(
-                    "<i>Живой поиск за состав недоступен — показан кэш за 1 взр.</i>"
-                )
-            else:
-                lines.append("<i>Кэш Data API — на сайте сумма может чуть отличаться</i>")
+                lines.append("Туда+обратно ≈ сумма двух one-way")
+            lines.append("<i>Кэш Data API — на сайте цена может чуть отличаться</i>")
         extras = []
         if quote.transfers is not None:
             extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
@@ -166,8 +163,7 @@ def format_price_card(
     if threshold is not None:
         lines.append("")
         lines.append(
-            f"Ваш порог ({'за всех' if (quote and quote.is_live) else 'к цене за 1 взр.'}): "
-            f"<b>{money(threshold, currency)}</b>"
+            f"Ваш порог: <b>{money(threshold, currency)}</b>"
         )
         if quote is not None:
             if quote.price <= threshold:
@@ -183,9 +179,9 @@ def welcome_text() -> str:
     return (
         "<b>FlyPingAvia</b>\n"
         "Слежу за ценами на авиабилеты и пишу, когда стало выгодно.\n\n"
-        "Можно писать <b>город</b> словами, выбрать <b>пассажиров</b> "
-        "(взрослые / дети / младенцы) и билет <b>туда-обратно</b>.\n\n"
-        "При живом поиске покажу цену <b>за всех</b>, иначе — кэш за 1 взр."
+        "Можно писать <b>город</b> словами и выбрать билет "
+        "<b>в одну сторону</b> или <b>туда-обратно</b>.\n\n"
+        "Покажу вилку цен и помогу поставить порог."
     )
 
 
@@ -193,11 +189,8 @@ def help_text() -> str:
     return (
         "<b>Как пользоваться</b>\n\n"
         "1. Нажмите <b>➕ Добавить</b> или откройте приложение\n"
-        "2. Укажите города, дату, тип поездки и пассажиров\n"
+        "2. Укажите города, дату и тип поездки\n"
         "3. Выберите порог по вилке\n\n"
-        "Живой поиск (Flight Search API) считает цену за ваш состав. "
-        "Если доступа к API ещё нет — бот показывает кэш за 1 взрослого, "
-        "а состав всё равно попадает в ссылку на Aviasales.\n\n"
         "Команда:\n"
         "<code>/watch Москва Анталья 25000</code>"
     )

@@ -180,17 +180,30 @@ async def _ask_trip_type(message: Message, state: FSMContext, depart_date: Optio
     )
 
 
-async def _ask_passengers(message: Message, state: FSMContext) -> None:
+async def _continue_to_preview(message: Message, state: FSMContext, settings: Settings, provider: PriceProvider) -> None:
+    """Пассажиров пока не спрашиваем — всегда 1 взрослый (нет Flight Search API)."""
+    await state.update_data(adults=1, children=0, infants=0)
     data = await state.get_data()
-    adults, children, infants = _pax_from_data(data)
-    await state.update_data(adults=adults, children=children, infants=infants)
-    await state.set_state(AddWatch.passengers)
-    await message.answer(
-        "Сколько пассажиров?\n"
-        "Если доступен живой поиск — цена и порог <b>за всех</b>.\n"
-        "Иначе бот покажет кэш за 1 взрослого, а состав уйдёт в ссылку Aviasales.",
-        parse_mode="HTML",
-        reply_markup=kb.passengers_kb(adults, children, infants),
+    origin = _place_from_data("origin", data)
+    destination = _place_from_data("destination", data)
+    if not origin or not destination:
+        await message.answer("Сессия истекла. Нажмите ➕ Добавить")
+        await state.clear()
+        return
+    depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
+    return_date = _return_from_data(data)
+    await _show_route_preview(
+        message,
+        settings,
+        provider,
+        state,
+        origin,
+        destination,
+        depart_date,
+        return_date=return_date,
+        adults=1,
+        children=0,
+        infants=0,
     )
 
 
@@ -602,7 +615,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             return
 
         await state.update_data(return_date=None)
-        await _ask_passengers(callback.message, state)
+        await _continue_to_preview(callback.message, state, settings, provider)
 
     @router.message(AddWatch.return_date, F.text == "📅 Обратно +7 дней")
     async def add_return_plus7(message: Message, state: FSMContext) -> None:
@@ -613,7 +626,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         else:
             return_date = date.today() + timedelta(days=14)
         await state.update_data(return_date=return_date.isoformat())
-        await _ask_passengers(message, state)
+        await _continue_to_preview(message, state, settings, provider)
 
     @router.message(AddWatch.return_date)
     async def add_return_date(message: Message, state: FSMContext) -> None:
@@ -632,66 +645,13 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 await message.answer("Дата возврата не может быть раньше вылета.")
                 return
         await state.update_data(return_date=return_date.isoformat())
-        await _ask_passengers(message, state)
+        await _continue_to_preview(message, state, settings, provider)
 
     @router.callback_query(AddWatch.passengers, F.data.startswith("pax:"))
     async def choose_passengers(callback: CallbackQuery, state: FSMContext) -> None:
-        parts = callback.data.split(":")
-        action = parts[1] if len(parts) > 1 else ""
-        data = await state.get_data()
-        adults, children, infants = _pax_from_data(data)
-
-        if action == "noop":
-            await callback.answer()
-            return
-
-        if action == "done":
-            await callback.answer()
-            origin = _place_from_data("origin", data)
-            destination = _place_from_data("destination", data)
-            if not origin or not destination:
-                await callback.message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
-                await state.clear()
-                return
-            depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
-            return_date = _return_from_data(data)
-            await _show_route_preview(
-                callback.message,
-                settings,
-                provider,
-                state,
-                origin,
-                destination,
-                depart_date,
-                return_date=return_date,
-                adults=adults,
-                children=children,
-                infants=infants,
-            )
-            return
-
-        if len(parts) < 3:
-            await callback.answer()
-            return
-        field, delta = parts[1], parts[2]
-        step = 1 if delta == "+" else -1
-        if field == "adults":
-            adults = max(1, min(9, adults + step))
-        elif field == "children":
-            children = max(0, min(9, children + step))
-        elif field == "infants":
-            infants = max(0, min(adults, infants + step))
-        await state.update_data(adults=adults, children=children, infants=infants)
+        # Старые сообщения с кнопками пассажиров — сразу к превью (1 взр.)
         await callback.answer()
-        try:
-            await callback.message.edit_reply_markup(
-                reply_markup=kb.passengers_kb(adults, children, infants)
-            )
-        except Exception:
-            await callback.message.answer(
-                "Пассажиры:",
-                reply_markup=kb.passengers_kb(adults, children, infants),
-            )
+        await _continue_to_preview(callback.message, state, settings, provider)
 
     @router.callback_query(F.data.startswith("thr:"))
     async def choose_threshold(callback: CallbackQuery, state: FSMContext) -> None:

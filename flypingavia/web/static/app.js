@@ -82,8 +82,11 @@
       return parts.join(", ");
     }
 
+    // passengers UI hidden for now
     function syncPaxUi() {
-      $("#adults-val").textContent = String(state.adults);
+      const adultsEl = $("#adults-val");
+      if (!adultsEl) return;
+      adultsEl.textContent = String(state.adults);
       $("#children-val").textContent = String(state.children);
       $("#infants-val").textContent = String(state.infants);
     }
@@ -113,10 +116,8 @@
         "<h2>" + q.origin_name + " → " + q.destination_name + "</h2>" +
         "<div class=\"meta\">" + tripLabel + "</div>" +
         "<div class=\"price-now\">" + (q.price != null ? money(q.price) : "—") + "</div>" +
-        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] +
-          (q.price_for === "passengers" ? " · за всех" : " · за 1 взр.") + "</div>" +
-        "<div class=\"meta\">состав: " + paxLabel(q) +
-          (q.source === "live_search" ? " · живой поиск" : " · кэш Data API") + "</div>" +
+        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + "</div>" +
+        (q.source === "live_search" ? "<div class=\"meta\">живой поиск</div>" : "") +
         "<div class=\"meta\">" +
           (q.origin_airport ? ("вылет " + q.origin_airport) : "") +
           (q.destination_airport ? (" · прилёт " + q.destination_airport) : "") +
@@ -166,11 +167,10 @@
         }
         box.innerHTML = items.map((w) => {
           const trip = w.return_date ? "туда-обратно" : "в одну сторону";
-          const pax = w.passengers_label || paxLabel(w);
           return (
             "<article class=\"watch-card\" data-id=\"" + w.id + "\">" +
               "<h3>" + (w.origin_name || w.origin) + " → " + (w.destination_name || w.destination) + "</h3>" +
-              "<div class=\"meta\">" + trip + " · " + pax + "</div>" +
+              "<div class=\"meta\">" + trip + "</div>" +
               "<div class=\"meta mono\">#" + w.id + " · порог " + money(w.max_price) + "</div>" +
               "<div class=\"meta\">сейчас: " + (w.last_price != null ? money(w.last_price) : "ещё не проверяли") +
                 (w.last_origin_airport ? (" · вылет " + w.last_origin_airport) : "") + "</div>" +
