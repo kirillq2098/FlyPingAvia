@@ -118,8 +118,9 @@ def format_price_card(
             per = money(quote.price_per_adult, currency)
             lines.append(
                 f"Ориентир на 1 взр.: {per}"
-                + (" (туда+обратно)" if return_date is not None else "")
+                + (" (туда+обратно)" if return_date is not None else " (в одну сторону)")
             )
+        lines.append("<i>Цена из кэша Aviasales Data — может чуть отличаться от живого поиска</i>")
         extras = []
         if quote.transfers is not None:
             extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")

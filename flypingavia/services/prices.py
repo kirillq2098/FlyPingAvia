@@ -338,6 +338,119 @@ class TravelpayoutsPriceProvider(PriceProvider):
             response.raise_for_status()
             return response.json()
 
+    def _quote(
+        self,
+        *,
+        price: float,
+        currency: str,
+        origin: str,
+        destination: str,
+        airline: Optional[str] = None,
+        transfers: Optional[int] = None,
+    ) -> PriceQuote:
+        return PriceQuote(
+            price=float(price),
+            currency=currency.upper(),
+            airline=airline,
+            transfers=transfers,
+            source="travelpayouts",
+            origin_code=origin.upper(),
+            destination_code=destination.upper(),
+        )
+
+    async def _month_matrix_items(
+        self,
+        origin: str,
+        destination: str,
+        currency: str,
+        month: date,
+    ) -> list[dict]:
+        params = {
+            "origin": origin.upper(),
+            "destination": destination.upper(),
+            "currency": currency.lower(),
+            "token": self._token,
+            "show_to_affiliates": "true",
+            "month": month.strftime("%Y-%m-%d"),
+        }
+        payload = await self._get_json(self.MONTH_MATRIX_URL, params)
+        data = payload.get("data") or []
+        return data if isinstance(data, list) else []
+
+    async def _cheapest_on_date(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        currency: str,
+    ) -> Optional[PriceQuote]:
+        """One-way на конкретную дату — через month-matrix (ближе к Aviasales)."""
+        target = depart_date.isoformat()
+        try:
+            items = await self._month_matrix_items(origin, destination, currency, depart_date)
+        except Exception:
+            items = []
+
+        exact: list[dict] = []
+        nearby: list[dict] = []
+        for item in items:
+            if not item.get("value"):
+                continue
+            # month-matrix one-way: return_date пустой
+            if item.get("return_date"):
+                continue
+            if item.get("actual") is False:
+                continue
+            dep = str(item.get("depart_date") or "")
+            if dep == target:
+                exact.append(item)
+            elif dep.startswith(depart_date.strftime("%Y-%m")):
+                nearby.append(item)
+
+        pool = exact or nearby
+        if pool:
+            best = min(pool, key=lambda x: float(x["value"]))
+            airline = best.get("airline") or None
+            gate = best.get("gate") or ""
+            if not airline and gate and "Airlines" in str(gate):
+                airline = str(gate).replace(" Airlines", "").strip() or None
+            return self._quote(
+                price=float(best["value"]),
+                currency=currency,
+                origin=origin,
+                destination=destination,
+                airline=airline,
+                transfers=best.get("number_of_changes"),
+            )
+
+        # Календарь: только one-way (без return_at) — иначе там часто «туда-обратно»
+        try:
+            params = {
+                "origin": origin.upper(),
+                "destination": destination.upper(),
+                "depart_date": depart_date.strftime("%Y-%m"),
+                "calendar_type": "departure_date",
+                "currency": currency.lower(),
+                "token": self._token,
+            }
+            payload = await self._get_json(self.CALENDAR_URL, params)
+            data = payload.get("data") or {}
+            if isinstance(data, dict):
+                item = data.get(target)
+                if isinstance(item, dict) and item.get("price") and not item.get("return_at"):
+                    return self._quote(
+                        price=float(item["price"]),
+                        currency=currency,
+                        origin=origin,
+                        destination=destination,
+                        airline=item.get("airline"),
+                        transfers=item.get("transfers"),
+                    )
+        except Exception:
+            pass
+
+        return None
+
     async def get_cheapest(
         self,
         origin: str,
@@ -345,50 +458,54 @@ class TravelpayoutsPriceProvider(PriceProvider):
         depart_date: Optional[date] = None,
         currency: str = "rub",
     ) -> Optional[PriceQuote]:
+        if depart_date is not None:
+            quote = await self._cheapest_on_date(origin, destination, depart_date, currency)
+            if quote is not None:
+                return quote
+            # Нет точной даты — берём минимум one-way по month-matrix за месяц
+            try:
+                items = await self._month_matrix_items(origin, destination, currency, depart_date)
+                one_way = [
+                    float(i["value"])
+                    for i in items
+                    if i.get("value") and not i.get("return_date") and i.get("actual") is not False
+                ]
+                if one_way:
+                    return self._quote(
+                        price=min(one_way),
+                        currency=currency,
+                        origin=origin,
+                        destination=destination,
+                    )
+            except Exception:
+                pass
+            # Не используем /v1/prices/cheap: там часто цена туда-обратно
+            # с чужой датой возврата, которой нет в поиске one-way на Aviasales.
+            return None
+
         params: dict[str, str] = {
             "origin": origin.upper(),
             "destination": destination.upper(),
             "currency": currency.lower(),
             "token": self._token,
-            "limit": "1",
+            "limit": "30",
+            "period_type": "year",
+            "sorting": "price",
+            "one_way": "true",
+            "show_to_affiliates": "true",
+            "page": "1",
         }
-        if depart_date is not None:
-            params["depart_date"] = depart_date.strftime("%Y-%m")
-            payload = await self._get_json(self.CHEAP_URL, params)
-            if not payload.get("success", True):
-                return None
-            data = payload.get("data") or {}
-            if not isinstance(data, dict):
-                return None
-            dest_block = data.get(destination.upper()) or next(iter(data.values()), None)
-            if not isinstance(dest_block, dict) or not dest_block:
-                return None
-            offer = next(iter(dest_block.values()))
-            return PriceQuote(
-                price=float(offer["price"]),
-                currency=currency.upper(),
-                airline=offer.get("airline"),
-                transfers=offer.get("transfers"),
-                source="travelpayouts",
-                origin_code=origin.upper(),
-                destination_code=destination.upper(),
-            )
-
-        params["period_type"] = "year"
-        params["sorting"] = "price"
-        params["one_way"] = "true"
         payload = await self._get_json(self.LATEST_URL, params)
         data = payload.get("data") or []
         if isinstance(data, list) and data:
-            offer = data[0]
-            return PriceQuote(
+            offer = min(data, key=lambda x: float(x.get("value") or 1e18))
+            return self._quote(
                 price=float(offer["value"]),
-                currency=currency.upper(),
+                currency=currency,
+                origin=origin,
+                destination=destination,
                 airline=offer.get("airline"),
                 transfers=offer.get("number_of_changes"),
-                source="travelpayouts",
-                origin_code=origin.upper(),
-                destination_code=destination.upper(),
             )
         return None
 
@@ -399,20 +516,17 @@ class TravelpayoutsPriceProvider(PriceProvider):
         currency: str,
         month: Optional[date] = None,
     ) -> list[float]:
-        params = {
-            "origin": origin.upper(),
-            "destination": destination.upper(),
-            "currency": currency.lower(),
-            "token": self._token,
-            "show_to_affiliates": "true",
-        }
-        if month is not None:
-            params["month"] = month.strftime("%Y-%m-%d")
-        payload = await self._get_json(self.MONTH_MATRIX_URL, params)
-        data = payload.get("data") or []
-        if not isinstance(data, list):
+        if month is None:
+            month = date.today()
+        try:
+            items = await self._month_matrix_items(origin, destination, currency, month)
+        except Exception:
             return []
-        return [float(item["value"]) for item in data if item.get("value")]
+        return [
+            float(item["value"])
+            for item in items
+            if item.get("value") and not item.get("return_date") and item.get("actual") is not False
+        ]
 
     async def _sample_calendar(
         self,
