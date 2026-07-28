@@ -910,13 +910,13 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
 
         if not watches:
             await message.answer(
-                "Подписок пока нет.\nДобавьте маршрут городом, например Москва → Анталья.",
+                "Подписок пока нет.\nНажмите ➕ Добавить — укажите города и порог.",
                 reply_markup=kb.list_empty_kb(),
             )
             return
 
         await message.answer(
-            f"Ваши маршруты: <b>{len(watches)}</b>",
+            f"<b>Ваши маршруты</b> · {len(watches)}",
             parse_mode="HTML",
             reply_markup=menu(),
         )
@@ -950,7 +950,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             ok = await repo.deactivate_watch(session, user.id, watch_id)
         await callback.answer("Удалено" if ok else "Не найдено")
         if ok:
-            await callback.message.edit_text(f"🗑 Подписка #{watch_id} удалена.")
+            await callback.message.edit_text(f"🗑 Подписка <code>#{watch_id}</code> удалена.", parse_mode="HTML")
 
     @router.callback_query(F.data.startswith("wcheck:"))
     async def cb_check_one(callback: CallbackQuery) -> None:
