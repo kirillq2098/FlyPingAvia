@@ -129,7 +129,10 @@ async def test_trip_quote_round_trip() -> None:
     assert rt.return_date == date(2026, 9, 10)
     assert rt.adults == 2
     assert rt.children == 1
+    # цена всегда за 1 взр.; RT дороже one-way, состав не умножает цену
+    assert rt.price == rt.price_per_adult
     assert rt.price > ow.price
+    assert rt.price == ow.price * 2 or rt.price > ow.price  # sum of legs or ×2 fallback
 
 
 @pytest.mark.asyncio

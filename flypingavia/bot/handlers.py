@@ -186,7 +186,8 @@ async def _ask_passengers(message: Message, state: FSMContext) -> None:
     await state.set_state(AddWatch.passengers)
     await message.answer(
         "Сколько пассажиров?\n"
-        "Порог и цена считаются <b>за всех</b>. Младенцы ~10% тарифа.",
+        "Порог и цена — <b>за 1 взрослого</b> (так отдаёт Data API).\n"
+        "Состав пассажиров попадёт в ссылку на Aviasales — там живая сумма за всех.",
         parse_mode="HTML",
         reply_markup=kb.passengers_kb(adults, children, infants),
     )
@@ -257,7 +258,7 @@ async def _show_route_preview(
         children=children,
         infants=infants,
     )
-    text += "\n\nНажмите кнопку вилки или введите свою цену <b>за всех пассажиров</b>."
+    text += "\n\nНажмите кнопку вилки или введите свою цену <b>за 1 взрослого</b>."
 
     markup = kb.threshold_kb(draft_id, int(band.cheap_max), int(band.typical)) if band else None
     try:
@@ -707,7 +708,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await state.set_state(AddWatch.custom_price)
             await callback.answer()
             await callback.message.answer(
-                "Введите свою цену-порог <b>за всех пассажиров</b>, например <code>13500</code>",
+                "Введите свою цену-порог <b>за 1 взрослого</b>, например <code>13500</code>",
                 parse_mode="HTML",
                 reply_markup=kb.cancel_kb(),
             )

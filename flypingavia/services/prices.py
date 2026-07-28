@@ -22,7 +22,7 @@ class PriceLevel(str, Enum):
 
 @dataclass(frozen=True)
 class PriceQuote:
-    price: float  # итого за всех пассажиров (и туда-обратно, если выбран RT)
+    price: float  # цена за 1 взрослого (туда+обратно = сумма двух one-way, если RT)
     currency: str
     airline: Optional[str] = None
     transfers: Optional[int] = None
@@ -40,7 +40,7 @@ class PriceQuote:
 
 
 def passenger_total(base_per_adult: float, adults: int = 1, children: int = 0, infants: int = 0) -> float:
-    """Ориентир суммы: дети ≈ полный тариф, младенцы ≈ 10%."""
+    """Грубая оценка суммы (Data API не отдаёт реальные цены за состав)."""
     adults = max(1, int(adults))
     children = max(0, int(children))
     infants = max(0, int(infants))
@@ -239,9 +239,10 @@ class PriceProvider:
                 per_adult = outbound.price + inbound.price
                 return_origin = inbound.origin_code
 
-        total = passenger_total(per_adult, adults, children, infants)
+        # Data API всегда отдаёт цену за 1 взрослого — не умножаем на состав.
+        # Пассажиры нужны для ссылки на Aviasales (там живой поиск за всех).
         return PriceQuote(
-            price=total,
+            price=float(per_adult),
             currency=outbound.currency,
             airline=outbound.airline,
             transfers=outbound.transfers,
@@ -250,7 +251,7 @@ class PriceProvider:
             destination_code=outbound.destination_code,
             searched_origins=outbound.searched_origins,
             searched_destinations=outbound.searched_destinations,
-            price_per_adult=per_adult,
+            price_per_adult=float(per_adult),
             adults=max(1, adults),
             children=max(0, children),
             infants=max(0, infants),
@@ -270,14 +271,13 @@ class PriceProvider:
         infants: int = 0,
         currency: str = "rub",
     ) -> Optional[PriceBand]:
+        _ = (adults, children, infants)  # вилка тоже за 1 взр.
         band = await self.get_price_band_across(origins, destinations, depart_date, currency)
         if band is None:
             return None
-        # пассажиры
-        pax_mult = passenger_total(1.0, adults, children, infants)
-        # туда-обратно ≈ ×2 к вилке one-way
+        # туда-обратно ≈ ×2 к вилке one-way (оценка суммы двух сегментов)
         rt_mult = 2.0 if return_date is not None else 1.0
-        return scale_band(band, pax_mult * rt_mult)
+        return scale_band(band, rt_mult)
 
 
 class DemoPriceProvider(PriceProvider):

@@ -111,12 +111,10 @@
       box.classList.remove("hidden");
       box.innerHTML =
         "<h2>" + q.origin_name + " → " + q.destination_name + "</h2>" +
-        "<div class=\"meta\">" + tripLabel + " · " + paxLabel(q) + "</div>" +
+        "<div class=\"meta\">" + tripLabel + "</div>" +
         "<div class=\"price-now\">" + (q.price != null ? money(q.price) : "—") + "</div>" +
-        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + " · за всех</div>" +
-        (q.price_per_adult != null
-          ? ("<div class=\"meta\">ориентир на 1 взр.: " + money(q.price_per_adult) + "</div>")
-          : "") +
+        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + " · за 1 взр.</div>" +
+        "<div class=\"meta\">состав в поиске: " + paxLabel(q) + " — сумма за всех на Aviasales</div>" +
         "<div class=\"meta\">" +
           (q.origin_airport ? ("вылет " + q.origin_airport) : "") +
           (q.destination_airport ? (" · прилёт " + q.destination_airport) : "") +

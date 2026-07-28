@@ -108,19 +108,15 @@ def format_price_card(
     if watch_id is not None:
         header = f"#{watch_id} · {header}"
     lines.append(header)
-    lines.append(f"Пассажиры: {passengers_text(adults, children, infants)}")
+    lines.append(f"Пассажиры в поиске: {passengers_text(adults, children, infants)}")
     lines.append("")
 
     if quote is not None:
         level = band.classify(quote.price) if band else PriceLevel.UNKNOWN
-        lines.append(f"Итого: <b>{money(quote.price, currency)}</b>  ·  {level_label(level)}")
-        if quote.price_per_adult is not None:
-            per = money(quote.price_per_adult, currency)
-            lines.append(
-                f"Ориентир на 1 взр.: {per}"
-                + (" (туда+обратно)" if return_date is not None else " (в одну сторону)")
-            )
-        lines.append("<i>Цена из кэша Aviasales Data — может чуть отличаться от живого поиска</i>")
+        lines.append(f"Сейчас: <b>{money(quote.price, currency)}</b> за 1 взр.  ·  {level_label(level)}")
+        if return_date is not None:
+            lines.append("Туда+обратно ≈ сумма двух one-way (за 1 взр.)")
+        lines.append("<i>Точная сумма за всех — на Aviasales; кэш Data API часто чуть другой</i>")
         extras = []
         if quote.transfers is not None:
             extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
@@ -154,7 +150,7 @@ def format_price_card(
 
     if threshold is not None:
         lines.append("")
-        lines.append(f"Ваш порог (за всех): <b>{money(threshold, currency)}</b>")
+        lines.append(f"Ваш порог (к цене за 1 взр.): <b>{money(threshold, currency)}</b>")
         if quote is not None:
             if quote.price <= threshold:
                 lines.append("✅ уже ниже порога")
@@ -171,7 +167,7 @@ def welcome_text() -> str:
         "Слежу за ценами на авиабилеты и пишу, когда стало выгодно.\n\n"
         "Можно писать <b>город</b> словами, выбрать <b>пассажиров</b> "
         "(взрослые / дети / младенцы) и билет <b>туда-обратно</b>.\n\n"
-        "Покажу вилку цен и помогу поставить порог."
+        "Покажу вилку цен за 1 взрослого и помогу поставить порог."
     )
 
 
@@ -181,7 +177,8 @@ def help_text() -> str:
         "1. Нажмите <b>➕ Добавить</b> или откройте приложение\n"
         "2. Укажите города, дату, тип поездки и пассажиров\n"
         "3. Выберите порог по вилке\n\n"
-        "Дети 2–12 и младенцы 0–2 учитываются в сумме и в ссылке на билеты.\n\n"
+        "Дети и младенцы учитываются в ссылке на билеты; "
+        "порог сравнивается с ценой за 1 взрослого из кэша.\n\n"
         "Команда:\n"
         "<code>/watch Москва Анталья 25000</code>"
     )
