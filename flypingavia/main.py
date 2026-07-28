@@ -82,18 +82,15 @@ async def _async_main() -> None:
     )
 
     if settings.webapp_url:
+        # Menu button в Telegram часто кэширует старый tunnel URL (Error 1033).
+        # Надёжнее обновлять WebApp через reply/inline-кнопки после /start.
         try:
-            from aiogram.types import MenuButtonWebApp, WebAppInfo
+            from aiogram.types import MenuButtonCommands
 
-            await bot.set_chat_menu_button(
-                menu_button=MenuButtonWebApp(
-                    text="Приложение",
-                    web_app=WebAppInfo(url=settings.webapp_url.rstrip("/") + "/"),
-                )
-            )
-            logger.info("Chat menu button WebApp установлен")
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            logger.info("Chat menu button сброшен в commands (WebApp — через /start)")
         except Exception:
-            logger.exception("Не удалось установить menu button")
+            logger.exception("Не удалось сбросить menu button")
 
     try:
         await asyncio.gather(
