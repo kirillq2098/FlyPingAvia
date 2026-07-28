@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>FlyPingAvia</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+  <main class="app">
+    <header class="hero">
+      <div class="brand">FlyPingAvia</div>
+      <p class="tagline">Следите за ценой. Покупайте вовремя.</p>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="search" type="button">Поиск</button>
+      <button class="tab" data-tab="watches" type="button">Подписки</button>
+    </nav>
+
+    <section id="panel-search" class="panel active">
+      <form id="search-form" class="stack">
+        <label class="field">
+          <span>Откуда</span>
+          <input id="origin" name="origin" placeholder="Москва / MOW" autocomplete="off" required />
+          <div id="origin-hint" class="hint"></div>
+        </label>
+        <label class="field">
+          <span>Куда</span>
+          <input id="destination" name="destination" placeholder="Анталья / AYT" autocomplete="off" required />
+          <div id="destination-hint" class="hint"></div>
+        </label>
+        <label class="field">
+          <span>Дата (необязательно)</span>
+          <input id="depart" name="depart" type="date" />
+        </label>
+        <button class="btn primary" type="submit" id="search-btn">Показать вилку цен</button>
+      </form>
+
+      <div id="quote" class="quote hidden"></div>
+
+      <form id="watch-form" class="stack watch-form hidden">
+        <label class="field">
+          <span>Порог слежения, ₽</span>
+          <input id="threshold" name="threshold" type="number" min="1" step="100" required />
+        </label>
+        <div class="btn-row">
+          <button type="button" class="btn ghost" data-preset="cheap">Дёшево</button>
+          <button type="button" class="btn ghost" data-preset="typical">Обычно</button>
+        </div>
+        <button class="btn primary" type="submit">Следить за ценой</button>
+      </form>
+    </section>
+
+    <section id="panel-watches" class="panel">
+      <div id="watches" class="watches"></div>
+      <button class="btn ghost full" type="button" id="refresh-watches">Обновить</button>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

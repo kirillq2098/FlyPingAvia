@@ -247,6 +247,10 @@ async def _confirm_watch_message(
 
 def create_router(settings: Settings, checker: PriceChecker, provider: PriceProvider) -> Router:
     router = Router(name="main")
+    webapp = (settings.webapp_url or "").strip() or None
+
+    def menu():
+        return kb.main_menu(webapp)
 
     @router.message(CommandStart())
     async def cmd_start(message: Message, state: FSMContext) -> None:

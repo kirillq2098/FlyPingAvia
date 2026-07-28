@@ -5,12 +5,20 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 
-def main_menu() -> ReplyKeyboardMarkup:
+def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
+    if webapp_url:
+        builder.row(
+            KeyboardButton(
+                text="🛩 Открыть приложение",
+                web_app=WebAppInfo(url=webapp_url),
+            )
+        )
     builder.row(
         KeyboardButton(text="➕ Добавить"),
         KeyboardButton(text="📋 Мои маршруты"),

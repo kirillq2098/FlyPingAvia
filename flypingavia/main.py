@@ -4,11 +4,13 @@ import asyncio
 import logging
 from pathlib import Path
 
+import uvicorn
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from flypingavia.api.app import create_api
 from flypingavia.bot.handlers import create_dispatcher
 from flypingavia.config import get_settings
 from flypingavia.db.session import init_db
@@ -27,21 +29,19 @@ async def _async_main() -> None:
             "Укажите BOT_TOKEN в .env (см. .env.example). Токен выдаёт @BotFather."
         )
 
-    # Гарантируем каталог для SQLite
     if settings.database_url.startswith("sqlite"):
         db_path = settings.database_url.split("///")[-1]
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     await init_db()
 
-    # Справочник городов/аэропортов
     from flypingavia.services.locations import get_location_directory
 
     try:
         await get_location_directory().ensure_loaded()
         logger.info("Справочник городов загружен")
     except Exception:
-        logger.exception("Не удалось загрузить справочник городов — распознавание имён может не работать")
+        logger.exception("Не удалось загрузить справочник городов")
 
     bot = Bot(
         token=settings.bot_token,
@@ -60,15 +60,32 @@ async def _async_main() -> None:
         coalesce=True,
     )
     scheduler.start()
+
+    api = create_api(settings)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            api,
+            host=settings.webapp_host,
+            port=settings.webapp_port,
+            log_level="info",
+            loop="asyncio",
+        )
+    )
+
     logger.info(
-        "FlyPingAvia v0.1.0 started (interval=%ss, demo=%s, currency=%s)",
+        "FlyPingAvia started (interval=%ss, demo=%s, webapp=%s:%s, url=%s)",
         interval,
         settings.is_demo_prices,
-        settings.currency.upper(),
+        settings.webapp_host,
+        settings.webapp_port,
+        settings.webapp_url or "(не задан — кнопка Mini App скрыта)",
     )
 
     try:
-        await dp.start_polling(bot)
+        await asyncio.gather(
+            dp.start_polling(bot),
+            server.serve(),
+        )
     finally:
         scheduler.shutdown(wait=False)
         await bot.session.close()

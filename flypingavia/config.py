@@ -58,6 +58,24 @@ class Settings(BaseSettings):
         default="rub",
         validation_alias=AliasChoices("CURRENCY", "currency"),
     )
+    webapp_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("WEBAPP_URL", "webapp_url"),
+        description="Публичный HTTPS URL Mini App, например https://xxx.ngrok.io",
+    )
+    webapp_host: str = Field(
+        default="0.0.0.0",
+        validation_alias=AliasChoices("WEBAPP_HOST", "webapp_host"),
+    )
+    webapp_port: int = Field(
+        default=8080,
+        validation_alias=AliasChoices("WEBAPP_PORT", "webapp_port"),
+    )
+    # Только для локальной отладки Mini App в браузере без Telegram
+    webapp_dev_user_id: int = Field(
+        default=0,
+        validation_alias=AliasChoices("WEBAPP_DEV_USER_ID", "webapp_dev_user_id"),
+    )
 
     @model_validator(mode="after")
     def _apply_db_path(self) -> Settings:
