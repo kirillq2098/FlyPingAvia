@@ -259,8 +259,20 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await get_location_directory().ensure_loaded()
         await message.answer(fmt.welcome_text(), parse_mode="HTML", reply_markup=menu())
         app_kb = kb.open_app_kb(webapp)
-        if app_kb:
-            await message.answer("Приложение внутри Telegram:", reply_markup=app_kb)
+        if app_kb and webapp:
+            from urllib.parse import urlparse
+
+            host = urlparse(webapp).hostname or webapp
+            await message.answer(
+                "Приложение внутри Telegram:\n\n"
+                "Если на телефоне не открывается — один раз укажите домен в @BotFather:\n"
+                "1. Откройте @BotFather → /mybots → ваш бот\n"
+                "2. Bot Settings → Domain\n"
+                f"3. Вставьте: <code>{host}</code>\n\n"
+                "Либо откройте через кнопку «в браузере».",
+                parse_mode="HTML",
+                reply_markup=app_kb,
+            )
         await message.answer("Популярные направления:", reply_markup=kb.popular_routes_kb())
 
     @router.message(Command("help"))
