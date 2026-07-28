@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 from hashlib import md5
-from typing import Optional
+from statistics import median
+from typing import Optional, Sequence
 from urllib.parse import urlencode
 
 import httpx
 
 from flypingavia.config import Settings
+
+
+class PriceLevel(str, Enum):
+    CHEAP = "cheap"
+    NORMAL = "normal"
+    EXPENSIVE = "expensive"
+    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)
@@ -18,6 +27,66 @@ class PriceQuote:
     airline: Optional[str] = None
     transfers: Optional[int] = None
     source: str = "demo"
+
+
+@dataclass(frozen=True)
+class PriceBand:
+    """Вилка цен: дёшево / обычно / дорого."""
+
+    cheap_max: float
+    typical: float
+    expensive_min: float
+    sample_size: int
+    currency: str = "RUB"
+    source: str = "demo"
+
+    def classify(self, price: float) -> PriceLevel:
+        if price <= self.cheap_max:
+            return PriceLevel.CHEAP
+        if price >= self.expensive_min:
+            return PriceLevel.EXPENSIVE
+        return PriceLevel.NORMAL
+
+
+def compute_price_band(prices: Sequence[float], currency: str = "RUB", source: str = "api") -> Optional[PriceBand]:
+    values = sorted(float(p) for p in prices if p and p > 0)
+    if not values:
+        return None
+    if len(values) == 1:
+        p = values[0]
+        return PriceBand(
+            cheap_max=round(p * 0.9),
+            typical=round(p),
+            expensive_min=round(p * 1.2),
+            sample_size=1,
+            currency=currency.upper(),
+            source=source,
+        )
+
+    n = len(values)
+
+    def percentile(pct: float) -> float:
+        idx = int(round((n - 1) * pct))
+        return values[max(0, min(n - 1, idx))]
+
+    cheap_max = percentile(0.25)
+    typical = float(median(values))
+    expensive_min = percentile(0.75)
+
+    # Гарантируем порядок и заметный разброс
+    if cheap_max >= typical:
+        cheap_max = max(values[0], typical * 0.85)
+    if expensive_min <= typical:
+        expensive_min = typical * 1.2
+
+    return PriceBand(
+        cheap_max=round(cheap_max),
+        typical=round(typical),
+        expensive_min=round(expensive_min),
+        sample_size=n,
+        currency=currency.upper(),
+        source=source,
+    )
 
 
 class PriceProvider:
@@ -30,9 +99,23 @@ class PriceProvider:
     ) -> Optional[PriceQuote]:
         raise NotImplementedError
 
+    async def get_price_band(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: Optional[date] = None,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        raise NotImplementedError
+
 
 class DemoPriceProvider(PriceProvider):
     """Синтетические цены для локальной разработки без API-токена."""
+
+    def _base(self, origin: str, destination: str, depart_date: Optional[date]) -> int:
+        seed = f"{origin}:{destination}:{depart_date or 'any'}".upper()
+        digest = int(md5(seed.encode()).hexdigest()[:8], 16)
+        return 4_000 + (digest % 40_000)
 
     async def get_cheapest(
         self,
@@ -41,19 +124,27 @@ class DemoPriceProvider(PriceProvider):
         depart_date: Optional[date] = None,
         currency: str = "rub",
     ) -> Optional[PriceQuote]:
-        seed = f"{origin}:{destination}:{depart_date or 'any'}".upper()
-        digest = int(md5(seed.encode()).hexdigest()[:8], 16)
-        base = 4_000 + (digest % 40_000)
-        # Лёгкая «волатильность» по дню, чтобы алерты срабатывали в demo
-        day_factor = (date.today().toordinal() + digest) % 7
+        base = self._base(origin, destination, depart_date)
+        day_factor = (date.today().toordinal() + base) % 7
         price = float(base - day_factor * 350)
         return PriceQuote(
             price=max(price, 1_500.0),
             currency=currency.upper(),
             airline="DP",
-            transfers=digest % 3,
+            transfers=base % 3,
             source="demo",
         )
+
+    async def get_price_band(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: Optional[date] = None,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        base = float(self._base(origin, destination, depart_date))
+        samples = [base * f for f in (0.72, 0.85, 0.95, 1.0, 1.1, 1.25, 1.45, 1.7)]
+        return compute_price_band(samples, currency=currency, source="demo")
 
 
 class TravelpayoutsPriceProvider(PriceProvider):
@@ -61,10 +152,18 @@ class TravelpayoutsPriceProvider(PriceProvider):
 
     CHEAP_URL = "https://api.travelpayouts.com/v1/prices/cheap"
     LATEST_URL = "https://api.travelpayouts.com/v2/prices/latest"
+    CALENDAR_URL = "https://api.travelpayouts.com/v1/prices/calendar"
+    MONTH_MATRIX_URL = "https://api.travelpayouts.com/v2/prices/month-matrix"
 
     def __init__(self, token: str, timeout: float = 20.0) -> None:
         self._token = token
         self._timeout = timeout
+
+    async def _get_json(self, url: str, params: dict[str, str]) -> dict:
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
 
     async def get_cheapest(
         self,
@@ -82,24 +181,10 @@ class TravelpayoutsPriceProvider(PriceProvider):
         }
         if depart_date is not None:
             params["depart_date"] = depart_date.strftime("%Y-%m")
-            url = self.CHEAP_URL
-        else:
-            params["period_type"] = "year"
-            params["sorting"] = "price"
-            params["one_way"] = "true"
-            url = self.LATEST_URL
-
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            payload = response.json()
-
-        if not payload.get("success", True):
-            return None
-
-        data = payload.get("data") or {}
-        if depart_date is not None:
-            # cheap API: { "IST": { "0": { "price": ... } } }
+            payload = await self._get_json(self.CHEAP_URL, params)
+            if not payload.get("success", True):
+                return None
+            data = payload.get("data") or {}
             if not isinstance(data, dict):
                 return None
             dest_block = data.get(destination.upper()) or next(iter(data.values()), None)
@@ -114,7 +199,11 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 source="travelpayouts",
             )
 
-        # latest API: list of offers
+        params["period_type"] = "year"
+        params["sorting"] = "price"
+        params["one_way"] = "true"
+        payload = await self._get_json(self.LATEST_URL, params)
+        data = payload.get("data") or []
         if isinstance(data, list) and data:
             offer = data[0]
             return PriceQuote(
@@ -125,6 +214,117 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 source="travelpayouts",
             )
         return None
+
+    async def _sample_month_matrix(
+        self,
+        origin: str,
+        destination: str,
+        currency: str,
+        month: Optional[date] = None,
+    ) -> list[float]:
+        params = {
+            "origin": origin.upper(),
+            "destination": destination.upper(),
+            "currency": currency.lower(),
+            "token": self._token,
+            "show_to_affiliates": "true",
+        }
+        if month is not None:
+            params["month"] = month.strftime("%Y-%m-%d")
+        payload = await self._get_json(self.MONTH_MATRIX_URL, params)
+        data = payload.get("data") or []
+        if not isinstance(data, list):
+            return []
+        return [float(item["value"]) for item in data if item.get("value")]
+
+    async def _sample_calendar(
+        self,
+        origin: str,
+        destination: str,
+        year_month: str,
+        currency: str,
+    ) -> list[float]:
+        params = {
+            "origin": origin.upper(),
+            "destination": destination.upper(),
+            "depart_date": year_month,
+            "calendar_type": "departure_date",
+            "currency": currency.lower(),
+            "token": self._token,
+        }
+        payload = await self._get_json(self.CALENDAR_URL, params)
+        if not payload.get("success", True):
+            return []
+        data = payload.get("data") or {}
+        if not isinstance(data, dict):
+            return []
+        prices: list[float] = []
+        for item in data.values():
+            if not isinstance(item, dict) or not item.get("price"):
+                continue
+            # Берём только one-way: у туда-обратно обычно заполнен return_at
+            if item.get("return_at"):
+                continue
+            prices.append(float(item["price"]))
+        return prices
+
+    async def _sample_latest(
+        self,
+        origin: str,
+        destination: str,
+        currency: str,
+    ) -> list[float]:
+        params = {
+            "origin": origin.upper(),
+            "destination": destination.upper(),
+            "currency": currency.lower(),
+            "token": self._token,
+            "period_type": "year",
+            "page": "1",
+            "limit": "100",
+            "show_to_affiliates": "true",
+            "one_way": "true",
+        }
+        payload = await self._get_json(self.LATEST_URL, params)
+        data = payload.get("data") or []
+        if not isinstance(data, list):
+            return []
+        return [float(item["value"]) for item in data if item.get("value")]
+
+    async def get_price_band(
+        self,
+        origin: str,
+        destination: str,
+        depart_date: Optional[date] = None,
+        currency: str = "rub",
+    ) -> Optional[PriceBand]:
+        samples: list[float] = []
+        try:
+            if depart_date is not None:
+                # Календарь часто отдаёт туда-обратно — для one-way берём матрицу месяца
+                samples.extend(
+                    await self._sample_month_matrix(origin, destination, currency, depart_date)
+                )
+                one_way_calendar = await self._sample_calendar(
+                    origin, destination, depart_date.strftime("%Y-%m"), currency
+                )
+                samples.extend(one_way_calendar)
+            else:
+                today = date.today()
+                for offset in range(0, 6):
+                    month_index = today.month - 1 + offset
+                    month = date(today.year + month_index // 12, month_index % 12 + 1, 1)
+                    samples.extend(
+                        await self._sample_month_matrix(origin, destination, currency, month)
+                    )
+            samples.extend(await self._sample_latest(origin, destination, currency))
+        except Exception:
+            if len(samples) < 3:
+                quote = await self.get_cheapest(origin, destination, depart_date, currency)
+                if quote is None:
+                    return None
+                samples = [quote.price]
+        return compute_price_band(samples, currency=currency, source="travelpayouts")
 
 
 def build_price_provider(settings: Settings) -> PriceProvider:

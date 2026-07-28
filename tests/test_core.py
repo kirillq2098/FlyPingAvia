@@ -9,7 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Base
-from flypingavia.services.prices import DemoPriceProvider, build_affiliate_url
+from flypingavia.services.prices import (
+    DemoPriceProvider,
+    PriceLevel,
+    build_affiliate_url,
+    compute_price_band,
+)
+from flypingavia.bot.formatters import format_band_block, format_price_card, money
+
 
 
 @pytest_asyncio.fixture
@@ -100,3 +107,42 @@ def test_settings_aliases_from_user_env(monkeypatch) -> None:
     assert s.poll_interval_seconds == 60
     assert "avia_bot.sqlite3" in s.database_url
     assert s.currency == "rub"
+
+
+def test_compute_price_band_levels() -> None:
+    band = compute_price_band([5000, 7000, 9000, 11000, 15000, 20000], currency="RUB")
+    assert band is not None
+    assert band.cheap_max < band.typical < band.expensive_min
+    assert band.classify(band.cheap_max) == PriceLevel.CHEAP
+    assert band.classify(band.typical) == PriceLevel.NORMAL
+    assert band.classify(band.expensive_min) == PriceLevel.EXPENSIVE
+
+
+@pytest.mark.asyncio
+async def test_demo_price_band() -> None:
+    provider = DemoPriceProvider()
+    band = await provider.get_price_band("MOW", "AYT")
+    assert band is not None
+    assert band.sample_size >= 3
+    assert "дёшево" in format_band_block(band)
+
+
+def test_money_and_card_format() -> None:
+    assert money(12345, "RUB") == "12 345 ₽"
+    from flypingavia.services.prices import PriceBand, PriceQuote
+
+    band = PriceBand(7000, 10000, 15000, sample_size=10)
+    quote = PriceQuote(7200, "RUB", transfers=0)
+    text = format_price_card(
+        origin="MOW",
+        destination="AYT",
+        depart_date=date(2026, 9, 10),
+        quote=quote,
+        band=band,
+        threshold=8000,
+        watch_id=1,
+    )
+    assert "MOW → AYT" in text
+    assert "Вилка по маршруту" in text
+    assert "дёшево" in text
+

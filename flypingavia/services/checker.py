@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from aiogram import Bot
 from aiogram.enums import ParseMode
 
+from flypingavia.bot import formatters as fmt
+from flypingavia.bot import keyboards as kb
 from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Watch
@@ -36,6 +38,12 @@ class PriceChecker:
                     depart_date=watch.depart_date,
                     currency=watch.currency.lower(),
                 )
+                band = await self.provider.get_price_band(
+                    origin=watch.origin,
+                    destination=watch.destination,
+                    depart_date=watch.depart_date,
+                    currency=watch.currency.lower(),
+                )
             except Exception:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
                 continue
@@ -53,7 +61,6 @@ class PriceChecker:
 
                 fresh.last_price = quote.price
                 fresh.last_checked_at = datetime.now(timezone.utc)
-                # Пока без антиспама: алерт при каждом попадании под порог
                 should_alert = quote.price <= fresh.max_price
                 if should_alert:
                     fresh.last_alert_price = quote.price
@@ -80,19 +87,15 @@ class PriceChecker:
                 marker=self.settings.affiliate_marker,
                 depart_date=snapshot.depart_date,
             )
-            transfers = (
-                f", пересадок: {quote.transfers}"
-                if quote.transfers is not None
-                else ""
-            )
-            price_fmt = f"{int(quote.price):,}".replace(",", " ")
-            max_fmt = f"{int(snapshot.max_price):,}".replace(",", " ")
-            text = (
-                f"🔔 <b>Цена ниже порога!</b>\n"
-                f"{snapshot.route_label}\n"
-                f"Сейчас: <b>{price_fmt} {quote.currency}</b>{transfers}\n"
-                f"Ваш порог: {max_fmt} {snapshot.currency}\n"
-                f'<a href="{link}">Смотреть билеты</a>'
+            text = fmt.format_price_card(
+                origin=snapshot.origin,
+                destination=snapshot.destination,
+                depart_date=snapshot.depart_date,
+                quote=quote,
+                band=band,
+                threshold=snapshot.max_price,
+                title="Цена ниже порога!",
+                watch_id=snapshot.id,
             )
 
             try:
@@ -100,6 +103,7 @@ class PriceChecker:
                     chat_id=telegram_id,
                     text=text,
                     parse_mode=ParseMode.HTML,
+                    reply_markup=kb.watch_actions_kb(snapshot.id, link),
                     disable_web_page_preview=True,
                 )
                 alerts += 1
