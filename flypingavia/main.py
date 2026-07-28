@@ -81,6 +81,20 @@ async def _async_main() -> None:
         settings.webapp_url or "(не задан — кнопка Mini App скрыта)",
     )
 
+    if settings.webapp_url:
+        try:
+            from aiogram.types import MenuButtonWebApp, WebAppInfo
+
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="Приложение",
+                    web_app=WebAppInfo(url=settings.webapp_url.rstrip("/") + "/"),
+                )
+            )
+            logger.info("Chat menu button WebApp установлен")
+        except Exception:
+            logger.exception("Не удалось установить menu button")
+
     try:
         await asyncio.gather(
             dp.start_polling(bot),

@@ -110,6 +110,19 @@ def after_watch_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def open_app_kb(webapp_url: str | None = None) -> InlineKeyboardMarkup | None:
+    if not webapp_url:
+        return None
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="🛩 Открыть приложение",
+            web_app=WebAppInfo(url=webapp_url),
+        )
+    )
+    return builder.as_markup()
+
+
 def places_kb(prefix: str, places: list) -> InlineKeyboardMarkup:
     """prefix: pick_origin | pick_dest"""
     builder = InlineKeyboardBuilder()

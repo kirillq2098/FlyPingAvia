@@ -131,7 +131,7 @@ async def _show_route_preview(
     destination: Place,
     depart_date: Optional[date],
 ) -> None:
-    wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=kb.main_menu())
+    wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=menu())
     quote, band = await _fetch_quote_band(
         provider, origin, destination, depart_date, settings.currency
     )
@@ -242,7 +242,7 @@ async def _confirm_watch_message(
         reply_markup=kb.after_watch_kb(watch_id, link),
         disable_web_page_preview=True,
     )
-    await target.answer("Главное меню:", reply_markup=kb.main_menu())
+    await target.answer("Главное меню:", reply_markup=menu())
 
 
 def create_router(settings: Settings, checker: PriceChecker, provider: PriceProvider) -> Router:
@@ -257,18 +257,21 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await state.clear()
         await _ensure_user(message)
         await get_location_directory().ensure_loaded()
-        await message.answer(fmt.welcome_text(), parse_mode="HTML", reply_markup=kb.main_menu())
+        await message.answer(fmt.welcome_text(), parse_mode="HTML", reply_markup=menu())
+        app_kb = kb.open_app_kb(webapp)
+        if app_kb:
+            await message.answer("Приложение внутри Telegram:", reply_markup=app_kb)
         await message.answer("Популярные направления:", reply_markup=kb.popular_routes_kb())
 
     @router.message(Command("help"))
     @router.message(F.text == "ℹ️ Помощь")
     async def cmd_help(message: Message) -> None:
-        await message.answer(fmt.help_text(), parse_mode="HTML", reply_markup=kb.main_menu())
+        await message.answer(fmt.help_text(), parse_mode="HTML", reply_markup=menu())
 
     @router.message(F.text == "❌ Отмена")
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer("Отменил. Можно начать снова.", reply_markup=kb.main_menu())
+        await message.answer("Отменил. Можно начать снова.", reply_markup=menu())
 
     @router.message(Command("add"))
     @router.message(F.text == "➕ Добавить")
@@ -417,7 +420,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         origin = _place_from_data("origin", data)
         destination = _place_from_data("destination", data)
         if not origin or not destination:
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=kb.main_menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             await state.clear()
             return
         await _show_route_preview(message, settings, provider, state, origin, destination, None)
@@ -435,7 +438,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         origin = _place_from_data("origin", data)
         destination = _place_from_data("destination", data)
         if not origin or not destination:
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=kb.main_menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             await state.clear()
             return
         await _show_route_preview(message, settings, provider, state, origin, destination, depart_date)
@@ -483,7 +486,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         data = await state.get_data()
         if not data.get("origin_code"):
             await state.clear()
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=kb.main_menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             return
         watch_id = await _create_watch_from_state(
             telegram_id=message.from_user.id,
@@ -668,7 +671,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await message.answer(
             f"Ваши маршруты: <b>{len(watches)}</b>",
             parse_mode="HTML",
-            reply_markup=kb.main_menu(),
+            reply_markup=menu(),
         )
         for w in watches:
             await _render_watch_card(message, w)
@@ -687,7 +690,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             ok = await repo.deactivate_watch(session, user.id, watch_id)
         await message.answer(
             f"Подписка #{watch_id} удалена." if ok else "Не нашёл такую подписку.",
-            reply_markup=kb.main_menu(),
+            reply_markup=menu(),
         )
 
     @router.callback_query(F.data.startswith("wdel:"))
@@ -737,7 +740,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     @router.message(Command("check"))
     @router.message(F.text == "🔄 Проверить цены")
     async def cmd_check(message: Message) -> None:
-        await message.answer("Проверяю все маршруты…", reply_markup=kb.main_menu())
+        await message.answer("Проверяю все маршруты…", reply_markup=menu())
         alerts = await checker.run_once()
         async with session_scope() as session:
             user = await repo.get_or_create_user(
@@ -759,7 +762,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     async def fallback(message: Message) -> None:
         await message.answer(
             "Выберите действие на клавиатуре или нажмите ℹ️ Помощь",
-            reply_markup=kb.main_menu(),
+            reply_markup=menu(),
         )
 
     return router
