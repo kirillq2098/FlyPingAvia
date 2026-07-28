@@ -118,7 +118,7 @@ class PriceChecker:
                 quote=quote,
                 band=band,
                 threshold=snapshot.max_price,
-                title="Цена ниже порога!",
+                title="🔔 Цена ниже порога",
                 watch_id=snapshot.id,
                 origin_name=snapshot.origin_name,
                 destination_name=snapshot.destination_name,

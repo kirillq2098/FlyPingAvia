@@ -202,21 +202,27 @@ def test_money_and_card_format() -> None:
     from flypingavia.services.prices import PriceBand, PriceQuote
 
     band = PriceBand(7000, 10000, 15000, sample_size=10)
-    quote = PriceQuote(7200, "RUB", transfers=0)
+    quote = PriceQuote(7200, "RUB", transfers=0, airline="S7", origin_code="OVB", destination_code="SGC")
     text = format_price_card(
-        origin="MOW",
-        destination="AYT",
-        depart_date=date(2026, 9, 10),
+        origin="OVB",
+        destination="SGC",
+        depart_date=date(2026, 7, 30),
         quote=quote,
         band=band,
-        threshold=8000,
-        watch_id=1,
-        origin_name="Москва",
-        destination_name="Анталья",
+        threshold=50000,
+        watch_id=3,
+        origin_name="Новосибирск",
+        destination_name="Сургут",
+        title="🔔 Цена ниже порога",
     )
-    assert "Москва" in text
-    assert "Вилка по маршруту" in text
+    assert "Новосибирск" in text
+    assert "Рынок по маршруту" in text
     assert "дёшево" in text
+    assert "Ваш порог" in text
+    assert "ниже порога" in text
+    assert "Относительно рынка" in text
+    assert "Пассажиры" not in text
+    assert "Итого:" not in text
 
 
 @pytest.mark.asyncio

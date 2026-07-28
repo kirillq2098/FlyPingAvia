@@ -215,17 +215,22 @@
       const box = $("#quote");
       const lvl = levelLabel(q.level);
       const tripLabel = q.return_date ? "туда-обратно" : "в одну сторону";
+      const dateBits = [];
+      if (q.depart_date) dateBits.push(q.depart_date);
+      if (q.return_date) dateBits.push("⇄ " + q.return_date);
       box.classList.remove("hidden");
       box.innerHTML =
         "<h2>" + q.origin_name + " → " + q.destination_name + "</h2>" +
-        "<div class=\"meta\">" + tripLabel + "</div>" +
+        "<div class=\"meta\">" + tripLabel + (dateBits.length ? " · " + dateBits.join(" ") : "") + "</div>" +
         "<div class=\"price-now\">" + (q.price != null ? money(q.price) : "—") + "</div>" +
-        "<div class=\"level " + lvl[0] + "\">● сейчас " + lvl[1] + "</div>" +
-        (q.source === "live_search" ? "<div class=\"meta\">живой поиск</div>" : "") +
+        (lvl[0]
+          ? ("<div class=\"level " + lvl[0] + "\">относительно рынка · " + lvl[1] + "</div>")
+          : "") +
         "<div class=\"meta\">" +
           (q.origin_airport ? ("вылет " + q.origin_airport) : "") +
           (q.destination_airport ? (" · прилёт " + q.destination_airport) : "") +
           (q.transfers === 0 ? " · прямой" : (q.transfers != null ? (" · пересадок: " + q.transfers) : "")) +
+          (q.airline ? (" · " + q.airline) : "") +
         "</div>" +
         (q.airports_note ? ("<div class=\"meta\">" + q.airports_note + "</div>") : "") +
         "<div class=\"band\">" +

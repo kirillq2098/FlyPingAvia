@@ -263,7 +263,7 @@ async def _show_route_preview(
         depart_date=depart_date,
         quote=quote,
         band=band,
-        title="Выберите порог слежения",
+        title="📊 Выберите порог",
         origin_name=origin.name,
         destination_name=destination.name,
         airport_note=_airport_note(origin, destination),
@@ -272,7 +272,7 @@ async def _show_route_preview(
         children=children,
         infants=infants,
     )
-    text += "\n\nНажмите кнопку вилки или введите свою цену-порог."
+    text += "\n\nВыберите порог кнопкой или введите свою сумму."
 
     markup = kb.threshold_kb(draft_id, int(band.cheap_max), int(band.typical)) if band else None
     try:
@@ -364,7 +364,7 @@ async def _confirm_watch_message(
         quote=quote,
         band=band,
         threshold=max_price,
-        title="Подписка создана",
+        title="✅ Подписка создана",
         watch_id=watch_id,
         origin_name=origin.name,
         destination_name=destination.name,
@@ -986,7 +986,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                     fresh.last_origin_airport = quote.origin_code
                     fresh.last_destination_airport = quote.destination_code
 
-        await _render_watch_card(callback.message, snapshot, title="Актуальная цена")
+        await _render_watch_card(callback.message, snapshot, title="🔎 Актуальная цена")
 
     @router.message(Command("check"))
     @router.message(F.text == "🔄 Проверить цены")

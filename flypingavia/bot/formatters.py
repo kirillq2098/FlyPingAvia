@@ -21,12 +21,21 @@ def level_label(level: PriceLevel) -> str:
     }[level]
 
 
+def level_short(level: PriceLevel) -> str:
+    return {
+        PriceLevel.CHEAP: "дёшево",
+        PriceLevel.NORMAL: "обычно",
+        PriceLevel.EXPENSIVE: "дорого",
+        PriceLevel.UNKNOWN: "нет оценки",
+    }[level]
+
+
 def format_band_block(band: PriceBand, currency: str = "RUB") -> str:
     return (
-        "<b>Вилка по маршруту</b>\n"
+        "<b>Рынок по маршруту</b>\n"
         f"🟢 дёшево  ≤ {money(band.cheap_max, currency)}\n"
-        f"🟡 обычно  ~ {money(band.typical, currency)}\n"
-        f"🔴 дорого  ≥ {money(band.expensive_min, currency)}"
+        f"🟡 обычно   ~ {money(band.typical, currency)}\n"
+        f"🔴 дорого   ≥ {money(band.expensive_min, currency)}"
     )
 
 
@@ -57,7 +66,7 @@ def format_route(
     else:
         date_part = _fmt_day(depart_date)
         trip = "в одну сторону"
-    return f"<b>{left} → {right}</b> · {date_part} · {trip}"
+    return f"{left} → {right}\n{date_part} · {trip}"
 
 
 def passengers_text(adults: int = 1, children: int = 0, infants: int = 0) -> str:
@@ -67,6 +76,24 @@ def passengers_text(adults: int = 1, children: int = 0, infants: int = 0) -> str
     if infants:
         parts.append(f"мл. {infants}")
     return ", ".join(parts)
+
+
+def _meta_line(quote: PriceQuote) -> Optional[str]:
+    parts: list[str] = []
+    if quote.transfers is not None:
+        parts.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
+    if quote.airline:
+        parts.append(quote.airline)
+    airports: list[str] = []
+    if quote.origin_code:
+        airports.append(quote.origin_code)
+    if quote.destination_code:
+        airports.append(quote.destination_code)
+    if airports:
+        parts.append("→".join(airports))
+    if quote.return_origin_code:
+        parts.append(f"обратно из {quote.return_origin_code}")
+    return " · ".join(parts) if parts else None
 
 
 def format_price_card(
@@ -95,9 +122,16 @@ def format_price_card(
         return_date = quote.return_date if quote.return_date is not None else return_date
 
     lines: list[str] = []
+
+    # 1) Заголовок
     if title:
         lines.append(f"<b>{title}</b>")
-    header = format_route(
+    if watch_id is not None:
+        lines.append(f"Подписка <code>#{watch_id}</code>")
+
+    # 2) Маршрут
+    lines.append("")
+    route = format_route(
         origin,
         destination,
         depart_date,
@@ -105,92 +139,74 @@ def format_price_card(
         destination_name=destination_name,
         return_date=return_date,
     )
-    if watch_id is not None:
-        header = f"#{watch_id} · {header}"
-    lines.append(header)
-    # Пассажиров в UI временно скрыли — строку показываем только если состав ≠ 1 взр.
+    lines.append(f"<b>{route.splitlines()[0]}</b>")
+    for extra in route.splitlines()[1:]:
+        lines.append(extra)
     if adults > 1 or children or infants:
-        lines.append(f"Пассажиры в поиске: {passengers_text(adults, children, infants)}")
-    lines.append("")
+        lines.append(f"Пассажиры: {passengers_text(adults, children, infants)}")
 
+    # 3) Цена — главный акцент
+    lines.append("")
     if quote is not None:
         level = band.classify(quote.price) if band else PriceLevel.UNKNOWN
-        if quote.is_live:
-            lines.append(
-                f"Сейчас: <b>{money(quote.price, currency)}</b> за всех  ·  {level_label(level)}"
-            )
-            lines.append("Источник: <b>живой поиск Aviasales</b>")
-            if quote.price_per_adult is not None:
-                lines.append(f"Ориентир на человека: {money(quote.price_per_adult, currency)}")
-        else:
-            lines.append(
-                f"Сейчас: <b>{money(quote.price, currency)}</b>  ·  {level_label(level)}"
-            )
-            if return_date is not None:
-                lines.append("Туда+обратно ≈ сумма двух one-way")
-            lines.append("<i>Кэш Data API — на сайте цена может чуть отличаться</i>")
-        extras = []
-        if quote.transfers is not None:
-            extras.append("прямой" if quote.transfers == 0 else f"пересадок: {quote.transfers}")
-        if quote.airline:
-            extras.append(f"а/к {quote.airline}")
-        if extras:
-            lines.append(" · ".join(extras))
-        if quote.origin_code or quote.destination_code:
-            via = []
-            if quote.origin_code:
-                via.append(f"вылет {quote.origin_code}")
-            if quote.destination_code:
-                via.append(f"прилёт {quote.destination_code}")
-            if quote.return_origin_code:
-                via.append(f"обратно из {quote.return_origin_code}")
-            lines.append("Самый дешёвый вариант: " + " · ".join(via))
-        if len(quote.searched_origins) > 1 or len(quote.searched_destinations) > 1:
-            lines.append(
-                f"Проверено а/п: {', '.join(quote.searched_origins) or origin}"
-                f" → {', '.join(quote.searched_destinations) or destination}"
-            )
+        lines.append(f"<b>{money(quote.price, currency)}</b>")
+        if band is not None and level != PriceLevel.UNKNOWN:
+            lines.append(f"Относительно рынка: {level_label(level)}")
+        meta = _meta_line(quote)
+        if meta:
+            lines.append(meta)
+        if return_date is not None and not quote.is_live:
+            lines.append("Туда+обратно ≈ сумма двух one-way")
     else:
-        lines.append("Сейчас: цена не найдена")
+        lines.append("<b>Цена не найдена</b>")
+        lines.append("Попробуйте другую дату или проверьте позже")
 
     if airport_note:
         lines.append(airport_note)
 
+    # 4) Вилка рынка
     if band is not None:
         lines.append("")
         lines.append(format_band_block(band, currency))
 
+    # 5) Порог пользователя — отдельно от «рынка»
     if threshold is not None:
         lines.append("")
-        lines.append(
-            f"Ваш порог: <b>{money(threshold, currency)}</b>"
-        )
+        lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
         if quote is not None:
             if quote.price <= threshold:
-                lines.append("✅ уже ниже порога")
+                saved = threshold - quote.price
+                lines.append(f"✅ ниже порога на {money(saved, currency)}")
             else:
                 diff = quote.price - threshold
                 lines.append(f"⏳ до порога ещё {money(diff, currency)}")
 
-    return "\n".join(lines)
+    return "\n".join(lines).strip()
 
 
 def welcome_text() -> str:
     return (
         "<b>FlyPingAvia</b>\n"
         "Слежу за ценами на авиабилеты и пишу, когда стало выгодно.\n\n"
-        "Можно писать <b>город</b> словами и выбрать билет "
-        "<b>в одну сторону</b> или <b>туда-обратно</b>.\n\n"
-        "Покажу вилку цен и помогу поставить порог."
+        "<b>Как начать</b>\n"
+        "1. ➕ Добавить — города, дата, тип поездки\n"
+        "2. Выберите порог по вилке рынка\n"
+        "3. Ждите алерт или откройте Mini App\n\n"
+        "Пишите города словами: <code>Москва</code>, <code>Сургут</code>"
     )
 
 
 def help_text() -> str:
     return (
-        "<b>Как пользоваться</b>\n\n"
-        "1. Нажмите <b>➕ Добавить</b> или откройте приложение\n"
-        "2. Укажите города, дату и тип поездки\n"
-        "3. Выберите порог по вилке\n\n"
-        "Команда:\n"
-        "<code>/watch Москва Анталья 25000</code>"
+        "<b>Помощь</b>\n\n"
+        "<b>Добавить маршрут</b>\n"
+        "Кнопка ➕ или команда:\n"
+        "<code>/watch Москва Анталья 25000</code>\n\n"
+        "<b>Вилка рынка</b>\n"
+        "🟢 дёшево · 🟡 обычно · 🔴 дорого — оценка относительно других дат/предложений.\n"
+        "Порог — ваша личная планка: алерт придёт, когда цена ≤ порога.\n\n"
+        "<b>Команды</b>\n"
+        "/list — подписки\n"
+        "/check — проверить сейчас\n"
+        "/unwatch ID — удалить"
     )
