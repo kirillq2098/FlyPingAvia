@@ -1,10 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { Literata, Onest } from "next/font/google";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const onest = Onest({
+  variable: "--font-onest",
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  preload: true,
+});
+
+const literata = Literata({
+  variable: "--font-literata",
   subsets: ["latin", "cyrillic"],
   display: "swap",
   preload: true,
@@ -59,7 +66,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F8FAFC",
+  themeColor: "#F2F0EB",
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
@@ -71,7 +78,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${manrope.variable} h-full antialiased`}>
+    <html lang="ru" className={`${onest.variable} ${literata.variable} h-full antialiased`}>
       <body className="min-h-full font-sans text-ink antialiased">{children}</body>
     </html>
   );

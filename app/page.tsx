@@ -1,8 +1,9 @@
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
+import { SocialProof } from "@/components/SocialProof";
 import { HowItWorks } from "@/components/HowItWorks";
+import { PriceDrop } from "@/components/PriceDrop";
 import { Features } from "@/components/Features";
-import { Comparison } from "@/components/Comparison";
 import { Gallery } from "@/components/Gallery";
 import { FAQ } from "@/components/FAQ";
 import { CTA } from "@/components/CTA";
@@ -15,9 +16,10 @@ export default function HomePage() {
       <Header />
       <main>
         <Hero />
+        <SocialProof />
         <HowItWorks />
+        <PriceDrop />
         <Features />
-        <Comparison />
         <Gallery />
         <FAQ />
         <CTA />

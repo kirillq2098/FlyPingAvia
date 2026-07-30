@@ -11,8 +11,8 @@ import { cn } from "@/lib/cn";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "Как работает" },
-  { href: "#features", label: "Преимущества" },
-  { href: "#comparison", label: "Сравнение" },
+  { href: "#features", label: "Почему удобнее" },
+  { href: "#gallery", label: "Пример" },
   { href: "#faq", label: "FAQ" },
 ] as const;
 
@@ -35,32 +35,25 @@ export function Header() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
-      <Container
-        className={cn(
-          "flex h-14 items-center justify-between rounded-[22px] px-4 transition-all duration-500 sm:h-16 sm:px-5",
-          scrolled || open
-            ? "glass-strong shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
-            : "border border-transparent bg-transparent",
-        )}
-      >
-        <a
-          href="#top"
-          className="relative z-10 transition-transform duration-300 hover:scale-[1.02]"
-          aria-label="FlyPing — наверх"
-        >
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b transition-colors duration-300",
+        scrolled || open
+          ? "border-line bg-background/95 backdrop-blur-md"
+          : "border-transparent bg-background/80",
+      )}
+    >
+      <Container className="flex h-16 items-center justify-between">
+        <a href="#top" aria-label="FlyPing — наверх">
           <Logo />
         </a>
 
-        <nav
-          className="hidden items-center gap-1 rounded-[18px] border border-slate-200/70 bg-white/55 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl md:flex"
-          aria-label="Основная навигация"
-        >
+        <nav className="hidden items-center gap-7 md:flex" aria-label="Основная навигация">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-[14px] px-3.5 py-2 text-sm font-medium text-slate-600 transition-all duration-300 hover:bg-white hover:text-ink hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
+              className="text-sm text-muted transition-colors hover:text-ink"
             >
               {link.label}
             </a>
@@ -69,13 +62,13 @@ export function Header() {
 
         <div className="hidden md:block">
           <Button href={siteConfig.telegramBotUrl} target="_blank" rel="noopener noreferrer">
-            Открыть бота
+            Запустить в Telegram
           </Button>
         </div>
 
         <button
           type="button"
-          className="relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-[14px] text-ink ring-1 ring-slate-200/80 transition hover:bg-white md:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius)] text-ink ring-1 ring-line md:hidden"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label={open ? "Закрыть меню" : "Открыть меню"}
@@ -89,19 +82,18 @@ export function Header() {
         {open ? (
           <motion.div
             id="mobile-menu"
-            initial={{ opacity: 0, y: -10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-auto mt-2 max-w-6xl overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.1)] backdrop-blur-xl md:hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="border-t border-line bg-background md:hidden"
           >
-            <div className="flex flex-col gap-1 p-3">
+            <Container className="flex flex-col gap-1 py-3">
               {NAV_LINKS.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-[16px] px-4 py-3 text-base font-medium text-ink transition hover:bg-brand-50/70"
+                  className="rounded-[var(--radius)] px-3 py-3 text-base text-ink hover:bg-surface"
                 >
                   {link.label}
                 </a>
@@ -113,9 +105,9 @@ export function Header() {
                 className="mt-2 w-full"
                 onClick={() => setOpen(false)}
               >
-                Открыть Telegram-бота
+                Запустить в Telegram
               </Button>
-            </div>
+            </Container>
           </motion.div>
         ) : null}
       </AnimatePresence>

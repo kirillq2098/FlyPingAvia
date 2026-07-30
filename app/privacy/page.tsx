@@ -16,21 +16,18 @@ export default function PrivacyPage() {
         <Link href="/" className="inline-flex">
           <Logo />
         </Link>
-        <div className="space-y-4 rounded-[24px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:p-10">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">
-            Политика конфиденциальности
-          </h1>
-          <p className="text-slate-600 leading-relaxed">
+        <div className="space-y-4 border border-line bg-surface-raised p-6 sm:p-10 rounded-[var(--radius-lg)]">
+          <h1 className="display text-3xl text-ink">Политика конфиденциальности</h1>
+          <p className="leading-7 text-muted">
             Этот документ будет дополнен перед публичным запуском. Сейчас{" "}
             {siteConfig.name} обрабатывает только данные, необходимые для работы
             Telegram-бота и отправки уведомлений о снижении цен на авиабилеты.
           </p>
-          <p className="text-slate-600 leading-relaxed">
-            Если у вас есть вопросы по обработке данных, напишите нам через
-            Telegram:{" "}
+          <p className="leading-7 text-muted">
+            Вопросы по данным:{" "}
             <a
               href={siteConfig.telegramBotUrl}
-              className="font-medium text-brand-600 hover:text-brand-500"
+              className="font-medium text-brand hover:text-brand-hover"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -38,8 +35,8 @@ export default function PrivacyPage() {
             </a>
             .
           </p>
-          <Link href="/" className="inline-flex text-sm font-semibold text-brand-600 hover:text-brand-500">
-            ← Вернуться на главную
+          <Link href="/" className="inline-flex text-sm font-medium text-brand hover:text-brand-hover">
+            ← На главную
           </Link>
         </div>
       </Container>

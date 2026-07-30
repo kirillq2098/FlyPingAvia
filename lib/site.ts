@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "FlyPing",
-  tagline: "Находите дешёвые авиабилеты первыми.",
+  tagline: "Цена на билет изменилась. Вы узнаете первым.",
   description:
-    "FlyPing автоматически отслеживает стоимость авиабилетов и моментально сообщает о снижении цены через Telegram.",
+    "FlyPing следит за выбранным маршрутом и присылает сообщение в Telegram, когда билет становится дешевле.",
   url: "https://flyping.app",
   locale: "ru_RU",
   telegramBotUrl: "https://t.me/FlyPingBot",

@@ -13,12 +13,12 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-slate-200/70 bg-white/65 py-12 backdrop-blur-xl">
-      <Container className="flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-3">
+    <footer className="border-t border-line bg-surface py-12">
+      <Container className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-sm space-y-3">
           <Logo />
-          <p className="max-w-sm text-sm leading-relaxed text-slate-600">
-            Автоматический мониторинг авиабилетов и уведомления о снижении цены в Telegram.
+          <p className="text-sm leading-6 text-muted">
+            Мониторинг цен на авиабилеты и уведомления о снижении в Telegram.
           </p>
         </div>
 
@@ -30,7 +30,7 @@ export function Footer() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium text-slate-600 transition-colors duration-300 hover:text-brand-600"
+                className="text-sm text-muted transition-colors hover:text-ink"
               >
                 {link.label}
               </a>
@@ -38,13 +38,13 @@ export function Footer() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-slate-600 transition-colors duration-300 hover:text-brand-600"
+                className="text-sm text-muted transition-colors hover:text-ink"
               >
                 {link.label}
               </Link>
             ),
           )}
-          <p className="pt-2 text-sm text-slate-500">
+          <p className="pt-2 text-sm text-muted">
             © {year} {siteConfig.name}
           </p>
         </nav>

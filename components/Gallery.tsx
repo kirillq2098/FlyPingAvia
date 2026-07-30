@@ -1,52 +1,101 @@
 "use client";
 
-import { ImageIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Container } from "@/components/ui/Container";
 import { Reveal } from "@/components/ui/Reveal";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { SpotlightCard } from "@/components/ui/SpotlightCard";
-import { GALLERY_ITEMS } from "@/lib/constants";
+import { CHAT_ROUTE, formatRub } from "@/lib/constants";
 
 export function Gallery() {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <section
-      id="gallery"
-      className="section-divider section-fade relative scroll-mt-24 py-20 sm:py-24"
-    >
-      <Container>
+    <section id="gallery" className="scroll-mt-24 border-y border-line bg-surface py-20 sm:py-24">
+      <Container className="grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
         <Reveal>
           <SectionHeading
-            eyebrow="Скриншоты"
-            title="Так выглядит работа с FlyPing"
-            description="Пока здесь аккуратные заглушки — позже заменим их на реальные скриншоты бота."
+            eyebrow="Пример диалога"
+            title="Так выглядит общение с FlyPing"
+            description="Короткие сообщения. Понятный маршрут. Уведомление о снижении без лишнего шума."
           />
         </Reveal>
 
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
-          {GALLERY_ITEMS.map((item, index) => (
-            <Reveal key={item.id} delay={index * 0.08}>
-              <SpotlightCard className="overflow-hidden">
-                <figure className="h-full">
-                  <div className="relative flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-slate-50 via-brand-50/50 to-sky-50">
-                    <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(37,99,235,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(37,99,235,0.08)_1px,transparent_1px)] [background-size:24px_24px]" />
-                    <div className="absolute inset-6 rounded-[20px] border border-dashed border-slate-300/70 bg-white/45 backdrop-blur-sm" />
-                    <div className="relative z-10 flex flex-col items-center gap-3 text-slate-500">
-                      <span className="inline-flex h-14 w-14 items-center justify-center rounded-[18px] bg-white/90 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80 transition-transform duration-300 group-hover:scale-105">
-                        <ImageIcon className="h-6 w-6 text-brand-500" />
-                      </span>
-                      <span className="text-sm font-medium">Скриншот {index + 1}</span>
-                    </div>
+        <Reveal delay={0.08}>
+          <div className="mx-auto w-full max-w-[360px]">
+            <div className="rounded-[28px] border border-line bg-[#1c1c1e] p-3 shadow-[var(--shadow)]">
+              <div className="overflow-hidden rounded-[22px] bg-[#efeae2]">
+                <div className="flex items-center gap-3 border-b border-[#ddd6cb] bg-[#f7f3ec] px-4 py-3">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+                    FP
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-ink">FlyPing</p>
+                    <p className="text-xs text-muted">бот</p>
                   </div>
-                  <figcaption className="space-y-1 px-5 py-4">
-                    <p className="font-semibold tracking-[-0.015em] text-ink">{item.title}</p>
-                    <p className="text-sm text-slate-600">{item.description}</p>
-                  </figcaption>
-                </figure>
-              </SpotlightCard>
-            </Reveal>
-          ))}
-        </div>
+                </div>
+
+                <div className="space-y-3 px-4 py-5">
+                  <ChatBubble side="user">
+                    {CHAT_ROUTE.origin} — {CHAT_ROUTE.destination}, {CHAT_ROUTE.dates}
+                  </ChatBubble>
+
+                  <motion.div
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.15, duration: 0.35 }}
+                  >
+                    <ChatBubble side="bot">
+                      Маршрут добавлен. Сообщу, когда цена снизится.
+                    </ChatBubble>
+                  </motion.div>
+
+                  <p className="py-2 text-center text-xs text-muted">позже</p>
+
+                  <motion.div
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3, duration: 0.35 }}
+                  >
+                    <ChatBubble side="bot" accent>
+                      Цена снизилась на {formatRub(CHAT_ROUTE.drop)}.
+                    </ChatBubble>
+                  </motion.div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
       </Container>
     </section>
+  );
+}
+
+function ChatBubble({
+  children,
+  side,
+  accent = false,
+}: {
+  children: React.ReactNode;
+  side: "user" | "bot";
+  accent?: boolean;
+}) {
+  const isUser = side === "user";
+  return (
+    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
+      <div
+        className={[
+          "max-w-[85%] rounded-[16px] px-3.5 py-2.5 text-sm leading-6",
+          isUser
+            ? "rounded-br-[6px] bg-brand text-white"
+            : accent
+              ? "rounded-bl-[6px] bg-gain-soft text-gain"
+              : "rounded-bl-[6px] bg-white text-ink shadow-[var(--shadow-soft)]",
+        ].join(" ")}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

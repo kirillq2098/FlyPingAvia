@@ -19,57 +19,48 @@ export default function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 72,
-          background:
-            "linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 45%, #E0F2FE 100%)",
-          color: "#0F172A",
-          fontFamily: "sans-serif",
+          background: "#F2F0EB",
+          color: "#1C1B19",
+          fontFamily: "serif",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
             style={{
-              width: 64,
-              height: 64,
-              borderRadius: 20,
+              width: 48,
+              height: 48,
+              borderRadius: 10,
+              background: "#1A3F8B",
+              color: "white",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "linear-gradient(135deg, #2563EB 0%, #38BDF8 100%)",
-              color: "white",
-              fontSize: 32,
+              fontSize: 18,
+              fontWeight: 700,
+              fontFamily: "sans-serif",
             }}
           >
-            ✈
+            FP
           </div>
-          <div style={{ fontSize: 36, fontWeight: 700 }}>{siteConfig.name}</div>
+          <div style={{ fontSize: 28, fontFamily: "sans-serif", fontWeight: 600 }}>
+            {siteConfig.name}
+          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div
-            style={{
-              fontSize: 64,
-              fontWeight: 700,
-              lineHeight: 1.1,
-              maxWidth: 980,
-            }}
-          >
-            Находите дешёвые авиабилеты первыми.
+          <div style={{ fontSize: 58, lineHeight: 1.1, maxWidth: 920 }}>
+            Цена на билет изменилась. Вы узнаете первым.
           </div>
           <div
             style={{
-              fontSize: 28,
-              color: "#475569",
-              maxWidth: 880,
-              lineHeight: 1.4,
+              fontSize: 26,
+              color: "#6B6860",
+              maxWidth: 780,
+              lineHeight: 1.35,
+              fontFamily: "sans-serif",
             }}
           >
-            Автоматический мониторинг цен и мгновенные уведомления в Telegram.
+            Мониторинг маршрута и уведомления о снижении цены в Telegram.
           </div>
         </div>
       </div>
