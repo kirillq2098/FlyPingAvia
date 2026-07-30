@@ -11,6 +11,7 @@
 |----------|--------|
 | [PRODUCT_VISION.md](PRODUCT_VISION.md) | Зачем продукт, для кого, что уже умеет |
 | [MASTER_ROADMAP.md](MASTER_ROADMAP.md) | Этапы развития и открытые вопросы по цели |
+| [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) | Конкуренты, таблица сравнения, opportunities |
 | [TECH_ARCHITECTURE.md](TECH_ARCHITECTURE.md) | Стек, модули, API, данные, деплой |
 | [MONETIZATION.md](MONETIZATION.md) | Что уже в коде и что только в стратегии |
 | [MARKETING.md](MARKETING.md) | Каналы и факты; план роста — TODO |
@@ -43,7 +44,7 @@
 
 ## Как пользоваться этой папкой
 
-1. Новая идея → сначала [PRODUCT_VISION](PRODUCT_VISION.md) и [DECISIONS](DECISIONS.md).
+1. Новая идея → сначала [PRODUCT_VISION](PRODUCT_VISION.md), [COMPETITIVE_ANALYSIS](COMPETITIVE_ANALYSIS.md) и [DECISIONS](DECISIONS.md).
 2. План работ → [MASTER_ROADMAP](MASTER_ROADMAP.md) + [KPI](KPI.md).
 3. Изменение кода/инфры → [TECH_ARCHITECTURE](TECH_ARCHITECTURE.md), запись в [CHANGELOG](CHANGELOG.md).
 4. Деньги и рост → [MONETIZATION](MONETIZATION.md), [MARKETING](MARKETING.md).
