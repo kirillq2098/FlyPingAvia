@@ -13,11 +13,11 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-slate-200/80 bg-white/70 py-12 backdrop-blur">
+    <footer className="border-t border-slate-200/70 bg-white/65 py-12 backdrop-blur-xl">
       <Container className="flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-3">
           <Logo />
-          <p className="max-w-sm text-sm text-slate-600">
+          <p className="max-w-sm text-sm leading-relaxed text-slate-600">
             Автоматический мониторинг авиабилетов и уведомления о снижении цены в Telegram.
           </p>
         </div>
@@ -30,7 +30,7 @@ export function Footer() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium text-slate-600 transition-colors hover:text-brand-600"
+                className="text-sm font-medium text-slate-600 transition-colors duration-300 hover:text-brand-600"
               >
                 {link.label}
               </a>
@@ -38,13 +38,15 @@ export function Footer() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-slate-600 transition-colors hover:text-brand-600"
+                className="text-sm font-medium text-slate-600 transition-colors duration-300 hover:text-brand-600"
               >
                 {link.label}
               </Link>
             ),
           )}
-          <p className="pt-2 text-sm text-slate-500">© {year} {siteConfig.name}</p>
+          <p className="pt-2 text-sm text-slate-500">
+            © {year} {siteConfig.name}
+          </p>
         </nav>
       </Container>
     </footer>

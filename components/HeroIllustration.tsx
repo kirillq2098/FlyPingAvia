@@ -2,13 +2,19 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
+const ROUTE_A = "M90 340 C160 280, 220 250, 280 230 S400 180, 440 140";
+const ROUTE_B = "M110 390 C190 330, 250 300, 320 290 S410 250, 450 220";
+const ROUTE_C = "M70 260 C150 220, 240 210, 330 170 S430 110, 470 90";
+
 export function HeroIllustration() {
   const reduceMotion = useReducedMotion();
 
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[540px]">
-      <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-white via-sky-50 to-brand-50 shadow-[0_30px_80px_rgba(37,99,235,0.14)] ring-1 ring-white/80" />
-      <div className="absolute -inset-6 -z-10 rounded-[36px] bg-gradient-to-br from-brand-400/20 via-sky-300/10 to-transparent blur-2xl" />
+      <div className="absolute inset-0 rounded-[30px] bg-gradient-to-br from-white via-sky-50/90 to-brand-50/90 shadow-[0_40px_100px_rgba(37,99,235,0.16)] ring-1 ring-white/90" />
+      <div className="absolute -inset-8 -z-10 rounded-[40px] bg-gradient-to-br from-brand-400/25 via-sky-300/15 to-transparent blur-3xl" />
+      <div className="animate-pulse-soft absolute right-8 top-10 h-24 w-24 rounded-full bg-sky-300/30 blur-2xl" />
+      <div className="animate-float absolute left-6 bottom-16 h-20 w-20 rounded-full bg-brand-400/25 blur-2xl" />
 
       <svg
         viewBox="0 0 520 520"
@@ -29,7 +35,7 @@ export function HeroIllustration() {
             <stop offset="0%" stopColor="rgba(37,99,235,0.28)" />
             <stop offset="100%" stopColor="rgba(37,99,235,0)" />
           </linearGradient>
-          <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="4" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
@@ -38,9 +44,9 @@ export function HeroIllustration() {
           </filter>
         </defs>
 
-        <rect x="36" y="36" width="448" height="448" rx="28" fill="url(#mapFill)" opacity="0.55" />
+        <rect x="36" y="36" width="448" height="448" rx="30" fill="url(#mapFill)" opacity="0.5" />
 
-        <g opacity="0.35" stroke="#94A3B8" strokeWidth="1">
+        <g opacity="0.28" stroke="#94A3B8" strokeWidth="1">
           {Array.from({ length: 8 }).map((_, index) => (
             <line
               key={`h-${index}`}
@@ -61,56 +67,63 @@ export function HeroIllustration() {
           ))}
         </g>
 
-        <ellipse cx="180" cy="210" rx="58" ry="34" fill="#BFDBFE" opacity="0.7" />
-        <ellipse cx="300" cy="170" rx="42" ry="26" fill="#BAE6FD" opacity="0.75" />
+        <ellipse cx="180" cy="210" rx="58" ry="34" fill="#BFDBFE" opacity="0.72" />
+        <ellipse cx="300" cy="170" rx="42" ry="26" fill="#BAE6FD" opacity="0.78" />
         <ellipse cx="360" cy="250" rx="70" ry="40" fill="#BFDBFE" opacity="0.55" />
         <ellipse cx="150" cy="320" rx="48" ry="28" fill="#BAE6FD" opacity="0.5" />
 
-        <motion.path
-          d="M90 340 C160 280, 220 250, 280 230 S400 180, 440 140"
+        <path
+          d={ROUTE_A}
           fill="none"
           stroke="url(#routeStroke)"
-          strokeWidth="3"
+          strokeWidth="3.2"
           strokeLinecap="round"
-          strokeDasharray="8 10"
-          initial={false}
-          animate={
-            reduceMotion
-              ? { pathLength: 1, opacity: 1 }
-              : { pathLength: 1, opacity: 1 }
-          }
-          transition={{ duration: 1.6, ease: "easeInOut" }}
+          strokeDasharray="9 11"
+          className={reduceMotion ? undefined : "animate-dash"}
+          opacity="0.95"
         />
-        <motion.path
-          d="M110 390 C190 330, 250 300, 320 290 S410 250, 450 220"
+        <path
+          d={ROUTE_B}
           fill="none"
           stroke="#38BDF8"
-          strokeWidth="2"
+          strokeWidth="2.2"
           strokeLinecap="round"
-          strokeDasharray="4 8"
+          strokeDasharray="5 9"
+          className={reduceMotion ? undefined : "animate-dash"}
           opacity="0.7"
-          initial={false}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.8, delay: 0.2, ease: "easeInOut" }}
         />
+        <path
+          d={ROUTE_C}
+          fill="none"
+          stroke="#60A5FA"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeDasharray="3 8"
+          className={reduceMotion ? undefined : "animate-dash"}
+          opacity="0.55"
+        />
+
+        <circle cx="90" cy="340" r="4" fill="#2563EB" />
+        <circle cx="440" cy="140" r="4" fill="#38BDF8" />
+        <circle cx="110" cy="390" r="3.5" fill="#38BDF8" opacity="0.8" />
+        <circle cx="450" cy="220" r="3.5" fill="#2563EB" opacity="0.8" />
 
         {!reduceMotion ? (
           <motion.g
             filter="url(#softGlow)"
             animate={{
-              x: [90, 160, 240, 340, 440],
-              y: [340, 280, 235, 180, 140],
-              rotate: [8, 4, -2, -8, -16],
+              x: [90, 170, 260, 350, 440],
+              y: [340, 275, 235, 185, 140],
+              rotate: [10, 4, -2, -10, -18],
             }}
             transition={{
-              duration: 6,
+              duration: 7.5,
               repeat: Infinity,
               ease: "easeInOut",
-              repeatType: "loop",
             }}
           >
             <g transform="translate(-14 -14)">
-              <circle cx="14" cy="14" r="16" fill="#2563EB" opacity="0.15" />
+              <circle cx="14" cy="14" r="18" fill="#2563EB" opacity="0.14" />
               <path
                 d="M6 16 L22 12 L26 14 L22 16 L14 18 L10 24 L8 18 L2 16 Z"
                 fill="#2563EB"
@@ -128,60 +141,66 @@ export function HeroIllustration() {
           </g>
         )}
 
-        <g transform="translate(78 78)">
+        <motion.g
+          transform="translate(78 78)"
+          animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
+          transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+        >
           <rect
-            width="180"
-            height="120"
-            rx="18"
-            fill="white"
-            fillOpacity="0.92"
-            stroke="#E2E8F0"
+            width="186"
+            height="124"
+            rx="20"
+            fill="rgba(255,255,255,0.88)"
+            stroke="rgba(226,232,240,0.95)"
           />
-          <text x="18" y="28" fill="#64748B" fontSize="11" fontFamily="sans-serif">
+          <text x="18" y="30" fill="#64748B" fontSize="11" fontFamily="sans-serif">
             Цена билета
           </text>
-          <text x="18" y="52" fill="#0F172A" fontSize="22" fontWeight="700" fontFamily="sans-serif">
+          <text x="18" y="56" fill="#0F172A" fontSize="24" fontWeight="700" fontFamily="sans-serif">
             −32%
           </text>
           <path
-            d="M18 92 C48 88, 70 70, 95 62 S140 58, 162 42"
+            d="M18 96 C48 92, 70 74, 95 66 S140 62, 164 46"
             fill="none"
             stroke="#2563EB"
             strokeWidth="3"
             strokeLinecap="round"
           />
           <path
-            d="M18 92 C48 88, 70 70, 95 62 S140 58, 162 42 V100 H18 Z"
+            d="M18 96 C48 92, 70 74, 95 66 S140 62, 164 46 V104 H18 Z"
             fill="url(#chartFill)"
           />
-          <circle cx="162" cy="42" r="5" fill="#38BDF8" />
-        </g>
+          <circle cx="164" cy="46" r="5" fill="#38BDF8" />
+        </motion.g>
 
-        <g transform="translate(290 340)">
+        <motion.g
+          transform="translate(286 338)"
+          animate={reduceMotion ? undefined : { y: [0, 7, 0] }}
+          transition={{ duration: 5.4, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+        >
           <rect
-            width="150"
-            height="84"
-            rx="18"
-            fill="white"
-            fillOpacity="0.95"
-            stroke="#E2E8F0"
+            width="156"
+            height="88"
+            rx="20"
+            fill="rgba(255,255,255,0.92)"
+            stroke="rgba(226,232,240,0.95)"
           />
-          <circle cx="28" cy="42" r="14" fill="#2563EB" />
+          <circle cx="30" cy="44" r="15" fill="#2563EB" />
           <path
-            d="M22 42 L26 46 L34 36"
+            d="M24 44 L28 48 L36 38"
             fill="none"
             stroke="white"
             strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <text x="50" y="38" fill="#0F172A" fontSize="13" fontWeight="700" fontFamily="sans-serif">
+          <text x="54" y="40" fill="#0F172A" fontSize="13" fontWeight="700" fontFamily="sans-serif">
             Цена снизилась
           </text>
-          <text x="50" y="58" fill="#64748B" fontSize="11" fontFamily="sans-serif">
+          <text x="54" y="60" fill="#64748B" fontSize="11" fontFamily="sans-serif">
             Telegram · сейчас
           </text>
-        </g>
+        </motion.g>
       </svg>
     </div>
   );

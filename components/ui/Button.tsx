@@ -27,15 +27,16 @@ type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-600 text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)] hover:bg-brand-500 hover:shadow-[0_14px_36px_rgba(37,99,235,0.45)] hover:-translate-y-0.5",
+    "btn-shine bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.35)] ring-1 ring-brand-400/40 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(37,99,235,0.45)] hover:brightness-[1.03] active:translate-y-0",
   secondary:
-    "bg-white/80 text-ink ring-1 ring-slate-200/80 backdrop-blur hover:bg-white hover:ring-brand-200 hover:-translate-y-0.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)]",
-  ghost: "bg-transparent text-ink hover:bg-slate-100/80",
+    "glass-strong text-ink hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_36px_rgba(15,23,42,0.08)] hover:ring-brand-200/80 active:translate-y-0",
+  ghost:
+    "bg-transparent text-ink hover:bg-white/70 hover:shadow-[0_8px_20px_rgba(15,23,42,0.04)]",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
   md: "h-11 px-5 text-sm",
-  lg: "h-12 px-6 text-base sm:h-14 sm:px-7",
+  lg: "h-12 px-6 text-[0.95rem] sm:h-14 sm:px-7",
 };
 
 export function Button(props: ButtonProps) {
@@ -47,7 +48,7 @@ export function Button(props: ButtonProps) {
   } = props;
 
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-[18px] font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2",
+    "inline-flex items-center justify-center gap-2 rounded-[18px] font-semibold tracking-[-0.01em] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2",
     variantClasses[variant],
     sizeClasses[size],
     className,

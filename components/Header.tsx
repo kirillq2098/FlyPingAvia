@@ -21,7 +21,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -35,24 +35,32 @@ export function Header() {
   }, [open]);
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 border-b border-transparent transition-all duration-300",
-        scrolled &&
-          "border-slate-200/70 bg-surface/80 shadow-[0_8px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl",
-      )}
-    >
-      <Container className="flex h-16 items-center justify-between md:h-[4.5rem]">
-        <a href="#top" className="relative z-10" aria-label="FlyPing — наверх">
+    <header className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
+      <Container
+        className={cn(
+          "flex h-14 items-center justify-between rounded-[22px] px-4 transition-all duration-500 sm:h-16 sm:px-5",
+          scrolled || open
+            ? "glass-strong shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
+            : "border border-transparent bg-transparent",
+        )}
+      >
+        <a
+          href="#top"
+          className="relative z-10 transition-transform duration-300 hover:scale-[1.02]"
+          aria-label="FlyPing — наверх"
+        >
           <Logo />
         </a>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="Основная навигация">
+        <nav
+          className="hidden items-center gap-1 rounded-[18px] border border-slate-200/70 bg-white/55 p-1 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl md:flex"
+          aria-label="Основная навигация"
+        >
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-ink"
+              className="rounded-[14px] px-3.5 py-2 text-sm font-medium text-slate-600 transition-all duration-300 hover:bg-white hover:text-ink hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]"
             >
               {link.label}
             </a>
@@ -67,7 +75,7 @@ export function Header() {
 
         <button
           type="button"
-          className="relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-[14px] text-ink ring-1 ring-slate-200/80 md:hidden"
+          className="relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-[14px] text-ink ring-1 ring-slate-200/80 transition hover:bg-white md:hidden"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label={open ? "Закрыть меню" : "Открыть меню"}
@@ -81,19 +89,19 @@ export function Header() {
         {open ? (
           <motion.div
             id="mobile-menu"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-slate-200/70 bg-surface/95 backdrop-blur-xl md:hidden"
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="mx-auto mt-2 max-w-6xl overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.1)] backdrop-blur-xl md:hidden"
           >
-            <Container className="flex flex-col gap-2 py-4">
+            <div className="flex flex-col gap-1 p-3">
               {NAV_LINKS.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-[16px] px-4 py-3 text-base font-medium text-ink hover:bg-white"
+                  className="rounded-[16px] px-4 py-3 text-base font-medium text-ink transition hover:bg-brand-50/70"
                 >
                   {link.label}
                 </a>
@@ -107,7 +115,7 @@ export function Header() {
               >
                 Открыть Telegram-бота
               </Button>
-            </Container>
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>

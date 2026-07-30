@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/cn";
 
 type RevealProps = {
@@ -10,60 +11,41 @@ type RevealProps = {
   y?: number;
 };
 
+/**
+ * Premium reveal that stays visible on SSR / first paint.
+ * Animates only after mount to avoid blank pages when JS is delayed.
+ */
 export function Reveal({
   children,
   className,
   delay = 0,
-  y = 18,
+  y = 24,
 }: RevealProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(true);
+  const reduceMotion = useReducedMotion();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
+    const id = window.requestAnimationFrame(() => setReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (media.matches) {
-      setVisible(true);
-      return;
-    }
-
-    // Start hidden only after mount, then reveal on intersect (or fallback timer).
-    setVisible(false);
-
-    const fallback = window.setTimeout(() => setVisible(true), 900 + delay * 1000);
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          window.setTimeout(() => setVisible(true), delay * 1000);
-          observer.disconnect();
-          window.clearTimeout(fallback);
-        }
-      },
-      { threshold: 0.08, rootMargin: "100px 0px" },
-    );
-
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-      window.clearTimeout(fallback);
-    };
-  }, [delay]);
+  if (!ready || reduceMotion) {
+    return <div className={className}>{children}</div>;
+  }
 
   return (
-    <div
-      ref={ref}
-      className={cn(
-        "transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        visible ? "translate-y-0 opacity-100" : "opacity-0",
-        className,
-      )}
-      style={visible ? undefined : { transform: `translateY(${y}px)` }}
+    <motion.div
+      className={cn("will-change-transform", className)}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12, margin: "80px 0px" }}
+      transition={{
+        duration: 0.65,
+        delay,
+        ease: [0.22, 1, 0.36, 1],
+      }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }

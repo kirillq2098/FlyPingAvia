@@ -14,6 +14,9 @@
   --sky-400: #38bdf8;
   --ink: #0f172a;
   --surface: #f8fafc;
+  --glass: rgba(255, 255, 255, 0.72);
+  --shadow-soft: 0 18px 50px rgba(15, 23, 42, 0.06);
+  --shadow-glow: 0 20px 60px rgba(37, 99, 235, 0.18);
 }
 
 @theme inline {
@@ -42,16 +45,27 @@ html {
   html {
     scroll-behavior: auto;
   }
+
+  .animate-dash,
+  .animate-float,
+  .animate-pulse-soft {
+    animation: none !important;
+  }
 }
 
 body {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.16), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(37, 99, 235, 0.08), transparent),
-    var(--background);
+    radial-gradient(ellipse 90% 55% at 50% -18%, rgba(56, 189, 248, 0.2), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 0% 20%, rgba(37, 99, 235, 0.1), transparent 50%),
+    radial-gradient(ellipse 45% 35% at 100% 10%, rgba(56, 189, 248, 0.12), transparent 45%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 48%, #f8fafc 100%);
   color: var(--foreground);
   font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+  letter-spacing: -0.011em;
   min-height: 100%;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -59,16 +73,142 @@ body::before {
   pointer-events: none;
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
   opacity: 0.45;
   background-image:
     linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse at 50% 18%, black 18%, transparent 70%);
+}
+
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(37, 99, 235, 0.09), transparent 26%),
+    radial-gradient(circle at 82% 16%, rgba(56, 189, 248, 0.11), transparent 24%);
+  filter: blur(48px);
 }
 
 ::selection {
   background: rgba(37, 99, 235, 0.18);
   color: var(--ink);
+}
+
+.glass {
+  background: var(--glass);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    var(--shadow-soft);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+
+.section-fade {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 820px;
+}
+
+.section-divider {
+  position: relative;
+}
+
+.section-divider::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 1px;
+  width: min(760px, 82%);
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(37, 99, 235, 0.16),
+    rgba(56, 189, 248, 0.22),
+    transparent
+  );
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+
+.animate-dash {
+  animation: dash-flow 2.2s linear infinite;
+}
+
+.animate-float {
+  animation: float-soft 5.8s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 3.6s ease-in-out infinite;
+}
+
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 18%,
+    rgba(255, 255, 255, 0.3) 46%,
+    transparent 72%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+}
+
+.btn-shine:hover::after {
+  transform: translateX(130%);
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, #1d4ed8 0%, #2563eb 42%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
