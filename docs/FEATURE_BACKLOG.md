@@ -161,7 +161,7 @@
 - **Зависимости:** TR-02 (поле уже есть)
 - **DoD:** timestamp во всех карточках watches и в алерте
 - **Метрики:** CSAT/интервью; ↓ удалений без алерта
-- **Статус:** Partial (поле есть, UI не везде явный) · **Source:** Strategy, Compete O7
+- **Статус:** Done · **Source:** Strategy, Compete O7
 
 ### TR-05 · Редактирование порога существующей подписки
 - **Описание:** Сменить max_price без удаления watch.
@@ -607,8 +607,8 @@
 | NT-01 | Done |
 | TG-01, TG-05 | Done |
 | WA-01, RL-01, IN-01, IT-01 | Done |
-| **TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
-| AN-03, NT-04, NT-02, NT-03, CS-05 | Done |
+| **WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| AN-03, NT-04, NT-02, NT-03, CS-05, TR-04 | Done |
 
 ## v1.0 — «Стабильный сторож»
 
@@ -695,7 +695,7 @@
 | 2 | CS-05 | Search | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
 | 3 | NT-02 | Notifications | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
 | 4 | NT-03 | Notifications | P0 | 8 | 2 | 4.0 | 1д | Done |
-| 5 | TR-04 | Tracking | P0 | 7 | 2 | 3.5 | 0.5–1д | Partial |
+| 5 | TR-04 | Tracking | P0 | 7 | 2 | 3.5 | 0.5–1д | Done |
 | 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Todo |
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
 | 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Done |

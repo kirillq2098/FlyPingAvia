@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -97,6 +97,7 @@ class WatchOut(BaseModel):
     flexibility_days: int = 0
     last_price: Optional[float]
     last_origin_airport: Optional[str] = None
+    last_checked_at: Optional[datetime] = None
     currency: str
     tickets_url: str
     passengers_label: str = ""
@@ -161,6 +162,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             "live_search_mode": settings.live_search_mode,
             "live_search": live_status,
             "search_marker": settings.search_marker or None,
+            "display_timezone": settings.display_timezone,
         }
 
     @app.get("/api/me")
@@ -279,6 +281,11 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         )
 
     def _watch_out(w) -> WatchOut:
+        checked = getattr(w, "last_checked_at", None)
+        if checked is not None and checked.tzinfo is None:
+            checked = checked.replace(tzinfo=timezone.utc)
+        elif checked is not None:
+            checked = checked.astimezone(timezone.utc)
         return WatchOut(
             id=w.id,
             origin=w.origin,
@@ -294,6 +301,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             flexibility_days=int(getattr(w, "flexibility_days", 0) or 0),
             last_price=w.last_price,
             last_origin_airport=w.last_origin_airport,
+            last_checked_at=checked,
             currency=w.currency,
             tickets_url=build_affiliate_url(
                 w.origin,

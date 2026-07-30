@@ -83,7 +83,9 @@ Auth: заголовок `X-Telegram-Init-Data` или `Authorization: tma <init
 
 **users:** `id`, `telegram_id` (unique), `username`, `created_at`
 
-**watches:** маршрут (`origin`/`destination` + names + `*_search` CSV кодов), `max_price`, `depart_date`, `return_date`, `adults`/`children`/`infants`, `currency`, `last_price`, `last_*_airport`, `last_checked_at`, `last_alert_price`, `is_active`, `created_at`
+**watches:** маршрут (`origin`/`destination` + names + `*_search` CSV кодов), `max_price`, `depart_date`, `return_date`, `adults`/`children`/`infants`, `currency`, `flexibility_days`, `last_price`, `last_*_airport`, `last_checked_at` (UTC, момент завершённой проверки), `last_alert_price`, `is_active`, `created_at`
+
+**Отображение времени:** `DISPLAY_TIMEZONE` (default `Europe/Moscow`) — только UI; в БД всегда UTC.
 
 Удаление подписки — soft (`is_active=False`).
 

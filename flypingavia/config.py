@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -111,6 +112,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MIN_PRICE_DELTA", "min_price_delta"),
         description="Минимальное падение цены (в валюте watch) для алерта внутри cooldown",
     )
+    # TR-04: единая бизнес-таймзона для отображения last_checked_at (БД хранит UTC)
+    display_timezone: str = Field(
+        default="Europe/Moscow",
+        validation_alias=AliasChoices("DISPLAY_TIMEZONE", "display_timezone"),
+        description="IANA timezone для показа времени проверки (default Europe/Moscow)",
+    )
 
     @model_validator(mode="after")
     def _apply_db_path(self) -> Settings:
@@ -118,6 +125,27 @@ class Settings(BaseSettings):
             path = Path(self.db_path)
             self.database_url = f"sqlite+aiosqlite:///{path.as_posix()}"
         return self
+
+    @model_validator(mode="after")
+    def _validate_display_timezone(self) -> Settings:
+        name = (self.display_timezone or "").strip()
+        if not name:
+            raise ValueError(
+                "DISPLAY_TIMEZONE пуст. Укажите IANA timezone, например Europe/Moscow"
+            )
+        try:
+            ZoneInfo(name)
+        except (ZoneInfoNotFoundError, KeyError, ValueError) as exc:
+            raise ValueError(
+                f"Некорректный DISPLAY_TIMEZONE={name!r}. "
+                "Ожидается IANA имя, например Europe/Moscow"
+            ) from exc
+        self.display_timezone = name
+        return self
+
+    @property
+    def display_tz(self) -> ZoneInfo:
+        return ZoneInfo(self.display_timezone)
 
     @property
     def is_demo_prices(self) -> bool:
