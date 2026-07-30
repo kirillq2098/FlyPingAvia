@@ -256,23 +256,30 @@ restart_stack_dev_tunnel() {
 }
 
 restart_stack_production() {
-  local url
+  local url host
   url="$(read_env_url)"
   if [[ -z "$url" ]]; then
     log "ERROR: APP_ENV=production требует WEBAPP_URL=https://… в $ENV_FILE"
-    log "Temporary trycloudflare tunnel в production запрещён."
+    log "Quick tunnel (trycloudflare) в production запрещён."
     return 1
   fi
   if [[ "$url" != https://* ]]; then
     log "ERROR: production WEBAPP_URL должен быть HTTPS: $url"
     return 1
   fi
-  if [[ "$url" == *trycloudflare.com* ]]; then
-    log "WARNING: trycloudflare.com — ephemeral; для production используйте named tunnel или свой домен"
+  # Базовая проверка hostname (источник истины — Python Settings при старте бота).
+  host="${url#https://}"
+  host="${host%%/*}"
+  host="${host%%:*}"
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$host" == "trycloudflare.com" || "$host" == *.trycloudflare.com ]]; then
+    log "ERROR: temporary trycloudflare URL запрещён в production: $url"
+    log "Используйте собственный домен или Cloudflare named tunnel с постоянным hostname."
+    return 1
   fi
   log "production mode: фиксированный WEBAPP_URL=$url (tunnel не перезаписывает)"
   if ! start_bot; then
-    log "ERROR: бот не поднялся"
+    log "ERROR: бот не поднялся (проверьте WEBAPP_URL / APP_ENV через Python Settings)"
     return 1
   fi
   echo "$url" >"$URL_FILE"
@@ -299,7 +306,10 @@ if use_temp_tunnel; then
 else
   # Не трогаем чужие named tunnels; только гасим quick --url strays.
   kill_cloudflared_strays TERM || true
-  restart_stack_production || true
+  if ! restart_stack_production; then
+    log "FATAL: production stack не запущен из-за некорректной конфигурации"
+    exit 1
+  fi
 fi
 
 local_fails=0

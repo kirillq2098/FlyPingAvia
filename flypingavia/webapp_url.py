@@ -7,6 +7,7 @@ from urllib.parse import urlparse, urlunparse
 ALLOWED_APP_ENVS = frozenset({"development", "production", "test"})
 
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+_TEMP_TUNNEL_ROOT = "trycloudflare.com"
 
 
 def _is_local_hostname(hostname: str | None) -> bool:
@@ -14,6 +15,20 @@ def _is_local_hostname(hostname: str | None) -> bool:
         return False
     host = hostname.lower().rstrip(".")
     return host in _LOCAL_HOSTS
+
+
+def is_temporary_tunnel_hostname(hostname: str | None) -> bool:
+    """True для quick tunnel hostname trycloudflare.com / *.trycloudflare.com.
+
+    Named tunnel на собственном домене (app.example.com) — False.
+    Hostname вроде trycloudflare.com.example.org — False (не суффикс зоны).
+    """
+    if not hostname:
+        return False
+    host = hostname.lower().rstrip(".")
+    if host == _TEMP_TUNNEL_ROOT:
+        return True
+    return host.endswith("." + _TEMP_TUNNEL_ROOT)
 
 
 def normalize_webapp_url(raw: str, *, app_env: str) -> str:
@@ -77,6 +92,13 @@ def normalize_webapp_url(raw: str, *, app_env: str) -> str:
         pass
     else:
         raise ValueError(f"WEBAPP_URL: неподдерживаемая схема {scheme!r}")
+
+    if app_env == "production" and is_temporary_tunnel_hostname(hostname):
+        raise ValueError(
+            "В production запрещён временный trycloudflare.com URL. "
+            "Используйте собственный домен или Cloudflare named tunnel "
+            "с постоянным hostname. Quick tunnel допустим только для development."
+        )
 
     # Не сохраняем default ports как часть origin.
     port = parsed.port

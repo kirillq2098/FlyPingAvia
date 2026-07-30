@@ -69,12 +69,13 @@ python -m flypingavia
    ```
 3. Перезапустите бота — кнопка **🛩 Открыть приложение** (только если URL — публичный HTTPS).
 4. Temporary `*.trycloudflare.com` — **только для разработки**, не production.
+   При `APP_ENV=production` такой URL отклоняется (`Settings` + `supervise.sh`, exit ≠ 0).
 
 **Production (постоянный HTTPS):**
 
 Схема: `Telegram → https://app.example.com → proxy → 127.0.0.1:8080`.
 
-1. DNS A/AAAA или CNAME на сервер (или named Cloudflare Tunnel).
+1. DNS A/AAAA или CNAME на сервер (или named Cloudflare Tunnel на **постоянном** custom hostname).
 2. Reverse proxy: примеры в `deploy/caddy/` или `deploy/nginx/`.
 3. `.env`:
    ```env
@@ -84,6 +85,7 @@ python -m flypingavia
    TRAVELPAYOUTS_TOKEN=…
    FORWARDED_ALLOW_IPS=127.0.0.1
    ```
+   Не используйте `*.trycloudflare.com` — запуск завершится ошибкой.
 4. Проверьте:
    ```bash
    curl -sf https://app.example.com/api/ready
@@ -100,9 +102,8 @@ python -m flypingavia
 ./scripts/supervise.sh
 ```
 
-- `APP_ENV=production` — **не** генерирует новый tunnel URL и **не** переписывает `WEBAPP_URL`.
+- `APP_ENV=production` — **не** генерирует новый tunnel URL и **не** переписывает `WEBAPP_URL`; при ошибке конфигурации **завершается с кодом ≠ 0**.
 - `development` — optional quick tunnel + обновление URL (как раньше).
-
 Локальный просмотр UI в браузере (без Telegram):
 ```env
 APP_ENV=development

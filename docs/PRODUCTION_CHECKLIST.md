@@ -13,7 +13,9 @@
 ## B. Приложение
 
 - [ ] `.env`: `APP_ENV=production`
-- [ ] `.env`: `WEBAPP_URL=https://app.example.com` (без `/`, query, fragment)
+- [ ] `.env`: `WEBAPP_URL=https://app.example.com` (без `/`, query, fragment; **не** `*.trycloudflare.com`)
+- [ ] Quick tunnel / trycloudflare — только `APP_ENV=development`
+- [ ] Named tunnel на **своём** hostname — допустим в production
 - [ ] `.env`: `WEBAPP_DEV_USER_ID=0`
 - [ ] `.env`: `TRAVELPAYOUTS_TOKEN=…` (иначе health `DEMO_PRICES_ENABLED`)
 - [ ] `.env`: `DISPLAY_TIMEZONE=Europe/Moscow` (или ваша бизнес-TZ)
@@ -26,6 +28,7 @@
 
 - [ ] Production: **не** использовать `cloudflared tunnel --url` (trycloudflare)
 - [ ] `scripts/supervise.sh` при `APP_ENV=production` не переписывает `WEBAPP_URL`
+- [ ] Невалидный production startup (`WEBAPP_URL` пуст / HTTP / trycloudflare) → supervise **exit ≠ 0**
 - [ ] Named tunnel (опционально): `deploy/cloudflared/config.yml.example`
 
 ## D. BotFather (вручную)

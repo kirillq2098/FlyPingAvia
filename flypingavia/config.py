@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from flypingavia.webapp_url import (
     ALLOWED_APP_ENVS,
     is_telegram_safe_webapp_url,
+    is_temporary_tunnel_hostname,
     normalize_webapp_url,
 )
 
@@ -235,6 +236,8 @@ class Settings(BaseSettings):
 
     def readiness_issues(self) -> list[str]:
         """Коды проблем относительно текущего APP_ENV (без secrets)."""
+        from urllib.parse import urlparse
+
         issues: list[str] = []
         if self.app_env in {"development", "test"}:
             # Локально/в тестах процесс считается готовым без публичного HTTPS.
@@ -245,6 +248,11 @@ class Settings(BaseSettings):
             issues.append("WEBAPP_URL_NOT_CONFIGURED")
         elif not self.webapp_https:
             issues.append("WEBAPP_URL_NOT_HTTPS")
+        else:
+            # Defense-in-depth: штатная валидация уже отклоняет temporary URL.
+            host = urlparse(self.webapp_url).hostname
+            if is_temporary_tunnel_hostname(host):
+                issues.append("TEMPORARY_WEBAPP_URL")
         if int(self.webapp_dev_user_id or 0) != 0:
             issues.append("WEBAPP_DEV_USER_ENABLED")
         if self.is_demo_prices:

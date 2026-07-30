@@ -11,7 +11,11 @@ from pydantic import ValidationError
 from flypingavia.bot import keyboards as kb
 from flypingavia.bot.formatters import mini_app_unavailable_text
 from flypingavia.config import Settings
-from flypingavia.webapp_url import is_telegram_safe_webapp_url, normalize_webapp_url
+from flypingavia.webapp_url import (
+    is_telegram_safe_webapp_url,
+    is_temporary_tunnel_hostname,
+    normalize_webapp_url,
+)
 
 
 def _settings(**kwargs) -> Settings:
@@ -115,6 +119,81 @@ def test_default_https_port_stripped() -> None:
         normalize_webapp_url("https://app.example.com:443", app_env="development")
         == "https://app.example.com"
     )
+
+
+def test_production_rejects_trycloudflare_subdomain() -> None:
+    with pytest.raises((ValidationError, ValueError), match="trycloudflare"):
+        _settings(
+            app_env="production",
+            webapp_url="https://abc.trycloudflare.com",
+            travelpayouts_token="tok",
+        )
+
+
+def test_production_rejects_trycloudflare_apex() -> None:
+    with pytest.raises((ValidationError, ValueError), match="trycloudflare"):
+        _settings(
+            app_env="production",
+            webapp_url="https://trycloudflare.com",
+            travelpayouts_token="tok",
+        )
+
+
+def test_development_allows_trycloudflare() -> None:
+    s = _settings(
+        app_env="development",
+        webapp_url="https://abc.trycloudflare.com",
+    )
+    assert s.webapp_url == "https://abc.trycloudflare.com"
+    assert s.telegram_webapp_url == "https://abc.trycloudflare.com"
+
+
+def test_test_env_allows_trycloudflare() -> None:
+    s = _settings(
+        app_env="test",
+        webapp_url="https://xyz.trycloudflare.com",
+    )
+    assert s.webapp_url == "https://xyz.trycloudflare.com"
+
+
+def test_production_allows_custom_https_domain() -> None:
+    s = _settings(
+        app_env="production",
+        webapp_url="https://app.example.com",
+        travelpayouts_token="tok",
+    )
+    assert s.webapp_url == "https://app.example.com"
+    assert s.is_ready is True
+
+
+def test_production_allows_named_tunnel_custom_hostname() -> None:
+    s = _settings(
+        app_env="production",
+        webapp_url="https://mini.flyping.ru",
+        travelpayouts_token="tok",
+    )
+    assert s.webapp_url == "https://mini.flyping.ru"
+    assert is_temporary_tunnel_hostname("mini.flyping.ru") is False
+
+
+def test_trycloudflare_suffix_not_false_positive() -> None:
+    assert is_temporary_tunnel_hostname("trycloudflare.com.example.org") is False
+    assert is_temporary_tunnel_hostname("eviltrycloudflare.com") is False
+    s = _settings(
+        app_env="production",
+        webapp_url="https://trycloudflare.com.example.org",
+        travelpayouts_token="tok",
+    )
+    assert s.webapp_url == "https://trycloudflare.com.example.org"
+
+
+def test_temporary_hostname_case_insensitive() -> None:
+    assert is_temporary_tunnel_hostname("ABC.TryCloudflare.COM") is True
+    with pytest.raises((ValidationError, ValueError), match="trycloudflare"):
+        normalize_webapp_url(
+            "https://ABC.TryCloudflare.COM",
+            app_env="production",
+        )
 
 
 # --- health / ready ---
