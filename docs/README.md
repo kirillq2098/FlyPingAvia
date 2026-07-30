@@ -12,6 +12,7 @@
 | [PRODUCT_VISION.md](PRODUCT_VISION.md) | Зачем продукт, для кого, что уже умеет |
 | [FLYPING_STRATEGY.md](FLYPING_STRATEGY.md) | Долгосрочная стратегия: USP, рост, non-goals |
 | [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md) | Реестр функций, релизы, Impact vs Effort |
+| [SPRINT_01.md](SPRINT_01.md) | План текущего спринта (ожидает подтверждения) |
 | [USER_JOURNEY.md](USER_JOURNEY.md) | Путь пользователя и точки отказа |
 | [MASTER_ROADMAP.md](MASTER_ROADMAP.md) | Этапы развития и открытые вопросы по цели |
 | [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) | Конкуренты, таблица сравнения, opportunities |
@@ -49,7 +50,7 @@
 
 1. Новая идея → сначала [PRODUCT_VISION](PRODUCT_VISION.md), [FLYPING_STRATEGY](FLYPING_STRATEGY.md), [COMPETITIVE_ANALYSIS](COMPETITIVE_ANALYSIS.md) и [DECISIONS](DECISIONS.md); затем карточка в [FEATURE_BACKLOG](FEATURE_BACKLOG.md).
 2. UX и воронка → [USER_JOURNEY](USER_JOURNEY.md).
-3. План работ → [FEATURE_BACKLOG](FEATURE_BACKLOG.md) + [MASTER_ROADMAP](MASTER_ROADMAP.md) + [KPI](KPI.md).
+3. План работ → [FEATURE_BACKLOG](FEATURE_BACKLOG.md) + [SPRINT_01](SPRINT_01.md) + [MASTER_ROADMAP](MASTER_ROADMAP.md) + [KPI](KPI.md).
 4. Изменение кода/инфры → [TECH_ARCHITECTURE](TECH_ARCHITECTURE.md), запись в [CHANGELOG](CHANGELOG.md).
 5. Деньги и рост → [MONETIZATION](MONETIZATION.md), [MARKETING](MARKETING.md).
 
