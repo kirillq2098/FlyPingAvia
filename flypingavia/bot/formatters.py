@@ -564,6 +564,13 @@ def welcome_text() -> str:
     )
 
 
+def mini_app_unavailable_text() -> str:
+    return (
+        "<b>Mini App пока недоступен.</b>\n"
+        "Используйте команды бота: ➕ Добавить, 📋 Мои маршруты, /help."
+    )
+
+
 def mini_app_text(host: str) -> str:
     _ = host
     return (

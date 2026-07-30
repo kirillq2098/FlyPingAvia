@@ -12,12 +12,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
+    # Только canonical публичный HTTPS — не localhost и не пустой URL.
     if webapp_url:
-        url = webapp_url.rstrip("/") + "/"
         builder.row(
             KeyboardButton(
                 text="🛩 Открыть приложение",
-                web_app=WebAppInfo(url=url),
+                web_app=WebAppInfo(url=webapp_url),
             )
         )
     builder.row(
@@ -138,18 +138,17 @@ def after_watch_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
 def open_app_kb(webapp_url: str | None = None) -> InlineKeyboardMarkup | None:
     if not webapp_url:
         return None
-    url = webapp_url.rstrip("/") + "/"
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
             text="🛩 Открыть Mini App",
-            web_app=WebAppInfo(url=url),
+            web_app=WebAppInfo(url=webapp_url),
         )
     )
     builder.row(
         InlineKeyboardButton(
             text="🌐 Открыть в браузере",
-            url=url,
+            url=webapp_url,
         )
     )
     return builder.as_markup()

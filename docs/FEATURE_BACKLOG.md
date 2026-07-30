@@ -327,7 +327,7 @@
 - **Зависимости:** Infra; деньги на VPS/домен
 - **DoD:** постоянный URL в .env; health с публички 7д; BotFather domain
 - **Метрики:** public health uptime
-- **Статус:** Partial (supervise + quick tunnel) · **Source:** Roadmap, Strategy, Arch, Compete
+- **Статус:** Partial — кодовая production-конфигурация готова (`APP_ENV`, валидация `WEBAPP_URL`, `/api/ready`, reverse-proxy examples, checklist); остаётся развернуть домен/DNS/TLS и проверить постоянный URL вручную · **Source:** Roadmap, Strategy, Arch, Compete
 
 ### WA-03 · Состояние «Mini App недоступен» в боте
 - **Описание:** Если WEBAPP_URL пуст/health fail — честный текст, полный FSM без давления на app.

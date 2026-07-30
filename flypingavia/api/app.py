@@ -155,15 +155,37 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 live_status = "denied"
             else:
                 live_status = "configured"
+        issues = settings.readiness_issues()
         return {
+            "status": "ok",
             "ok": True,
+            "ready": len(issues) == 0,
+            "issues": issues,
+            "app_env": settings.app_env,
+            "webapp_configured": settings.webapp_configured,
+            "webapp_url": settings.webapp_origin,
+            "webapp_https": settings.webapp_https,
+            "display_timezone": settings.display_timezone,
             "demo_prices": settings.is_demo_prices,
-            "webapp_url": settings.webapp_url or None,
             "live_search_mode": settings.live_search_mode,
             "live_search": live_status,
-            "search_marker": settings.search_marker or None,
-            "display_timezone": settings.display_timezone,
         }
+
+    @app.get("/api/ready")
+    async def ready():
+        """Readiness относительно APP_ENV.
+
+        development/test: обычно ready=true (без требования публичного HTTPS).
+        production: строгие prerequisites (HTTPS WEBAPP_URL, live prices, …).
+        HTTP 503 только когда не готово — процесс при этом жив (см. /api/health).
+        """
+        from fastapi.responses import JSONResponse
+
+        issues = settings.readiness_issues()
+        payload = {"ready": len(issues) == 0, "issues": issues, "app_env": settings.app_env}
+        if issues:
+            return JSONResponse(status_code=503, content=payload)
+        return JSONResponse(status_code=200, content=payload)
 
     @app.get("/api/me")
     async def me(user: dict = Depends(current_user)) -> dict:

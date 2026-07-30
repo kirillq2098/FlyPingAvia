@@ -55,30 +55,58 @@ python -m flypingavia
 
 ### Telegram Mini App
 
-1. Поднимите HTTPS-туннель к локальному порту, например:
+**Development (временный tunnel):**
+
+1. Поднимите HTTPS-туннель к локальному порту:
    ```bash
    cloudflared tunnel --url http://127.0.0.1:8080
    # или: ngrok http 8080
    ```
-2. Пропишите URL в `.env`:
+2. В `.env`:
    ```env
+   APP_ENV=development
    WEBAPP_URL=https://your-tunnel.example
    ```
-3. Перезапустите бота — появится кнопка **🛩 Открыть приложение**.
-4. В @BotFather можно также привязать домен: `/setdomain`.
+3. Перезапустите бота — кнопка **🛩 Открыть приложение** (только если URL — публичный HTTPS).
+4. Temporary `*.trycloudflare.com` — **только для разработки**, не production.
+   При `APP_ENV=production` такой URL отклоняется (`Settings` + `supervise.sh`, exit ≠ 0).
 
-Автоперезапуск (бот + туннель), если сервис падает:
+**Production (постоянный HTTPS):**
+
+Схема: `Telegram → https://app.example.com → proxy → 127.0.0.1:8080`.
+
+1. DNS A/AAAA или CNAME на сервер (или named Cloudflare Tunnel на **постоянном** custom hostname).
+2. Reverse proxy: примеры в `deploy/caddy/` или `deploy/nginx/`.
+3. `.env`:
+   ```env
+   APP_ENV=production
+   WEBAPP_URL=https://app.example.com
+   WEBAPP_DEV_USER_ID=0
+   TRAVELPAYOUTS_TOKEN=…
+   FORWARDED_ALLOW_IPS=127.0.0.1
+   ```
+   Не используйте `*.trycloudflare.com` — запуск завершится ошибкой.
+4. Проверьте:
+   ```bash
+   curl -sf https://app.example.com/api/ready
+   ```
+5. BotFather (вручную, без вставки токена в чаты/доки):
+   - `/setmenubutton` → бот → название кнопки → точный `WEBAPP_URL` (только HTTPS);
+   - при необходимости `/setdomain` → hostname из `WEBAPP_URL`;
+   - открыть Mini App из Telegram.
+6. Полный чеклист: [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md).
+
+Автоперезапуск:
 
 ```bash
 ./scripts/supervise.sh
-# или в фоне:
-# tmux new-session -d -s flypingavia-supervise './scripts/supervise.sh'
 ```
 
-Watchdog сам рестартит `python -m flypingavia` и `cloudflared`, при новом URL туннеля обновляет `WEBAPP_URL` в `.env` и перезапускает бота. Логи: `/tmp/flypingavia/`.
-
+- `APP_ENV=production` — **не** генерирует новый tunnel URL и **не** переписывает `WEBAPP_URL`; при ошибке конфигурации **завершается с кодом ≠ 0**.
+- `development` — optional quick tunnel + обновление URL (как раньше).
 Локальный просмотр UI в браузере (без Telegram):
 ```env
+APP_ENV=development
 WEBAPP_DEV_USER_ID=1
 ```
 и откройте `http://127.0.0.1:8080/`.
@@ -87,8 +115,10 @@ Docker:
 
 ```bash
 docker build -t flypingavia .
-docker run --env-file .env -v "$(pwd)/data:/app/data" flypingavia
+docker run --env-file .env -p 127.0.0.1:8080:8080 -v "$(pwd)/data:/app/data" flypingavia
 ```
+
+Пример compose: `deploy/docker-compose.production.example.yml`.
 
 ## Команды бота
 
@@ -109,6 +139,9 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" flypingavia
 | Наше имя | Ваш алиас | Назначение |
 |----------|-----------|------------|
 | `BOT_TOKEN` | `TELEGRAM_TOKEN` | Токен Telegram-бота |
+| `APP_ENV` | — | `development` / `production` / `test` |
+| `WEBAPP_URL` | — | Canonical HTTPS Mini App URL (обязателен в production) |
+| `FORWARDED_ALLOW_IPS` | — | IP reverse proxy для X-Forwarded-* (default `127.0.0.1`) |
 | `TRAVELPAYOUTS_TOKEN` | `AVIASALES_API_TOKEN` | API цен |
 | `CHECK_INTERVAL_MINUTES` | `CHECK_INTERVAL_SECONDS` | Интервал проверки |
 | `DATABASE_URL` | `DB_PATH` | SQLite |

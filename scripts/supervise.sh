@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Watchdog: держит бот+Mini App и HTTPS-туннель живыми.
-# Если падает локальный сервис или туннель — перезапускает.
-# При новом cloudflare URL обновляет WEBAPP_URL в .env и рестартит бота.
+# Watchdog: держит бот+Mini App живыми.
 #
-# Важно: не долбить *.trycloudflare.com через системный DNS сразу после старта —
-# cloudflared печатает URL раньше публикации DNS, а NXDOMAIN кэшируется надолго.
-# Готовность туннеля: metrics (ha_connections) + DoH (1.1.1.1), затем curl --resolve.
+# APP_ENV=production (или SUPERVISE_MODE=production / USE_TEMP_TUNNEL=0):
+#   - требует постоянный WEBAPP_URL в .env (HTTPS)
+#   - НЕ запускает temporary trycloudflare tunnel
+#   - НЕ переписывает WEBAPP_URL
+#   - проверяет local /api/health (и опционально public WEBAPP_URL/api/ready)
+#
+# development (по умолчанию):
+#   - quick tunnel cloudflared --url (ephemeral)
+#   - при новом URL обновляет WEBAPP_URL и рестартит бота
+#
+# Named tunnel / VPS+домен: см. deploy/ и docs.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,10 +42,34 @@ log() {
   printf '%s\n' "$line" | tee -a "$SUPERVISE_LOG" >&2
 }
 
-read_env_url() {
+read_env_var() {
+  local key="$1"
   if [[ -f "$ENV_FILE" ]]; then
-    grep -E '^WEBAPP_URL=' "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r' || true
+    grep -E "^${key}=" "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r' || true
   fi
+}
+
+read_env_url() {
+  read_env_var WEBAPP_URL
+}
+
+read_app_env() {
+  local v
+  v="$(read_env_var APP_ENV)"
+  echo "${v:-development}" | tr '[:upper:]' '[:lower:]'
+}
+
+use_temp_tunnel() {
+  # Explicit override wins.
+  if [[ "${USE_TEMP_TUNNEL:-}" == "0" || "${SUPERVISE_MODE:-}" == "production" ]]; then
+    return 1
+  fi
+  if [[ "${USE_TEMP_TUNNEL:-}" == "1" ]]; then
+    return 0
+  fi
+  local env
+  env="$(read_app_env)"
+  [[ "$env" != "production" ]]
 }
 
 write_env_url() {
@@ -101,104 +131,70 @@ stop_pid() {
   fi
 }
 
-kill_strays() {
-  local pid cmd sig="${1:-TERM}"
-  while read -r pid cmd; do
-    [[ -z "${pid:-}" ]] && continue
-    [[ "$pid" == "$$" || "$pid" == "$PPID" ]] && continue
+kill_cloudflared_strays() {
+  local sig="${1:-TERM}"
+  local pid cmd
+  for pid in $(pgrep -f 'cloudflared tunnel' 2>/dev/null || true); do
+    cmd="$(ps -p "$pid" -o args= 2>/dev/null || true)"
     if is_cloudflared_cmd "$cmd"; then
       log "kill stray cloudflared pid=$pid ($sig)"
-      kill -s "$sig" "$pid" 2>/dev/null || true
-    elif is_bot_cmd "$cmd"; then
-      log "kill stray bot pid=$pid ($sig)"
-      kill -s "$sig" "$pid" 2>/dev/null || true
+      kill "-$sig" "$pid" 2>/dev/null || true
     fi
-  done < <(ps -eo pid=,args=)
+  done
 }
 
-kill_cloudflared_strays() {
-  local pid cmd sig="${1:-TERM}"
-  while read -r pid cmd; do
-    [[ -z "${pid:-}" ]] && continue
-    [[ "$pid" == "$$" || "$pid" == "$PPID" ]] && continue
+kill_strays() {
+  local sig="${1:-TERM}"
+  local pid cmd
+  for pid in $(pgrep -f 'python.*flypingavia|cloudflared tunnel' 2>/dev/null || true); do
+    cmd="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+    if is_bot_cmd "$cmd"; then
+      log "kill stray bot pid=$pid ($sig)"
+      kill "-$sig" "$pid" 2>/dev/null || true
+    fi
     if is_cloudflared_cmd "$cmd"; then
       log "kill stray cloudflared pid=$pid ($sig)"
-      kill -s "$sig" "$pid" 2>/dev/null || true
+      kill "-$sig" "$pid" 2>/dev/null || true
     fi
-  done < <(ps -eo pid=,args=)
+  done
 }
 
 tunnel_metrics_port() {
-  # "Starting metrics server on 127.0.0.1:PORT/metrics"
-  grep -Eo 'Starting metrics server on 127\.0\.0\.1:[0-9]+' "$TUNNEL_LOG" 2>/dev/null \
-    | tail -n1 | grep -Eo '[0-9]+$' || true
+  # cloudflared --metrics 127.0.0.1:PORT
+  awk '/metrics/ {for(i=1;i<=NF;i++) if($i ~ /127\.0\.0\.1:[0-9]+/) {split($i,a,":"); print a[2]; exit}}' \
+    "$TUNNEL_LOG" 2>/dev/null || true
 }
 
 tunnel_ha_ok() {
-  local port
+  local port body ha
   port="$(tunnel_metrics_port)"
   [[ -n "$port" ]] || return 1
-  local body
   body="$(curl -sf -m 3 "http://127.0.0.1:${port}/metrics" 2>/dev/null || true)"
   [[ -n "$body" ]] || return 1
   echo "$body" >"$METRICS_FILE"
-  local ha
   ha="$(echo "$body" | awk '/^cloudflared_tunnel_ha_connections / {print $2; exit}')"
-  [[ -n "$ha" ]] || return 1
-  awk -v n="$ha" 'BEGIN { exit !(n+0 >= 1) }'
-}
-
-# DoH A-запись через IP Cloudflare — не трогает системный резолвер.
-doh_resolve_a() {
-  local host="$1"
-  curl -sf -m 5 "https://1.1.1.1/dns-query?name=${host}&type=A" \
-    -H 'accept: application/dns-json' 2>/dev/null \
-    | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-for a in d.get("Answer") or []:
-  if a.get("type")==1:
-    print(a["data"]); break
-' 2>/dev/null || true
-}
-
-public_health_ok() {
-  local url="${1:-}"
-  [[ -n "$url" ]] || return 1
-  local host path
-  host="$(python3 -c 'import sys; from urllib.parse import urlparse; print(urlparse(sys.argv[1]).hostname or "")' "$url")"
-  [[ -n "$host" ]] || return 1
-
-  local ip
-  ip="$(doh_resolve_a "$host")"
-  [[ -n "$ip" ]] || return 1
-
-  # curl --resolve обходит системный DNS (не травит NXDOMAIN-кэш)
-  curl -sf -m 12 --resolve "${host}:443:${ip}" "${url%/}/api/health" >/dev/null 2>&1
-}
-
-start_bot() {
-  stop_pid "$BOT_PID_FILE" "bot"
-  log "запускаю бота (python -m flypingavia)"
-  (
-    cd "$ROOT"
-    export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-    nohup python3 -m flypingavia >>"$BOT_LOG" 2>&1 &
-    echo $! >"$BOT_PID_FILE"
-  )
-  local i
-  for i in $(seq 1 40); do
-    if local_health_ok; then
-      log "бот готов (local health ok)"
-      return 0
-    fi
-    sleep 0.5
-  done
-  log "ERROR: бот не ответил на /api/health"
-  return 1
+  [[ -n "$ha" && "$ha" != "0" && "$ha" != "0.0" ]]
 }
 
 extract_tunnel_url() {
   grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -n1 || true
+}
+
+start_bot() {
+  stop_pid "$BOT_PID_FILE" "bot"
+  log "запускаю python -m flypingavia"
+  nohup python -m flypingavia >>"$BOT_LOG" 2>&1 &
+  echo $! >"$BOT_PID_FILE"
+  local _
+  for _ in $(seq 1 40); do
+    if local_health_ok; then
+      log "bot health ok"
+      return 0
+    fi
+    sleep 0.5
+  done
+  log "ERROR: bot health timeout"
+  return 1
 }
 
 start_tunnel() {
@@ -206,65 +202,28 @@ start_tunnel() {
   kill_cloudflared_strays TERM
   sleep 0.5
   kill_cloudflared_strays KILL
-  sleep 0.3
+
   : >"$TUNNEL_LOG"
-  rm -f "$METRICS_FILE"
   log "запускаю cloudflared → http://${LOCAL_HOST}:${LOCAL_PORT}"
   nohup cloudflared tunnel --url "http://${LOCAL_HOST}:${LOCAL_PORT}" \
-    --no-autoupdate >>"$TUNNEL_LOG" 2>&1 &
+    --metrics "127.0.0.1:0" >>"$TUNNEL_LOG" 2>&1 &
   echo $! >"$TUNNEL_PID_FILE"
 
-  local url="" i ha_ok=0 dns_ok=0 http_ok=0 url_seen_at=0
-  for i in $(seq 1 "$TUNNEL_READY_TIMEOUT"); do
+  local url="" _
+  for _ in $(seq 1 "$TUNNEL_READY_TIMEOUT"); do
     if ! pid_alive "$(cat "$TUNNEL_PID_FILE" 2>/dev/null || true)"; then
       log "ERROR: cloudflared умер при старте"
       return 1
     fi
-
     url="$(extract_tunnel_url)"
-    if [[ -n "$url" && "$url_seen_at" -eq 0 ]]; then
-      url_seen_at=$i
-      log "получен URL туннеля: $url (ждём DNS ≥${DNS_WAIT_BEFORE_PROBE}s + ha_connections)"
-    fi
-
-    if tunnel_ha_ok; then
-      ha_ok=1
-    fi
-
-    if [[ -n "$url" && $((i - url_seen_at)) -ge $DNS_WAIT_BEFORE_PROBE ]]; then
-      local host
-      host="$(python3 -c 'import sys; from urllib.parse import urlparse; print(urlparse(sys.argv[1]).hostname or "")' "$url")"
-      if [[ -n "$(doh_resolve_a "$host")" ]]; then
-        dns_ok=1
-        if public_health_ok "$url"; then
-          http_ok=1
-          log "туннель готов: $url (ha=$ha_ok dns=1 http=1)"
-          echo "$url"
-          return 0
-        fi
-      fi
-    fi
-
-    if (( i % 15 == 0 )); then
-      log "ожидание туннеля… url=${url:-none} ha=$ha_ok dns=$dns_ok http=$http_ok"
+    if [[ -n "$url" ]] && tunnel_ha_ok; then
+      sleep "$DNS_WAIT_BEFORE_PROBE"
+      echo "$url"
+      return 0
     fi
     sleep 1
   done
-
-  # Если edge зарегистрирован и URL есть — отдаём даже без http-проверки
-  # (Telegram резолвит DNS сам; системный кэш здесь может врать).
-  url="$(extract_tunnel_url)"
-  if [[ -n "$url" ]] && tunnel_ha_ok; then
-    log "WARN: отдаём URL при ha_connections>=1 без подтверждённого http: $url"
-    echo "$url"
-    return 0
-  fi
-  if [[ -n "$url" ]]; then
-    log "WARN: отдаём URL без ha/http: $url"
-    echo "$url"
-    return 0
-  fi
-  log "ERROR: не удалось получить URL туннеля"
+  log "ERROR: tunnel ready timeout"
   return 1
 }
 
@@ -281,8 +240,8 @@ ensure_url_synced() {
   fi
 }
 
-restart_stack() {
-  log "полный рестарт стека"
+restart_stack_dev_tunnel() {
+  log "полный рестарт стека (development temporary tunnel)"
   local url
   if ! start_bot; then
     log "ERROR: бот не поднялся"
@@ -296,6 +255,37 @@ restart_stack() {
   log "стек поднят: $url"
 }
 
+restart_stack_production() {
+  local url host
+  url="$(read_env_url)"
+  if [[ -z "$url" ]]; then
+    log "ERROR: APP_ENV=production требует WEBAPP_URL=https://… в $ENV_FILE"
+    log "Quick tunnel (trycloudflare) в production запрещён."
+    return 1
+  fi
+  if [[ "$url" != https://* ]]; then
+    log "ERROR: production WEBAPP_URL должен быть HTTPS: $url"
+    return 1
+  fi
+  # Базовая проверка hostname (источник истины — Python Settings при старте бота).
+  host="${url#https://}"
+  host="${host%%/*}"
+  host="${host%%:*}"
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$host" == "trycloudflare.com" || "$host" == *.trycloudflare.com ]]; then
+    log "ERROR: temporary trycloudflare URL запрещён в production: $url"
+    log "Используйте собственный домен или Cloudflare named tunnel с постоянным hostname."
+    return 1
+  fi
+  log "production mode: фиксированный WEBAPP_URL=$url (tunnel не перезаписывает)"
+  if ! start_bot; then
+    log "ERROR: бот не поднялся (проверьте WEBAPP_URL / APP_ENV через Python Settings)"
+    return 1
+  fi
+  echo "$url" >"$URL_FILE"
+  log "стек поднят (без temp tunnel): $url"
+}
+
 cleanup() {
   log "supervise останавливается (signal)"
   stop_pid "$TUNNEL_PID_FILE" "tunnel"
@@ -305,12 +295,22 @@ cleanup() {
 
 trap cleanup INT TERM
 
-log "=== supervise start root=$ROOT ==="
+log "=== supervise start root=$ROOT app_env=$(read_app_env) ==="
 kill_strays TERM
 sleep 1
 kill_strays KILL
 sleep 1
-restart_stack || true
+
+if use_temp_tunnel; then
+  restart_stack_dev_tunnel || true
+else
+  # Не трогаем чужие named tunnels; только гасим quick --url strays.
+  kill_cloudflared_strays TERM || true
+  if ! restart_stack_production; then
+    log "FATAL: production stack не запущен из-за некорректной конфигурации"
+    exit 1
+  fi
+fi
 
 local_fails=0
 public_fails=0
@@ -330,6 +330,11 @@ while true; do
     local_fails=0
   fi
 
+  if ! use_temp_tunnel; then
+    # Production: только локальный health; публичный URL не переписываем.
+    continue
+  fi
+
   tunnel_pid="$(cat "$TUNNEL_PID_FILE" 2>/dev/null || true)"
   url="$(read_env_url)"
   fresh="$(extract_tunnel_url)"
@@ -347,30 +352,20 @@ while true; do
     need_tunnel_restart=1
   elif ! tunnel_ha_ok; then
     public_fails=$((public_fails + 1))
-    log "tunnel ha_connections fail ($public_fails/$PUBLIC_FAILS_MAX)"
+    log "tunnel HA fail ($public_fails/$PUBLIC_FAILS_MAX)"
     if (( public_fails >= PUBLIC_FAILS_MAX )); then
       need_tunnel_restart=1
-    fi
-  elif ! public_health_ok "$url"; then
-    # DNS/HTTP через DoH; одна ошибка не рестартит сразу
-    public_fails=$((public_fails + 1))
-    log "public health fail ($public_fails/$PUBLIC_FAILS_MAX) url=${url:-none}"
-    if (( public_fails >= PUBLIC_FAILS_MAX )); then
-      need_tunnel_restart=1
+      public_fails=0
     fi
   else
     public_fails=0
   fi
 
   if (( need_tunnel_restart == 1 )); then
-    if ! local_health_ok; then
-      start_bot || true
-    fi
-    if new_url="$(start_tunnel)"; then
-      ensure_url_synced "$new_url"
-      public_fails=0
+    if url="$(start_tunnel)"; then
+      ensure_url_synced "$url"
     else
-      log "ERROR: не удалось перезапустить туннель, повторю через цикл"
+      log "ERROR: не удалось перезапустить tunnel"
     fi
   fi
 done

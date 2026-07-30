@@ -566,12 +566,12 @@ async def _confirm_watch_message(
         reply_markup=kb.after_watch_kb(watch_id, link),
         disable_web_page_preview=True,
     )
-    await target.answer("Главное меню:", reply_markup=kb.main_menu(settings.webapp_url or None))
+    await target.answer("Главное меню:", reply_markup=kb.main_menu(settings.telegram_webapp_url))
 
 
 def create_router(settings: Settings, checker: PriceChecker, provider: PriceProvider) -> Router:
     router = Router(name="main")
-    webapp = (settings.webapp_url or "").strip() or None
+    webapp = settings.telegram_webapp_url
 
     def menu():
         return kb.main_menu(webapp)
@@ -591,6 +591,12 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 fmt.mini_app_text(host),
                 parse_mode="HTML",
                 reply_markup=app_kb,
+            )
+        else:
+            await message.answer(
+                fmt.mini_app_unavailable_text(),
+                parse_mode="HTML",
+                reply_markup=menu(),
             )
         await message.answer(
             "<b>Быстрый старт</b> — популярные направления:",
