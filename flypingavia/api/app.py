@@ -15,6 +15,8 @@ from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
 from flypingavia.services.prices import align_band_to_quote, build_affiliate_url, build_price_provider
+from flypingavia.services.threshold_policy import evaluate_low_threshold
+from flypingavia.bot.formatters import money as format_money
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 
@@ -65,6 +67,7 @@ class WatchIn(BaseModel):
     adults: int = Field(default=1, ge=1, le=9)
     children: int = Field(default=0, ge=0, le=9)
     infants: int = Field(default=0, ge=0, le=9)
+    confirm_low_threshold: bool = False
 
 
 class WatchOut(BaseModel):
@@ -295,6 +298,8 @@ def create_api(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/watches", response_model=WatchOut)
     async def api_create_watch(body: WatchIn, user: dict = Depends(current_user)) -> WatchOut:
+        import math
+
         origin_place, _ = await resolve_place(body.origin)
         dest_place, _ = await resolve_place(body.destination)
         if not origin_place or not dest_place:
@@ -303,6 +308,59 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(400, "Дата возврата раньше вылета")
         if body.infants > body.adults:
             raise HTTPException(400, "Младенцев не больше, чем взрослых")
+        if not math.isfinite(body.max_price) or body.max_price <= 0:
+            raise HTTPException(400, "Порог должен быть положительным числом")
+
+        # CS-05: серверный band; клиентский cheap_max не принимается.
+        band = None
+        try:
+            quote = await provider.get_trip_quote(
+                origin_place.search_codes,
+                dest_place.search_codes,
+                depart_date=body.depart_date,
+                return_date=body.return_date,
+                adults=body.adults,
+                children=body.children,
+                infants=body.infants,
+                currency=settings.currency,
+            )
+            band = await provider.get_trip_band(
+                origin_place.search_codes,
+                dest_place.search_codes,
+                depart_date=body.depart_date,
+                return_date=body.return_date,
+                adults=body.adults,
+                children=body.children,
+                infants=body.infants,
+                currency=settings.currency,
+            )
+            band = align_band_to_quote(band, quote)
+        except Exception:
+            band = None
+
+        decision = evaluate_low_threshold(
+            body.max_price,
+            band,
+            currency=settings.currency,
+        )
+        if decision.warn and not body.confirm_low_threshold:
+            cheap = decision.cheap_max or 0
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "LOW_THRESHOLD_CONFIRMATION_REQUIRED",
+                    "threshold": decision.threshold,
+                    "cheap_max": decision.cheap_max,
+                    "typical": decision.typical,
+                    "currency": decision.currency,
+                    "message": (
+                        "Порог заметно ниже текущего рынка. "
+                        f"Вы выбрали {format_money(decision.threshold, decision.currency)}, "
+                        f"дешёвая зона до {format_money(cheap, decision.currency)}. "
+                        "С таким порогом уведомление может долго не прийти."
+                    ),
+                },
+            )
 
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(

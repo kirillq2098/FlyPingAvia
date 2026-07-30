@@ -161,6 +161,21 @@ def format_threshold_contract(
     return "\n".join(lines)
 
 
+def format_low_threshold_warning(
+    threshold: float,
+    cheap_max: float,
+    currency: str = "RUB",
+) -> str:
+    """CS-05: спокойное предупреждение о пороге ниже дешёвой зоны рынка."""
+    return (
+        "⚠️ <b>Порог заметно ниже текущего рынка</b>\n\n"
+        f"Вы выбрали: {money(threshold, currency)}\n"
+        f"Дешёвая цена по текущим данным: до {money(cheap_max, currency)}\n\n"
+        "С таким порогом уведомление может долго не прийти.\n"
+        "Можно сохранить этот порог или вернуться и изменить его."
+    )
+
+
 def format_price_card(
     *,
     origin: str,

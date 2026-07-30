@@ -91,6 +91,30 @@ def threshold_kb(
     return builder.as_markup()
 
 
+def low_threshold_confirm_kb() -> InlineKeyboardMarkup:
+    """CS-05: подтверждение сохранения низкого порога."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Сохранить этот порог",
+            callback_data="lowthr:save",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="✏️ Изменить порог",
+            callback_data="lowthr:edit",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="📊 Варианты по рынку",
+            callback_data="lowthr:presets",
+        )
+    )
+    return builder.as_markup()
+
+
 def watch_actions_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(

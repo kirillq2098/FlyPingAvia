@@ -99,7 +99,15 @@
           <button type="button" class="btn ghost" data-preset="cheap">Дёшево</button>
           <button type="button" class="btn ghost" data-preset="typical">Обычно</button>
         </div>
-        <button class="btn primary" type="submit">Следить за ценой</button>
+        <div id="low-threshold-warn" class="low-threshold-warn hidden">
+          <p class="warn-title">⚠️ Порог заметно ниже текущего рынка</p>
+          <p id="low-threshold-text" class="meta"></p>
+          <div class="btn-row">
+            <button type="button" class="btn primary" id="low-threshold-confirm">Сохранить всё равно</button>
+            <button type="button" class="btn ghost" id="low-threshold-edit">Изменить порог</button>
+          </div>
+        </div>
+        <button class="btn primary" type="submit" id="watch-submit">Следить за ценой</button>
       </form>
     </section>
 

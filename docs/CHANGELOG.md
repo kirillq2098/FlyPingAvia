@@ -12,10 +12,12 @@
 - **NT-04:** антиспам алертов — `NOTIFICATION_COOLDOWN_HOURS` (default 24) и `MIN_PRICE_DELTA` (default 500); решение по истории `AlertEvent` (`notify_policy.decide_notification`); `last_alert_price` обновляется только после успешной отправки.
 - **NT-02:** явный контракт порога в алерте — `format_threshold_contract` / `threshold_contract=True` в `format_price_card`; блок «Текущая цена / Ваш порог / X ≤ Y / Выгода к порогу».
 - **NT-03:** рыночная оценка в алерте — `format_market_assessment` (🟢/🟡/🔴 + ориентир «около typical»); порядок: NT-02 → рынок; fallback при `band=None`; аудит существующего `get_trip_band`/`align_band_to_quote`/`format_band_block`.
+- **CS-05:** предупреждение порога ниже рынка — `threshold_policy.should_warn_low_threshold` (`threshold < cheap_max`); подтверждение в Telegram FSM и Mini App (`confirm_low_threshold` / HTTP 409).
 
 ### Fixed
 
 - **NT-04 review fixes:** `asyncio.Lock` против параллельных `run_once`; раздельные ошибки Telegram send vs persistence `AlertEvent`; валидация `NOTIFICATION_COOLDOWN_HOURS` / `MIN_PRICE_DELTA` ≥ 0 при старте.
+- **CS-05 review fix:** восстановление pending threshold при ошибке создания Watch.
 
 ### Documentation
 
