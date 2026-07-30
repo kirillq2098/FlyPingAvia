@@ -1,6 +1,6 @@
 # Product Vision — FlyPingAvia
 
-Связанные документы: [README docs](README.md) · [Roadmap](MASTER_ROADMAP.md) · [Monetization](MONETIZATION.md) · [Marketing](MARKETING.md)
+Связанные документы: [README docs](README.md) · [Strategy](FLYPING_STRATEGY.md) · [Roadmap](MASTER_ROADMAP.md) · [Monetization](MONETIZATION.md) · [Marketing](MARKETING.md)
 
 ## Зачем продукт
 
@@ -60,15 +60,17 @@
 - без `TRAVELPAYOUTS_TOKEN` — demo-цены (не рыночные);
 - без стабильного HTTPS `WEBAPP_URL` кнопка Mini App скрыта.
 
-## North Star (черновик)
+## North Star (черновик → стратегия)
 
-Рабочая формулировка до утверждения:
+Формулировка ценности:
 
 > Помочь человеку вовремя купить билет по приемлемой цене — через алерт и один клик к билетам.
 
+**Метрика:** зафиксирована в [FLYPING_STRATEGY](FLYPING_STRATEGY.md) как **Alerted Watchers (30d)**.
+
 **TODO:**
 
-- [ ] Утвердить одну North Star metric (см. [KPI](KPI.md)): алерты? клики по партнёрке? покупки?
+- [ ] Подтвердить метрику на первых 100 пользователях
 - [ ] Какой горизонт «успеха» для v1.0: стабильный сервис для N пользователей или первая выручка?
 
 ## Позиционирование относительно Aviasales / агрегаторов
