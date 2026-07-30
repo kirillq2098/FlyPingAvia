@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Manrope } from "next/font/google";
-import { siteConfig } from "@/lib/site";
+import { Analytics } from "@/components/Analytics";
+import { SkipLink } from "@/components/SkipLink";
+import { siteConfig } from "@/lib/config";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -21,7 +23,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: `${siteConfig.name} — мониторинг цен на авиабилеты`,
+    default: siteConfig.seoTitle,
     template: `%s · ${siteConfig.name}`,
   },
   description: siteConfig.description,
@@ -30,24 +32,27 @@ export const metadata: Metadata = {
     "FlyPing",
     "авиабилеты",
     "мониторинг цен",
+    "снижение цены",
     "Telegram бот",
-    "уведомления о цене",
+    "уведомления о авиабилетах",
   ],
   authors: [{ name: siteConfig.name }],
   creator: siteConfig.name,
   publisher: siteConfig.name,
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
     url: siteConfig.url,
     siteName: siteConfig.name,
-    title: `${siteConfig.name} — ${siteConfig.tagline}`,
+    title: siteConfig.seoTitle,
     description: siteConfig.description,
   },
   twitter: {
     card: "summary_large_image",
-    title: `${siteConfig.name} — ${siteConfig.tagline}`,
+    title: siteConfig.seoTitle,
     description: siteConfig.description,
   },
   robots: {
@@ -61,6 +66,7 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  category: "travel",
 };
 
 export const viewport: Viewport = {
@@ -77,7 +83,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`${manrope.variable} ${plexMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-bg font-sans text-ink antialiased">{children}</body>
+      <body className="min-h-full bg-bg font-sans text-ink antialiased">
+        <SkipLink />
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

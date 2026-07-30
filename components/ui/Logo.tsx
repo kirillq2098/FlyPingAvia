@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { siteConfig } from "@/lib/site";
+import { siteConfig } from "@/lib/config";
 
 type LogoProps = {
   className?: string;

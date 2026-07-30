@@ -6,7 +6,7 @@ import { Reveal } from "@/components/ui/Reveal";
 
 const STEPS = [
   { code: "01", title: "Маршрут задан", meta: "OVB → LED" },
-  { code: "02", title: "Цена проверяется", meta: "каждую 1 мин" },
+  { code: "02", title: "Цена проверяется", meta: "каждую минуту" },
   { code: "03", title: "Цена снизилась", meta: "−4 320 ₽" },
   { code: "04", title: "Уведомление отправлено", meta: "Telegram" },
 ] as const;

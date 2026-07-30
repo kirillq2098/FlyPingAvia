@@ -13,7 +13,7 @@ export default function HomePage() {
     <>
       <div id="top" />
       <Header />
-      <main>
+      <main id="main">
         <Hero />
         <ProductFlow />
         <InterfaceShowcase />

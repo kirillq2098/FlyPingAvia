@@ -2,13 +2,14 @@ import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { Reveal } from "@/components/ui/Reveal";
 import { RouteBoard } from "@/components/RouteBoard";
-import { siteConfig } from "@/lib/site";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
+import { siteConfig } from "@/lib/config";
 
 export function Hero() {
   return (
     <section className="pb-16 pt-10 sm:pb-20 sm:pt-14 lg:pb-24 lg:pt-16">
       <Container>
-        <div className="grid gap-10 lg:grid-cols-12 lg:gap-8 lg:items-end">
+        <div className="grid items-end gap-10 lg:grid-cols-12 lg:gap-8">
           <Reveal className="lg:col-span-7">
             <p className="mono text-[11px] uppercase tracking-[0.18em] text-mute">
               price monitoring · telegram
@@ -31,6 +32,7 @@ export function Hero() {
                 target="_blank"
                 rel="noopener noreferrer"
                 size="lg"
+                eventName={ANALYTICS_EVENTS.telegramOpenHero}
               >
                 Начать отслеживание
               </Button>

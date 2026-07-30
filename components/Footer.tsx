@@ -1,7 +1,9 @@
-import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
-import { siteConfig } from "@/lib/site";
+import { TelegramLinkClient } from "@/components/TelegramLinkClient";
+import { TrackedLink } from "@/components/TrackedLink";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
+import { siteConfig } from "@/lib/config";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -16,20 +18,27 @@ export function Footer() {
           </p>
         </div>
         <nav aria-label="Ссылки в подвале" className="flex flex-col gap-3 sm:items-end">
-          <a
+          <TelegramLinkClient
             href={siteConfig.telegramBotUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            eventName={ANALYTICS_EVENTS.telegramOpenFooter}
             className="text-sm text-mute hover:text-ink"
           >
             Telegram
-          </a>
-          <Link href={siteConfig.links.privacy} className="text-sm text-mute hover:text-ink">
+          </TelegramLinkClient>
+          <TrackedLink
+            href={siteConfig.links.privacy}
+            eventName={ANALYTICS_EVENTS.privacyOpen}
+            className="text-sm text-mute hover:text-ink"
+          >
             Политика конфиденциальности
-          </Link>
-          <Link href={siteConfig.links.terms} className="text-sm text-mute hover:text-ink">
+          </TrackedLink>
+          <TrackedLink
+            href={siteConfig.links.terms}
+            eventName={ANALYTICS_EVENTS.termsOpen}
+            className="text-sm text-mute hover:text-ink"
+          >
             Пользовательское соглашение
-          </Link>
+          </TrackedLink>
           <p className="mono pt-2 text-xs text-mute">
             © {year} {siteConfig.name}
           </p>

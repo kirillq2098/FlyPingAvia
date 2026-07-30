@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/cn";
+import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import type { FaqItem } from "@/lib/constants";
 
 type AccordionProps = {
@@ -26,8 +27,14 @@ export function Accordion({ items }: AccordionProps) {
               type="button"
               aria-expanded={open}
               aria-controls={panelId}
-              onClick={() => setOpenId(open ? null : item.id)}
-              className="flex w-full items-center justify-between gap-6 py-5 text-left"
+              onClick={() => {
+                const next = open ? null : item.id;
+                setOpenId(next);
+                if (next) {
+                  trackEvent(ANALYTICS_EVENTS.faqOpen, { question: item.id });
+                }
+              }}
+              className="flex w-full items-center justify-between gap-6 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
             >
               <span className="text-base font-medium tracking-[-0.02em] text-ink sm:text-lg">
                 {item.question}

@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
-import { siteConfig } from "@/lib/site";
+import { siteConfig } from "@/lib/config";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -53,7 +54,12 @@ export function Header() {
           ))}
         </nav>
         <div className="hidden md:block">
-          <Button href={siteConfig.telegramBotUrl} target="_blank" rel="noopener noreferrer">
+          <Button
+            href={siteConfig.telegramBotUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            eventName={ANALYTICS_EVENTS.telegramOpenHeader}
+          >
             Открыть Telegram
           </Button>
         </div>
@@ -93,6 +99,7 @@ export function Header() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 w-full"
+                eventName={ANALYTICS_EVENTS.telegramOpenHeader}
                 onClick={() => setOpen(false)}
               >
                 Открыть Telegram

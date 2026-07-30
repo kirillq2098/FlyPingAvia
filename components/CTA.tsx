@@ -4,7 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { Reveal } from "@/components/ui/Reveal";
-import { siteConfig } from "@/lib/site";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
+import { siteConfig } from "@/lib/config";
 
 export function CTA() {
   const reduceMotion = useReducedMotion();
@@ -43,6 +44,7 @@ export function CTA() {
                 rel="noopener noreferrer"
                 size="lg"
                 variant="on-dark"
+                eventName={ANALYTICS_EVENTS.telegramOpenCta}
               >
                 Запустить FlyPing
               </Button>

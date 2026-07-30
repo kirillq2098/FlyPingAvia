@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
-import { siteConfig } from "@/lib/site";
+import { siteConfig } from "@/lib/config";
 
-export const alt = siteConfig.tagline;
+export const alt = siteConfig.seoTitle;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -22,15 +22,15 @@ export default function OpenGraphImage() {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>FlyPing</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{siteConfig.name}</div>
           <div style={{ fontSize: 48, fontWeight: 700, letterSpacing: 2 }}>OVB → LED</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ fontSize: 64, fontWeight: 700, lineHeight: 1.05, maxWidth: 900 }}>
-            Билет подешевел. FlyPing уже сообщил.
+          <div style={{ fontSize: 58, fontWeight: 700, lineHeight: 1.05, maxWidth: 920 }}>
+            {siteConfig.tagline}
           </div>
-          <div style={{ fontSize: 28, color: "#5C6570", maxWidth: 760 }}>
-            Мониторинг маршрута и уведомление в Telegram при снижении цены.
+          <div style={{ fontSize: 26, color: "#5C6570", maxWidth: 820, lineHeight: 1.35 }}>
+            {siteConfig.description}
           </div>
         </div>
         <div style={{ display: "flex", gap: 28, fontSize: 28, fontWeight: 600 }}>

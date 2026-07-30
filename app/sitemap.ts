@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { siteConfig } from "@/lib/site";
+import { siteConfig } from "@/lib/config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -15,13 +15,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${siteConfig.url}${siteConfig.links.privacy}`,
       lastModified,
       changeFrequency: "yearly",
-      priority: 0.3,
+      priority: 0.4,
     },
     {
       url: `${siteConfig.url}${siteConfig.links.terms}`,
       lastModified,
       changeFrequency: "yearly",
-      priority: 0.3,
+      priority: 0.4,
     },
   ];
 }
