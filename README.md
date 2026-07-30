@@ -1,14 +1,13 @@
 # FlyPing
 
-Лендинг travel-tech сервиса FlyPing — мониторинг цен на авиабилеты и уведомления в Telegram.
+Travel-tech лендинг сервиса мониторинга цен на авиабилеты.
 
 ## Стек
 
-- Next.js (App Router)
+- Next.js App Router
 - TypeScript
 - Tailwind CSS
 - Framer Motion
-- Lucide Icons
 
 ## Запуск
 
@@ -17,12 +16,7 @@ npm install
 npm run dev
 ```
 
-## Структура
+## Визуальный язык
 
-```text
-app/                 # маршруты, SEO, metadata
-components/          # секции лендинга и UI
-lib/                 # конфиг и контент
-types/               # типы под будущие модули
-public/              # статика
-```
+Аэропортовая навигация + travel editorial + мониторинг цен:
+коды аэропортов, маршрутные линии, tabular prices, системные mono-подписи.
