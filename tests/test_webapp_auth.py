@@ -1,4 +1,10 @@
-from flypingavia.api.telegram_auth import build_test_init_data, validate_webapp_init_data
+"""Совместимость со старым импортом validate_webapp_init_data."""
+
+from flypingavia.api.telegram_auth import (
+    TelegramAuthError,
+    build_test_init_data,
+    validate_webapp_init_data,
+)
 
 
 def test_webapp_init_data_roundtrip() -> None:
@@ -15,5 +21,5 @@ def test_webapp_init_data_rejects_bad_hash() -> None:
     try:
         validate_webapp_init_data(init_data, token)
         assert False, "should raise"
-    except ValueError:
-        pass
+    except TelegramAuthError as exc:
+        assert exc.code == "INVALID_HASH"

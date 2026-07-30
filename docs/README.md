@@ -17,6 +17,7 @@
 | [MASTER_ROADMAP.md](MASTER_ROADMAP.md) | Этапы развития и открытые вопросы по цели |
 | [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) | Конкуренты, таблица сравнения, opportunities |
 | [TECH_ARCHITECTURE.md](TECH_ARCHITECTURE.md) | Стек, модули, API, данные, деплой |
+| [SECURITY.md](SECURITY.md) | Auth Mini App (initData), изоляция, smoke |
 | [MONETIZATION.md](MONETIZATION.md) | Что уже в коде и что только в стратегии |
 | [MARKETING.md](MARKETING.md) | Каналы и факты; план роста — TODO |
 | [DECISIONS.md](DECISIONS.md) | Зафиксированные продуктовые/технические решения |

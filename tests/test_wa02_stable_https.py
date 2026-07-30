@@ -334,10 +334,10 @@ def test_frontend_same_origin_api() -> None:
     src = (Path(__file__).resolve().parents[1] / "flypingavia/web/static/app.js").read_text(
         encoding="utf-8"
     )
-    assert 'api("/api/health")' in src or 'api("/api/watches")' in src
+    assert 'api("/api/watches")' in src or 'apiFetch("/api/watches")' in src
     assert "http://127.0.0.1" not in src or "formatLastChecked" in src
-    # relative API paths
-    assert 'api("/api/watches")' in src
+    # relative API paths (WA-03: apiFetch / api alias)
+    assert '"/api/watches"' in src
     assert "trycloudflare" not in src
 
 

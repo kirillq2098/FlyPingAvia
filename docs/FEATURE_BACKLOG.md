@@ -329,16 +329,16 @@
 - **Метрики:** public health uptime
 - **Статус:** Partial — кодовая production-конфигурация готова (`APP_ENV`, валидация `WEBAPP_URL`, `/api/ready`, reverse-proxy examples, checklist); остаётся развернуть домен/DNS/TLS и проверить постоянный URL вручную · **Source:** Roadmap, Strategy, Arch, Compete
 
-### WA-03 · Состояние «Mini App недоступен» в боте
-- **Описание:** Если WEBAPP_URL пуст/health fail — честный текст, полный FSM без давления на app.
-- **Проблема:** Кнопка ведёт в никуда.
-- **Важность:** Доверие на 100 users.
-- **NSM:** Low–Medium.
-- **Value 6 · Effort 2 · Время:** 0.5–1 д · **P1**
-- **Зависимости:** WA-02 health
-- **DoD:** нет битой кнопки; fallback на чат
-- **Метрики:** ошибки open app
-- **Статус:** Partial · **Source:** Strategy reliability
+### WA-03 · Безопасный запуск Mini App (Telegram initData)
+- **Описание:** Mini App открывается из Telegram без логина/пароля: frontend передаёт `Telegram.WebApp.initData` как `Authorization: tma …`; backend проверяет HMAC по bot token, `auth_date` и user; Watch изолированы по Telegram ID. Вне Telegram — понятный экран. Dev-fallback (`WEBAPP_DEV_USER_ID`) только вне production. Сообщение «Mini App недоступен» в боте при пустом/невалидном `WEBAPP_URL` сохраняется.
+- **Проблема:** Без серверной проверки initData любой мог бы подставить чужой user id.
+- **Важность:** Доверие и безопасность на 100 users.
+- **NSM:** Medium–High (без auth Mini App нельзя безопасно отдавать данные).
+- **Value 8 · Effort 3 · Время:** 1–2 д · **P1**
+- **Зависимости:** WA-01/WA-02 (HTTPS URL), bot token
+- **DoD:** production только через валидный initData; изоляция Watch; `/api/me`; theme; 401 без утечек; pytest зелёный
+- **Метрики:** доля успешных `/api/me`; 401 rate
+- **Статус:** Done · **Source:** Telegram Mini Apps validating data, Strategy reliability
 
 ---
 
@@ -700,7 +700,7 @@
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
 | 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Done |
 | 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Done |
-| 10 | WA-03 | Web App | P1 | 6 | 2 | 3.0 | 0.5–1д | Partial |
+| 10 | WA-03 | Web App | P1 | 8 | 3 | 2.7 | 1–2д | Done |
 | 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Todo |
 | 12 | CS-08 | Search | P0 | 9 | 1 | 9.0 | 0.5д ops | Partial |
 | 13 | RL-03 | Reliability | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, WA-03, RL-01, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 

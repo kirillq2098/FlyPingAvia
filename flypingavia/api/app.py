@@ -10,7 +10,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from flypingavia.api.telegram_auth import validate_webapp_init_data
+from flypingavia.api.telegram_auth import (
+    TelegramAuthError,
+    TelegramWebAppUser,
+    validate_telegram_init_data,
+)
 from flypingavia.config import Settings, get_settings
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
@@ -111,31 +115,65 @@ def create_api(settings: Settings | None = None) -> FastAPI:
     if STATIC_DIR.exists():
         app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
-    async def current_user(
-        x_telegram_init_data: Annotated[str | None, Header()] = None,
+    async def get_current_telegram_user(
         authorization: Annotated[str | None, Header()] = None,
-    ) -> dict:
-        init_data = x_telegram_init_data
-        if not init_data and authorization and authorization.lower().startswith("tma "):
+        x_telegram_init_data: Annotated[str | None, Header()] = None,
+    ) -> TelegramWebAppUser:
+        """Единая dependency: только проверенный initData (или dev user вне production)."""
+        init_data = None
+        if authorization and authorization.lower().startswith("tma "):
             init_data = authorization[4:].strip()
+        elif x_telegram_init_data:
+            # Legacy header — принимаем, если уже используется клиентом.
+            init_data = x_telegram_init_data.strip()
 
         if init_data:
             try:
-                return validate_webapp_init_data(init_data, settings.bot_token)
-            except ValueError as exc:
-                raise HTTPException(status_code=401, detail=str(exc)) from exc
+                user = validate_telegram_init_data(
+                    init_data,
+                    bot_token=settings.bot_token,
+                    max_age_seconds=settings.telegram_init_data_max_age_seconds,
+                )
+            except TelegramAuthError as exc:
+                logger.info("Telegram Mini App auth rejected: %s", exc.code)
+                raise HTTPException(status_code=401, detail=exc.as_detail()) from exc
+            logger.debug("Telegram Mini App auth ok user_id=%s", user.id)
+            return user
 
-        if settings.webapp_dev_user_id:
-            return {
-                "user_id": settings.webapp_dev_user_id,
-                "username": "dev",
-                "user": {"id": settings.webapp_dev_user_id, "username": "dev"},
-            }
+        # Без initData: только development/test + WEBAPP_DEV_USER_ID > 0
+        if settings.is_production:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "MISSING_INIT_DATA",
+                    "message": (
+                        "Откройте приложение через Telegram. "
+                        "Без данных Telegram доступ запрещён."
+                    ),
+                },
+            )
+
+        dev_id = int(settings.webapp_dev_user_id or 0)
+        if dev_id > 0:
+            return TelegramWebAppUser(
+                id=dev_id,
+                first_name="Dev",
+                username="dev",
+            )
 
         raise HTTPException(
             status_code=401,
-            detail="Откройте Mini App из Telegram или задайте WEBAPP_DEV_USER_ID для отладки",
+            detail={
+                "code": "MISSING_INIT_DATA",
+                "message": (
+                    "Откройте Mini App из Telegram или задайте "
+                    "WEBAPP_DEV_USER_ID для локальной отладки."
+                ),
+            },
         )
+
+    # Alias for older Depends(current_user) style in this module.
+    current_user = get_current_telegram_user
 
     @app.get("/")
     async def index() -> FileResponse:
@@ -156,6 +194,9 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             else:
                 live_status = "configured"
         issues = settings.readiness_issues()
+        bot_link = None
+        if settings.telegram_bot_username:
+            bot_link = f"https://t.me/{settings.telegram_bot_username}"
         return {
             "status": "ok",
             "ok": True,
@@ -169,6 +210,9 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             "demo_prices": settings.is_demo_prices,
             "live_search_mode": settings.live_search_mode,
             "live_search": live_status,
+            "telegram_webapp_auth": True,
+            "telegram_bot_username": settings.telegram_bot_username or None,
+            "telegram_bot_link": bot_link,
         }
 
     @app.get("/api/ready")
@@ -188,11 +232,23 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(status_code=200, content=payload)
 
     @app.get("/api/me")
-    async def me(user: dict = Depends(current_user)) -> dict:
-        return {"id": user["user_id"], "username": user.get("username"), "user": user.get("user")}
+    async def me(user: TelegramWebAppUser = Depends(current_user)) -> dict:
+        # Первый валидный запуск Mini App — создать/обновить User (username).
+        async with session_scope() as session:
+            await repo.get_or_create_user(
+                session, telegram_id=user.id, username=user.username
+            )
+        return {
+            "telegram_user_id": user.id,
+            "first_name": user.first_name,
+            "username": user.username,
+        }
 
     @app.get("/api/resolve", response_model=list[ResolveOut])
-    async def api_resolve(q: str = Query(min_length=1), user: dict = Depends(current_user)) -> list[ResolveOut]:
+    async def api_resolve(
+        q: str = Query(min_length=1),
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> list[ResolveOut]:
         _ = user
         place, candidates = await resolve_place(q)
         places = [place] if place else candidates
@@ -219,7 +275,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         children: int = Query(default=0, ge=0, le=9),
         infants: int = Query(default=0, ge=0, le=9),
         flexibility_days: int = Query(default=0),
-        user: dict = Depends(current_user),
+        user: TelegramWebAppUser = Depends(current_user),
     ) -> QuoteOut:
         _ = user
         origin_place, _ = await resolve_place(origin)
@@ -340,16 +396,21 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/api/watches", response_model=list[WatchOut])
-    async def api_list_watches(user: dict = Depends(current_user)) -> list[WatchOut]:
+    async def api_list_watches(
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> list[WatchOut]:
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(
-                session, telegram_id=user["user_id"], username=user.get("username")
+                session, telegram_id=user.id, username=user.username
             )
             watches = list(await repo.list_watches(session, db_user.id))
             return [_watch_out(w) for w in watches]
 
     @app.post("/api/watches", response_model=WatchOut)
-    async def api_create_watch(body: WatchIn, user: dict = Depends(current_user)) -> WatchOut:
+    async def api_create_watch(
+        body: WatchIn,
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> WatchOut:
         import math
 
         origin_place, _ = await resolve_place(body.origin)
@@ -416,7 +477,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
 
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(
-                session, telegram_id=user["user_id"], username=user.get("username")
+                session, telegram_id=user.id, username=user.username
             )
             watch = await repo.add_watch(
                 session,
@@ -439,10 +500,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             return _watch_out(watch)
 
     @app.delete("/api/watches/{watch_id}")
-    async def api_delete_watch(watch_id: int, user: dict = Depends(current_user)) -> dict:
+    async def api_delete_watch(
+        watch_id: int,
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> dict:
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(
-                session, telegram_id=user["user_id"], username=user.get("username")
+                session, telegram_id=user.id, username=user.username
             )
             ok = await repo.deactivate_watch(session, db_user.id, watch_id)
         if not ok:
