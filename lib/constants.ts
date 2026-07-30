@@ -43,7 +43,7 @@ export const ROUTE = {
   newPrice: 14620,
   drop: 4320,
   targetPrice: 15000,
-  checkEvery: "каждые 30 мин",
+  checkEvery: "каждую 1 мин",
 } as const;
 
 export function formatRub(value: number): string {
