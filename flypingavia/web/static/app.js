@@ -620,7 +620,11 @@
         const items = await api("/api/watches");
         if (!items.length) {
           box.innerHTML =
-            '<div class="quote"><h2>Пока пусто</h2><p class="meta">Соберите маршрут на вкладке «Поиск».</p></div>';
+            '<div class="quote empty-onboarding">' +
+            "<h2>Пока нет подписок</h2>" +
+            '<p class="meta">Настройте поездку один раз — FlyPing будет проверять цену за вас.</p>' +
+            '<button class="btn primary" type="button" data-empty-create="1">Создать подписку</button>' +
+            "</div>";
           return;
         }
         box.innerHTML = items
@@ -894,6 +898,11 @@
       }
 
       $("#watches").addEventListener("click", async (e) => {
+        const createBtn = e.target && e.target.closest && e.target.closest("[data-empty-create]");
+        if (createBtn) {
+          switchTab("search");
+          return;
+        }
         const id = e.target && e.target.getAttribute("data-del");
         if (!id) return;
         try {

@@ -8,7 +8,7 @@
 
 ### Added
 
--
+- **TG-02:** единое позиционирование FlyPing как сторожа цены в Telegram и Mini App (`format_start_message` / `format_help_message`, COPY_GUIDE, fixed copy без A/B).
 
 ### Changed
 

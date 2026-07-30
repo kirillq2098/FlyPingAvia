@@ -22,6 +22,7 @@
 | [MARKETING.md](MARKETING.md) | Каналы и факты; план роста — TODO |
 | [DECISIONS.md](DECISIONS.md) | Зафиксированные продуктовые/технические решения |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений по коммитам |
+| [COPY_GUIDE.md](COPY_GUIDE.md) | USP «сторож цены», glossary, fixed copy |
 | [KPI.md](KPI.md) | Какие метрики уже можно считать; чего не хватает |
 
 ## Быстрый ориентир «что есть / чего нет»

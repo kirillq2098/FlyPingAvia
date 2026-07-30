@@ -197,7 +197,7 @@ async def _continue_to_preview(message: Message, state: FSMContext, settings: Se
     origin = _place_from_data("origin", data)
     destination = _place_from_data("destination", data)
     if not origin or not destination:
-        await message.answer("Сессия истекла. Нажмите ➕ Добавить")
+        await message.answer("Сессия истекла. Нажмите ➕ Создать подписку")
         await state.clear()
         return
     depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
@@ -581,7 +581,12 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await state.clear()
         await _ensure_user(message)
         await get_location_directory().ensure_loaded()
-        await message.answer(fmt.welcome_text(), parse_mode="HTML", reply_markup=menu())
+        first_name = message.from_user.first_name if message.from_user else None
+        await message.answer(
+            fmt.format_start_message(first_name),
+            parse_mode="HTML",
+            reply_markup=menu(),
+        )
         app_kb = kb.open_app_kb(webapp)
         if app_kb and webapp:
             from urllib.parse import urlparse
@@ -605,9 +610,9 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         )
 
     @router.message(Command("help"))
-    @router.message(F.text == "ℹ️ Помощь")
+    @router.message(F.text == kb.BTN_HELP)
     async def cmd_help(message: Message) -> None:
-        await message.answer(fmt.help_text(), parse_mode="HTML", reply_markup=menu())
+        await message.answer(fmt.format_help_message(), parse_mode="HTML", reply_markup=menu())
 
     @router.message(F.text == "❌ Отмена")
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
@@ -615,16 +620,13 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await message.answer("Отменил. Можно начать снова.", reply_markup=menu())
 
     @router.message(Command("add"))
-    @router.message(F.text == "➕ Добавить")
+    @router.message(F.text == kb.BTN_CREATE_WATCH)
     @router.callback_query(F.data == "menu:add")
     async def start_add(event: Message | CallbackQuery, state: FSMContext) -> None:
         await state.clear()
         await state.set_state(AddWatch.origin)
         await get_location_directory().ensure_loaded()
-        text = (
-            "Откуда летим?\n"
-            "Напишите <b>город</b> или код: <code>Москва</code>, <code>MOW</code>, <code>Шереметьево</code>"
-        )
+        text = fmt.format_add_watch_intro()
         if isinstance(event, CallbackQuery):
             await event.answer()
             await event.message.answer(text, parse_mode="HTML", reply_markup=kb.cancel_kb())
@@ -759,7 +761,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     async def add_any_date(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         if not data.get("origin_code") or not data.get("destination_code"):
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Создать подписку", reply_markup=menu())
             await state.clear()
             return
         await _ask_trip_type(message, state, None)
@@ -775,7 +777,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             return
         data = await state.get_data()
         if not data.get("origin_code") or not data.get("destination_code"):
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Создать подписку", reply_markup=menu())
             await state.clear()
             return
         await _ask_trip_type(message, state, depart_date)
@@ -786,7 +788,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await callback.answer()
         data = await state.get_data()
         if not data.get("origin_code"):
-            await callback.message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+            await callback.message.answer("Сессия истекла. Нажмите ➕ Создать подписку", reply_markup=menu())
             await state.clear()
             return
 
@@ -874,7 +876,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         _, _draft_id, kind, price_raw = parts
         data = await state.get_data()
         if not data.get("origin_code"):
-            await callback.answer("Сессия истекла — нажмите ➕ Добавить", show_alert=True)
+            await callback.answer("Сессия истекла — нажмите ➕ Создать подписку", show_alert=True)
             return
 
         if kind == "custom":
@@ -912,7 +914,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         data = await state.get_data()
         if not data.get("origin_code"):
             await state.clear()
-            await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
+            await message.answer("Сессия истекла. Нажмите ➕ Создать подписку", reply_markup=menu())
             return
         await _offer_or_create_watch(
             target=message,
@@ -1192,7 +1194,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         )
 
     @router.message(Command("list"))
-    @router.message(F.text == "📋 Мои маршруты")
+    @router.message(F.text == kb.BTN_MY_WATCHES)
     @router.callback_query(F.data == "menu:list")
     async def cmd_list(event: Message | CallbackQuery) -> None:
         user = event.from_user
@@ -1208,13 +1210,13 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
 
         if not watches:
             await message.answer(
-                "Подписок пока нет.\nНажмите ➕ Добавить — укажите города и порог.",
+                fmt.format_empty_watches_message(),
                 reply_markup=kb.list_empty_kb(),
             )
             return
 
         await message.answer(
-            f"<b>Ваши маршруты</b> · {len(watches)}",
+            fmt.format_watches_list_header(len(watches)),
             parse_mode="HTML",
             reply_markup=menu(),
         )
@@ -1225,7 +1227,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     async def cmd_unwatch(message: Message, command: CommandObject) -> None:
         args = (command.args or "").strip()
         if not args.isdigit():
-            await message.answer("Формат: /unwatch ID\nИли удалите кнопкой в «Мои маршруты».")
+            await message.answer("Формат: /unwatch ID\nИли удалите кнопкой в «Мои подписки».")
             return
         watch_id = int(args)
         async with session_scope() as session:
@@ -1308,9 +1310,9 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await _render_watch_card(callback.message, updated, title="🔎 Актуальная цена")
 
     @router.message(Command("check"))
-    @router.message(F.text == "🔄 Проверить цены")
+    @router.message(F.text == kb.BTN_CHECK_PRICES)
     async def cmd_check(message: Message) -> None:
-        await message.answer("Проверяю все маршруты…", reply_markup=menu())
+        await message.answer("Проверяю цены по вашим подпискам…", reply_markup=menu())
         alerts = await checker.run_once()
         async with session_scope() as session:
             user = await repo.get_or_create_user(

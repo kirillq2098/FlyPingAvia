@@ -292,7 +292,7 @@ async def test_health_production_ready_and_demo(tmp_path, monkeypatch) -> None:
 def test_https_creates_webapp_button() -> None:
     markup = kb.main_menu("https://app.example.com")
     texts = [btn.text for row in markup.keyboard for btn in row]
-    assert "🛩 Открыть приложение" in texts
+    assert kb.BTN_OPEN_FLYPING in texts
     web = markup.keyboard[0][0]
     assert web.web_app is not None
     assert web.web_app.url == "https://app.example.com"
@@ -301,8 +301,8 @@ def test_https_creates_webapp_button() -> None:
 def test_empty_url_no_broken_button() -> None:
     markup = kb.main_menu(None)
     texts = [btn.text for row in markup.keyboard for btn in row]
-    assert "🛩 Открыть приложение" not in texts
-    assert "➕ Добавить" in texts
+    assert kb.BTN_OPEN_FLYPING not in texts
+    assert kb.BTN_CREATE_WATCH in texts
     assert kb.open_app_kb(None) is None
 
 
@@ -324,7 +324,7 @@ def test_canonical_url_no_extra_path() -> None:
 def test_unavailable_message() -> None:
     text = mini_app_unavailable_text()
     assert "недоступен" in text.lower()
-    assert "команд" in text.lower()
+    assert "/help" in text.lower() or "подпис" in text.lower()
 
 
 # --- frontend / deploy artifacts ---
