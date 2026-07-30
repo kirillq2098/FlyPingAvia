@@ -179,6 +179,108 @@
       return Math.round(Number(v)).toLocaleString("ru-RU") + " ₽";
     }
 
+    // TR-04: бизнес-таймзона продукта (не timezone устройства)
+    let displayTimezone = "Europe/Moscow";
+
+    function _partsInTz(dateObj, timeZone) {
+      try {
+        const fmt = new Intl.DateTimeFormat("en-GB", {
+          timeZone: timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        const map = {};
+        fmt.formatToParts(dateObj).forEach((p) => {
+          if (p.type !== "literal") map[p.type] = p.value;
+        });
+        return {
+          year: Number(map.year),
+          month: Number(map.month),
+          day: Number(map.day),
+          hour: Number(map.hour),
+          minute: Number(map.minute),
+        };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function _minutesWord(n) {
+      const nAbs = Math.abs(n) % 100;
+      const n1 = nAbs % 10;
+      if (nAbs >= 11 && nAbs <= 14) return "минут";
+      if (n1 === 1) return "минуту";
+      if (n1 >= 2 && n1 <= 4) return "минуты";
+      return "минут";
+    }
+
+    function _hoursWord(n) {
+      const nAbs = Math.abs(n) % 100;
+      const n1 = nAbs % 10;
+      if (nAbs >= 11 && nAbs <= 14) return "часов";
+      if (n1 === 1) return "час";
+      if (n1 >= 2 && n1 <= 4) return "часа";
+      return "часов";
+    }
+
+    const _MONTHS_GEN = [
+      "января", "февраля", "марта", "апреля", "мая", "июня",
+      "июля", "августа", "сентября", "октября", "ноября", "декабря",
+    ];
+
+    function formatLastChecked(iso, nowMs, timeZone) {
+      if (iso == null || iso === "") return "Ещё не проверяли";
+      const checked = new Date(iso);
+      if (Number.isNaN(checked.getTime())) return "Ещё не проверяли";
+      const tz = timeZone || displayTimezone || "Europe/Moscow";
+      const now = new Date(nowMs != null ? nowMs : Date.now());
+      let deltaMs = now.getTime() - checked.getTime();
+      if (deltaMs < 0 && deltaMs > -120000) deltaMs = 0;
+      if (deltaMs < -120000) {
+        const far = _partsInTz(checked, tz);
+        if (!far) return "Ещё не проверяли";
+        const hh = String(far.hour).padStart(2, "0");
+        const mm = String(far.minute).padStart(2, "0");
+        return "Проверено " + far.day + " " + _MONTHS_GEN[far.month - 1] + " в " + hh + ":" + mm;
+      }
+      const secs = deltaMs / 1000;
+      if (secs < 60) return "Проверено только что";
+      if (secs < 3600) {
+        const m = Math.max(1, Math.floor(secs / 60));
+        return "Проверено " + m + " " + _minutesWord(m) + " назад";
+      }
+      const localC = _partsInTz(checked, tz);
+      const localN = _partsInTz(now, tz);
+      if (!localC || !localN) return "Ещё не проверяли";
+      const hh = String(localC.hour).padStart(2, "0");
+      const mm = String(localC.minute).padStart(2, "0");
+      const dayKey = (p) => p.year * 10000 + p.month * 100 + p.day;
+      const todayKey = dayKey(localN);
+      const checkedKey = dayKey(localC);
+      const yest = new Date(Date.UTC(localN.year, localN.month - 1, localN.day));
+      yest.setUTCDate(yest.getUTCDate() - 1);
+      const yestKey = yest.getUTCFullYear() * 10000 + (yest.getUTCMonth() + 1) * 100 + yest.getUTCDate();
+      if (secs < 12 * 3600 && checkedKey === todayKey) {
+        const h = Math.max(1, Math.floor(secs / 3600));
+        return "Проверено " + h + " " + _hoursWord(h) + " назад";
+      }
+      if (checkedKey === todayKey) return "Проверено сегодня в " + hh + ":" + mm;
+      if (checkedKey === yestKey) return "Проверено вчера в " + hh + ":" + mm;
+      return "Проверено " + localC.day + " " + _MONTHS_GEN[localC.month - 1] + " в " + hh + ":" + mm;
+    }
+
+    async function loadDisplayTimezone() {
+      try {
+        const h = await api("/api/health");
+        if (h && h.display_timezone) displayTimezone = h.display_timezone;
+      } catch (_) {}
+    }
+    loadDisplayTimezone();
+
     function levelLabel(level) {
       if (level === "cheap") return ["cheap", "дёшево"];
       if (level === "expensive") return ["expensive", "дорого"];
@@ -285,13 +387,16 @@
           const trip = w.return_date ? "туда-обратно" : "в одну сторону";
           const flex = Number(w.flexibility_days || 0);
           const flexLabel = flex > 0 ? (" · гибкость ±" + flex + " дн.") : "";
+          const priceLine = w.last_price != null ? money(w.last_price) : "—";
+          const checkedLine = formatLastChecked(w.last_checked_at);
           return (
             "<article class=\"watch-card\" data-id=\"" + w.id + "\">" +
               "<h3>" + (w.origin_name || w.origin) + " → " + (w.destination_name || w.destination) + "</h3>" +
               "<div class=\"meta\">" + trip + flexLabel + "</div>" +
               "<div class=\"meta mono\">#" + w.id + " · порог " + money(w.max_price) + "</div>" +
-              "<div class=\"meta\">сейчас: " + (w.last_price != null ? money(w.last_price) : "ещё не проверяли") +
+              "<div class=\"meta\">сейчас: " + priceLine +
                 (w.last_origin_airport ? (" · вылет " + w.last_origin_airport) : "") + "</div>" +
+              "<div class=\"meta\">" + checkedLine + "</div>" +
               "<div class=\"actions\">" +
                 "<a class=\"btn ghost\" href=\"" + w.tickets_url + "\" target=\"_blank\" rel=\"noopener\">Билеты</a>" +
                 "<button class=\"btn ghost\" data-del=\"" + w.id + "\" type=\"button\">Удалить</button>" +

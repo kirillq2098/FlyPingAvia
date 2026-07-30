@@ -113,6 +113,7 @@ docker run --env-file .env -v "$(pwd)/data:/app/data" flypingavia
 | `CHECK_INTERVAL_MINUTES` | `CHECK_INTERVAL_SECONDS` | Интервал проверки |
 | `DATABASE_URL` | `DB_PATH` | SQLite |
 | `CURRENCY` | — | Валюта (по умолчанию `rub`) |
+| `DISPLAY_TIMEZONE` | — | IANA timezone для показа времени проверки (default `Europe/Moscow`) |
 | `AFFILIATE_MARKER` | — | Маркер CPA в ссылках |
 | `TRAVELPAYOUTS_SEARCH_MARKER` | — | Числовой partner ID для Flight Search |
 | `LIVE_SEARCH_MODE` | `multi` | `off` / `multi` / `always` |

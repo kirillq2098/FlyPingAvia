@@ -109,6 +109,27 @@ async def get_active_watches(session: AsyncSession) -> Sequence[Watch]:
     return result.scalars().all()
 
 
+async def mark_watch_checked(
+    session: AsyncSession,
+    watch_id: int,
+    checked_at: datetime,
+) -> bool:
+    """Обновить last_checked_at (UTC) без затирания остальных полей.
+
+    Возвращает False, если Watch удалён/неактивен.
+    """
+    fresh = await session.get(Watch, watch_id)
+    if fresh is None or not fresh.is_active:
+        return False
+    if checked_at.tzinfo is None:
+        checked_at = checked_at.replace(tzinfo=timezone.utc)
+    else:
+        checked_at = checked_at.astimezone(timezone.utc)
+    fresh.last_checked_at = checked_at
+    await session.flush()
+    return True
+
+
 async def log_alert_event(
     session: AsyncSession,
     *,

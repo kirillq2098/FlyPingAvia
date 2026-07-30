@@ -60,7 +60,12 @@ class PriceChecker:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
                 continue
 
+            # Завершённая проверка (в т.ч. result=None) — фиксируем UTC now.
+            checked_at = datetime.now(timezone.utc)
+
             if result is None or result.quote is None:
+                async with session_scope() as session:
+                    await repo.mark_watch_checked(session, watch.id, checked_at)
                 continue
 
             quote = result.quote
@@ -79,7 +84,7 @@ class PriceChecker:
                     continue
 
                 fresh.last_price = quote.price
-                fresh.last_checked_at = datetime.now(timezone.utc)
+                fresh.last_checked_at = checked_at
                 fresh.last_origin_airport = quote.origin_code
                 fresh.last_destination_airport = quote.destination_code
                 below_threshold = quote.price <= fresh.max_price
@@ -123,6 +128,7 @@ class PriceChecker:
                     last_price=fresh.last_price,
                     last_origin_airport=fresh.last_origin_airport,
                     last_destination_airport=fresh.last_destination_airport,
+                    last_checked_at=fresh.last_checked_at,
                     is_active=fresh.is_active,
                 )
 
@@ -163,6 +169,9 @@ class PriceChecker:
                 primary_depart_date=snapshot.depart_date,
                 primary_return_date=snapshot.return_date,
                 flexibility_days=int(getattr(snapshot, "flexibility_days", 0) or 0),
+                checked_at=checked_at,
+                display_timezone=self.settings.display_tz,
+                now=checked_at,
             )
 
             try:

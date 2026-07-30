@@ -557,6 +557,8 @@ async def _confirm_watch_message(
         adults=adults,
         children=children,
         infants=infants,
+        checked_at=None,
+        display_timezone=settings.display_tz,
     )
     await target.answer(
         text,
@@ -1173,6 +1175,8 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             children=w.children,
             infants=w.infants,
             flexibility_days=int(getattr(w, "flexibility_days", 0) or 0),
+            checked_at=getattr(w, "last_checked_at", None),
+            display_timezone=settings.display_tz,
         )
         await message.answer(
             text,
@@ -1255,26 +1259,47 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 return
             snapshot = watch
 
-        quote = await provider.get_trip_quote(
-            snapshot.origin_codes,
-            snapshot.destination_codes,
-            depart_date=snapshot.depart_date,
-            return_date=snapshot.return_date,
-            adults=snapshot.adults,
-            children=snapshot.children,
-            infants=snapshot.infants,
-            currency=snapshot.currency.lower(),
-        )
-        if quote is not None:
+        flex = int(getattr(snapshot, "flexibility_days", 0) or 0)
+        try:
+            result = await search_flexible_trip(
+                provider,
+                origins=snapshot.origin_codes,
+                destinations=snapshot.destination_codes,
+                depart_date=snapshot.depart_date,
+                return_date=snapshot.return_date,
+                flexibility_days=flex,
+                adults=snapshot.adults,
+                children=snapshot.children,
+                infants=snapshot.infants,
+                currency=snapshot.currency.lower(),
+            )
+        except Exception:
+            logger.exception("Manual check failed watch_id=%s", watch_id)
+            await callback.message.answer(
+                "Не удалось проверить цены. Попробуйте позже.",
+            )
             async with session_scope() as session:
                 fresh = await session.get(Watch, watch_id)
-                if fresh:
-                    fresh.last_price = quote.price
-                    fresh.last_checked_at = datetime.now(timezone.utc)
-                    fresh.last_origin_airport = quote.origin_code
-                    fresh.last_destination_airport = quote.destination_code
+            if fresh is not None:
+                await _render_watch_card(callback.message, fresh, title="🔎 Актуальная цена")
+            return
 
-        await _render_watch_card(callback.message, snapshot, title="🔎 Актуальная цена")
+        checked_at = datetime.now(timezone.utc)
+        async with session_scope() as session:
+            fresh = await session.get(Watch, watch_id)
+            if fresh is None or not fresh.is_active:
+                await callback.message.answer("Подписка не найдена.")
+                return
+            fresh.last_checked_at = checked_at
+            if result is not None and result.quote is not None:
+                fresh.last_price = result.quote.price
+                fresh.last_origin_airport = result.quote.origin_code
+                fresh.last_destination_airport = result.quote.destination_code
+
+        async with session_scope() as session:
+            updated = await session.get(Watch, watch_id)
+        if updated is not None:
+            await _render_watch_card(callback.message, updated, title="🔎 Актуальная цена")
 
     @router.message(Command("check"))
     @router.message(F.text == "🔄 Проверить цены")

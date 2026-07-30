@@ -1,15 +1,148 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from flypingavia.services.prices import PriceBand, PriceLevel, PriceQuote
+
+DEFAULT_DISPLAY_TZ = ZoneInfo("Europe/Moscow")
+_FUTURE_SKEW = timedelta(minutes=2)
+_MONTHS_GENITIVE = (
+    "января",
+    "февраля",
+    "марта",
+    "апреля",
+    "мая",
+    "июня",
+    "июля",
+    "августа",
+    "сентября",
+    "октября",
+    "ноября",
+    "декабря",
+)
 
 
 def money(value: float | int, currency: str = "RUB") -> str:
     amount = f"{int(round(value)):,}".replace(",", " ")
     symbol = "₽" if currency.upper() in {"RUB", "RUR"} else currency.upper()
     return f"{amount} {symbol}"
+
+
+def _resolve_display_tz(tz: ZoneInfo | str | None) -> ZoneInfo:
+    if tz is None:
+        return DEFAULT_DISPLAY_TZ
+    if isinstance(tz, ZoneInfo):
+        return tz
+    try:
+        return ZoneInfo(str(tz))
+    except Exception:
+        return DEFAULT_DISPLAY_TZ
+
+
+def _ensure_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _minutes_word(n: int) -> str:
+    n_abs = abs(n) % 100
+    n1 = n_abs % 10
+    if 11 <= n_abs <= 14:
+        return "минут"
+    if n1 == 1:
+        return "минуту"
+    if 2 <= n1 <= 4:
+        return "минуты"
+    return "минут"
+
+
+def _hours_word(n: int) -> str:
+    n_abs = abs(n) % 100
+    n1 = n_abs % 10
+    if 11 <= n_abs <= 14:
+        return "часов"
+    if n1 == 1:
+        return "час"
+    if 2 <= n1 <= 4:
+        return "часа"
+    return "часов"
+
+
+def format_last_checked(
+    value: datetime | None,
+    *,
+    now: datetime | None = None,
+    tz: ZoneInfo | str | None = None,
+) -> str:
+    """Человекочитаемое время последней проверки (TR-04).
+
+    БД хранит UTC; показ — в бизнес-таймзоне (по умолчанию Europe/Moscow).
+    """
+    if value is None:
+        return "Ещё не проверяли"
+
+    display_tz = _resolve_display_tz(tz)
+    now_utc = _ensure_aware_utc(now or datetime.now(timezone.utc))
+    try:
+        checked_utc = _ensure_aware_utc(value)
+    except Exception:
+        return "Ещё не проверяли"
+
+    # Небольшой clock skew вперёд → «только что»; далеко в будущем → абсолютное.
+    if checked_utc > now_utc + _FUTURE_SKEW:
+        local = checked_utc.astimezone(display_tz)
+        month = _MONTHS_GENITIVE[local.month - 1]
+        return f"Проверено {local.day} {month} в {local.strftime('%H:%M')}"
+
+    if checked_utc > now_utc:
+        checked_utc = now_utc
+
+    delta = now_utc - checked_utc
+    secs = delta.total_seconds()
+
+    if secs < 60:
+        return "Проверено только что"
+    if secs < 3600:
+        minutes = max(1, int(secs // 60))
+        return f"Проверено {minutes} {_minutes_word(minutes)} назад"
+
+    local_checked = checked_utc.astimezone(display_tz)
+    local_now = now_utc.astimezone(display_tz)
+    checked_day = local_checked.date()
+    today = local_now.date()
+    yesterday = today - timedelta(days=1)
+    time_s = local_checked.strftime("%H:%M")
+
+    if secs < 12 * 3600 and checked_day == today:
+        hours = max(1, int(secs // 3600))
+        return f"Проверено {hours} {_hours_word(hours)} назад"
+    if checked_day == today:
+        return f"Проверено сегодня в {time_s}"
+    if checked_day == yesterday:
+        return f"Проверено вчера в {time_s}"
+
+    month = _MONTHS_GENITIVE[local_checked.month - 1]
+    return f"Проверено {local_checked.day} {month} в {time_s}"
+
+
+def format_last_checked_line(
+    value: datetime | None,
+    *,
+    now: datetime | None = None,
+    tz: ZoneInfo | str | None = None,
+    alert: bool = False,
+) -> str:
+    """Строка для Telegram-карточки / алерта с эмодзи."""
+    text = format_last_checked(value, now=now, tz=tz)
+    if text == "Ещё не проверяли":
+        return f"🕒 {text}"
+    if alert:
+        rest = text.removeprefix("Проверено").strip()
+        return f"🕒 Проверено: {rest}"
+    return f"🕒 {text}"
 
 
 def level_label(level: PriceLevel) -> str:
@@ -271,6 +404,10 @@ def format_price_card(
     primary_depart_date: Optional[date] = None,
     primary_return_date: Optional[date] = None,
     flexibility_days: int = 0,
+    checked_at: datetime | None = None,
+    show_checked_at: bool | None = None,
+    display_timezone: ZoneInfo | str | None = None,
+    now: datetime | None = None,
 ) -> str:
     currency = (quote.currency if quote else None) or (band.currency if band else "RUB")
     if quote is not None:
@@ -388,6 +525,23 @@ def format_price_card(
                 else:
                     diff = quote.price - threshold
                     lines.append(f"⏳ до порога ещё {money(diff, currency)}")
+
+    # TR-04: время проверки — после цены / NT-02 / NT-03.
+    include_checked = (
+        show_checked_at
+        if show_checked_at is not None
+        else (watch_id is not None or threshold_contract or checked_at is not None)
+    )
+    if include_checked:
+        lines.append("")
+        lines.append(
+            format_last_checked_line(
+                checked_at,
+                now=now,
+                tz=display_timezone,
+                alert=threshold_contract,
+            )
+        )
 
     return "\n".join(lines).strip()
 
