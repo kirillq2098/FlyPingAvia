@@ -281,16 +281,16 @@
 - **Метрики:** users by source (SQL-пример в ATTRIBUTION.md)
 - **Статус:** Done · **Source:** Compete O6, Strategy, Marketing
 
-### TG-04 · Шаринг карточки «жду цену ≤ N»
-- **Описание:** Кнопка share + deep-link приглашения (O5).
+### TG-04 · Поделиться подпиской через deep link
+- **Описание:** Opaque `share_<token>`; hash в БД; preview + confirm → копия Watch у получателя; TTL 7д / max uses 20; revoke; Mini App `POST/DELETE …/share(s)`. Без referral rewards.
 - **Проблема:** Гиганты слабо шарятся; нужен organic.
 - **Важность:** Strategy 1k growth.
 - **NSM:** High (viral → new Alerted Watchers).
 - **Value 8 · Effort 4 · Время:** 2–4 д · **P1**
 - **Зависимости:** TG-03
-- **DoD:** share из карточки watch; получатель проходит /start с payload
+- **DoD:** share из карточки; безопасный preview; идемпотентный confirm; миграция 004
 - **Метрики:** shares; invited→watch rate
-- **Статус:** Todo · **Source:** Compete O5, Strategy, Marketing
+- **Статус:** Done · **Source:** Compete O5, Strategy, Marketing
 
 ### TG-05 · Не использовать MenuButtonWebApp с tunnel URL
 - **Описание:** Уже решение: MenuButtonCommands; WebApp через кнопки.
@@ -709,7 +709,7 @@
 | 16 | UA-01 | Account | P1 | 6 | 3 | 2.0 | 1–2д | Todo |
 | 17 | TG-03 | Telegram | P1 | 8 | 4 | 2.0 | 2–3д | Done |
 | 18 | GR-01 | Growth | P1 | 8 | 4 | 2.0 | 2–3д | Todo |
-| 19 | TG-04 | Telegram | P1 | 8 | 4 | 2.0 | 2–4д | Todo |
+| 19 | TG-04 | Telegram | P1 | 8 | 4 | 2.0 | 2–4д | Done |
 | 20 | WA-02 | Web App | P0 | 9 | 5 | 1.8 | 2–5д | Partial |
 | 21 | AN-01 | Analytics | P1 | 8 | 5 | 1.6 | 3–5д | Todo |
 | 22 | IT-02 | Internal | P0 | 6 | 3 | 2.0 | 1–2д | Todo |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-04, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 

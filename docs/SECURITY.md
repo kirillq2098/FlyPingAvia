@@ -10,6 +10,18 @@
 
 Payload **не секрет** (виден в URL) и **не исполняется** как команда. Подробности: [ATTRIBUTION.md](ATTRIBUTION.md).
 
+## Watch sharing (TG-04)
+
+Ссылка `?start=share_<token>` создаёт **копию** Watch у получателя, а не доступ к оригиналу.
+
+- В URL только opaque token; raw token **не** хранится в БД (только SHA-256 `token_hash`).
+- Preview и confirm не раскрывают owner id/username, Watch id, историю цены, alert history.
+- Чужой Watch при создании/отзыве share → `404`.
+- Истёкший / отозванный / исчерпанный / неверный token → одно безопасное сообщение без причины.
+- Owner, открывший свою ссылку, видит preview, но копия не создаётся и `used_count` не растёт.
+- Подробности: [WATCH_SHARING.md](WATCH_SHARING.md).
+
+## Mini App Auth (WA-03)
 
 Пользователь **не вводит** логин/пароль и не использует OAuth/JWT.
 

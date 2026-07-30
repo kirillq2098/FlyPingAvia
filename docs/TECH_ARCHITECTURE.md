@@ -98,7 +98,7 @@ Auth (WA-03):
 
 **watches:** маршрут (`origin`/`destination` + names + `*_search` CSV кодов), `max_price`, `depart_date`, `return_date`, `adults`/`children`/`infants`, `currency`, `flexibility_days`, `last_price`, `last_*_airport`, `last_checked_at` (UTC, момент завершённой проверки), `last_alert_price`, `is_active`, `created_at`
 
-**Отображение времени:** `DISPLAY_TIMEZONE` (default `Europe/Moscow`) — только UI; в БД всегда UTC.
+**watch_share_tokens / redemptions:** TG-04 opaque share (token_hash, TTL, max_uses, revoke, idempotent clone)
 
 Удаление подписки — soft (`is_active=False`).
 

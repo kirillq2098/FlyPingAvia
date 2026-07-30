@@ -340,3 +340,25 @@ body {
 .auth-card .btn { margin-top: 16px; display: inline-flex; }
 body.auth-locked .app,
 body.auth-locked .sky { display: none !important; }
+
+.share-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.share-modal-card {
+  width: min(100%, 420px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+.share-modal-card .mono {
+  word-break: break-all;
+  margin: 12px 0 16px;
+}

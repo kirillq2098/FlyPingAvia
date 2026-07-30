@@ -10,6 +10,7 @@
 
 - **TG-02:** единое позиционирование FlyPing как сторожа цены в Telegram и Mini App (`format_start_message` / `format_help_message`, COPY_GUIDE, fixed copy без A/B).
 - **TG-03:** Telegram deep-link attribution — whitelist start payload, first/last source + timestamps на `users`, `build_telegram_start_link`, docs/ATTRIBUTION.md.
+- **TG-04:** поделиться подпиской — opaque `share_<token>`, копия Watch у получателя, TTL/max uses, revoke, Mini App share API (`docs/WATCH_SHARING.md`).
 
 ### Changed
 

@@ -149,6 +149,27 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MIN_PRICE_DELTA", "min_price_delta"),
         description="Минимальное падение цены (в валюте watch) для алерта внутри cooldown",
     )
+    # TG-04: срок жизни share-ссылки (часы)
+    watch_share_ttl_hours: int = Field(
+        default=168,
+        ge=1,
+        le=720,
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_TTL_HOURS",
+            "watch_share_ttl_hours",
+        ),
+        description="TTL share deep-link в часах (default 168 = 7 дней)",
+    )
+    watch_share_max_uses: int = Field(
+        default=20,
+        ge=1,
+        le=1000,
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_MAX_USES",
+            "watch_share_max_uses",
+        ),
+        description="Максимум успешных копий по одной share-ссылке",
+    )
     # TR-04: единая бизнес-таймзона для отображения last_checked_at (БД хранит UTC)
     display_timezone: str = Field(
         default="Europe/Moscow",

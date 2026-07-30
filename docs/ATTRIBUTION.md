@@ -27,7 +27,7 @@ Helper в коде: `flypingavia.bot.start_payload.build_telegram_start_link`.
 - Не исполняется как команда / callback
 - Невалидный payload → как отсутствие (без ошибки пользователю)
 
-Зарезервированные префиксы на будущее (`src_`, `cmp_`, `share_`) пока хранятся как обычная строка. **TG-04 не реализован.**
+Зарезервированные префиксы на будущее (`src_`, `cmp_`, `share_`) — `share_` используется TG-04 для opaque token (см. [WATCH_SHARING](WATCH_SHARING.md)). Остальные пока хранятся как обычная строка.
 
 ## First-touch / last-touch
 
