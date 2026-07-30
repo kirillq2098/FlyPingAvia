@@ -12,6 +12,7 @@ Telegram-бот для мониторинга цен на авиабилеты.
 |----------|------------|
 | [Product Vision](docs/PRODUCT_VISION.md) | Зачем продукт и что уже умеет |
 | [Strategy](docs/FLYPING_STRATEGY.md) | USP, рост 100→100k, non-goals |
+| [Feature Backlog](docs/FEATURE_BACKLOG.md) | Реестр функций и приоритеты |
 | [Master Roadmap](docs/MASTER_ROADMAP.md) | Этапы развития и открытые вопросы |
 | [Competitive Analysis](docs/COMPETITIVE_ANALYSIS.md) | Конкуренты и opportunities |
 | [Tech Architecture](docs/TECH_ARCHITECTURE.md) | Стек, модули, API, данные |
