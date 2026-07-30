@@ -73,8 +73,12 @@ export function HeroIllustration() {
           strokeWidth="3"
           strokeLinecap="round"
           strokeDasharray="8 10"
-          initial={reduceMotion ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
+          initial={false}
+          animate={
+            reduceMotion
+              ? { pathLength: 1, opacity: 1 }
+              : { pathLength: 1, opacity: 1 }
+          }
           transition={{ duration: 1.6, ease: "easeInOut" }}
         />
         <motion.path
@@ -85,7 +89,7 @@ export function HeroIllustration() {
           strokeLinecap="round"
           strokeDasharray="4 8"
           opacity="0.7"
-          initial={reduceMotion ? false : { pathLength: 0 }}
+          initial={false}
           animate={{ pathLength: 1 }}
           transition={{ duration: 1.8, delay: 0.2, ease: "easeInOut" }}
         />
