@@ -135,6 +135,24 @@ docker run --env-file .env -p 127.0.0.1:8080:8080 -v "$(pwd)/data:/app/data" fly
 
 Пример compose: `deploy/docker-compose.production.example.yml`.
 
+## Deep links (TG-03)
+
+Ссылки вида `https://t.me/<bot>?start=<payload>` сохраняют источник перехода (first/last touch).
+
+Примеры (замените `FlyPingBot` на ваш username из `TELEGRAM_BOT_USERNAME`):
+
+```text
+https://t.me/FlyPingBot?start=site
+https://t.me/FlyPingBot?start=telegram_post
+https://t.me/FlyPingBot?start=partner_blog
+```
+
+- payload: только буквы/цифры/`_`/`-`, максимум **64** символа;
+- payload **виден** пользователю в URL — не кладите секреты;
+- обычный `/start` без payload не стирает последний источник.
+
+Подробности: [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md).
+
 ## Команды бота
 
 | Команда | Описание |

@@ -2,7 +2,14 @@
 
 Связанные документы: [TECH_ARCHITECTURE](TECH_ARCHITECTURE.md) · [PRODUCTION_CHECKLIST](PRODUCTION_CHECKLIST.md)
 
-## Mini App: без логина и пароля
+## Telegram deep-link attribution (TG-03)
+
+`/start <payload>` сохраняет только whitelist-строку `[A-Za-z0-9_-]{1,64}` в `users.first_start_source` / `last_start_source`.
+
+Не сохраняем: полный URL, IP, User-Agent, initData, referrer Mini App, произвольные query, текст сообщения.
+
+Payload **не секрет** (виден в URL) и **не исполняется** как команда. Подробности: [ATTRIBUTION.md](ATTRIBUTION.md).
+
 
 Пользователь **не вводит** логин/пароль и не использует OAuth/JWT.
 

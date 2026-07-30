@@ -44,10 +44,10 @@
 |------|------------|
 | **Цель пользователя** | Открыть диалог и получить доступ к функциям. |
 | **Что видит** | Кнопка «Запустить» / команда `/start`. После старта создаётся запись `users` (`telegram_id`). |
-| **Действия** | Нажимает Start или отправляет `/start`. |
+| **Действия** | Нажимает Start или отправляет `/start` / deep link `t.me/bot?start=<payload>`. |
 | **Где может запутаться** | Ожидает сразу Web App из menu button (мы сознательно не ставим MenuButtonWebApp на tunnel URL — [TG-05](FEATURE_BACKLOG.md) / Decisions). |
 | **Точки отказа** | Бот не отвечает (polling/down); заблокирован ранее; Telegram не доставляет. |
-| **Как улучшить** | Стабильный хостинг + supervise ([RL-01](FEATURE_BACKLOG.md) есть, [WA-02](FEATURE_BACKLOG.md) / [RL-03](FEATURE_BACKLOG.md)); админ-алерт при падении. |
+| **Как улучшить** | Стабильный хостинг + supervise ([RL-01](FEATURE_BACKLOG.md) есть, [WA-02](FEATURE_BACKLOG.md) / [RL-03](FEATURE_BACKLOG.md)); админ-алерт при падении. Attribution каналов: [TG-03](FEATURE_BACKLOG.md) / [ATTRIBUTION](ATTRIBUTION.md). |
 | **Приоритет улучшения** | **P0** (без ответа бота journey мёртв) |
 
 ---

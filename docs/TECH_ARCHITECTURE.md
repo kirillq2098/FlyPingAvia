@@ -56,6 +56,7 @@ Telegram users
 | `flypingavia/api/telegram_auth.py` | Проверка WebApp `initData` |
 | `flypingavia/db/models.py` | `User`, `Watch` |
 | `flypingavia/db/repository.py` | CRUD подписок |
+| `flypingavia/bot/start_payload.py` | TG-03: normalize payload + `t.me` start link |
 | `flypingavia/db/session.py` | Engine, `init_db`, SQLite ALTER для новых колонок |
 | `flypingavia/services/prices.py` | Demo / Travelpayouts quotes, band, affiliate URL |
 | `flypingavia/services/flight_search.py` | Affiliate Flight Search start/results |
@@ -93,7 +94,7 @@ Auth (WA-03):
 
 ## Модель данных
 
-**users:** `id`, `telegram_id` (unique), `username`, `created_at`
+**users:** `id`, `telegram_id` (unique), `username`, `created_at`, TG-03: `first_start_source` / `last_start_source` / `first_start_at` / `last_start_at` (UTC, nullable)
 
 **watches:** маршрут (`origin`/`destination` + names + `*_search` CSV кодов), `max_price`, `depart_date`, `return_date`, `adults`/`children`/`infants`, `currency`, `flexibility_days`, `last_price`, `last_*_airport`, `last_checked_at` (UTC, момент завершённой проверки), `last_alert_price`, `is_active`, `created_at`
 

@@ -12,7 +12,7 @@ from flypingavia.db.models import Base
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
-_SQLITE_EXTRA_COLUMNS = {
+_SQLITE_WATCH_EXTRA_COLUMNS = {
     "origin_name": "VARCHAR(128)",
     "destination_name": "VARCHAR(128)",
     "origin_search": "TEXT",
@@ -24,6 +24,13 @@ _SQLITE_EXTRA_COLUMNS = {
     "children": "INTEGER DEFAULT 0",
     "infants": "INTEGER DEFAULT 0",
     "flexibility_days": "INTEGER DEFAULT 0 NOT NULL",
+}
+
+_SQLITE_USER_EXTRA_COLUMNS = {
+    "first_start_source": "VARCHAR(64)",
+    "last_start_source": "VARCHAR(64)",
+    "first_start_at": "DATETIME",
+    "last_start_at": "DATETIME",
 }
 
 
@@ -42,20 +49,26 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
-async def _migrate_sqlite(conn) -> None:
-    result = await conn.execute(text("PRAGMA table_info(watches)"))
+async def _migrate_sqlite_table(conn, table: str, columns: dict[str, str]) -> None:
+    result = await conn.execute(text(f"PRAGMA table_info({table})"))
     existing = {row[1] for row in result.fetchall()}
-    for column, col_type in _SQLITE_EXTRA_COLUMNS.items():
+    for column, col_type in columns.items():
         if column not in existing:
-            await conn.execute(text(f"ALTER TABLE watches ADD COLUMN {column} {col_type}"))
+            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+
+
+async def _migrate_sqlite(conn) -> None:
+    await _migrate_sqlite_table(conn, "watches", _SQLITE_WATCH_EXTRA_COLUMNS)
+    await _migrate_sqlite_table(conn, "users", _SQLITE_USER_EXTRA_COLUMNS)
 
 
 async def init_db() -> None:
-    """Создаёт таблицы (в т.ч. alert_events) и догоняет колонки watches на SQLite.
+    """Создаёт таблицы и догоняет колонки на SQLite.
 
     Явные SQL-миграции:
     - scripts/migrations/001_alert_events.sql
     - scripts/migrations/002_watch_flexibility_days.sql
+    - scripts/migrations/003_tg03_user_start_attribution.sql
     """
     engine = get_engine()
     async with engine.begin() as conn:
