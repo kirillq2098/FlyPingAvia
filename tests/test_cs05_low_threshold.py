@@ -220,10 +220,92 @@ async def test_confirm_clears_pending_prevents_double(monkeypatch) -> None:
 
     # Simulate second tap: pending already None
     data = {"origin_code": "MOW", "pending_threshold": None}
-    # Direct check of the guard used in confirm handler
     pending = data.get("pending_threshold")
     assert pending is None
     finalize.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_restores_pending_on_finalize_error(monkeypatch, caplog) -> None:
+    """Ошибка create → pending восстановлен, повторный confirm создаёт Watch один раз."""
+    import logging
+
+    from flypingavia.bot import handlers as h
+    from flypingavia.config import Settings
+
+    calls = {"n": 0}
+
+    async def _flaky_finalize(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("db down")
+        await kwargs["state"].clear()
+        return 99
+
+    monkeypatch.setattr(h, "_finalize_watch_creation", _flaky_finalize)
+
+    stored: dict = {
+        "pending_threshold": 10_000.0,
+        "_state": h.AddWatch.waiting_low_threshold_confirmation,
+    }
+
+    async def _update(**kwargs):
+        stored.update(kwargs)
+
+    async def _set_state(st):
+        stored["_state"] = st
+
+    async def _clear():
+        stored.clear()
+        stored["_cleared"] = True
+
+    state = AsyncMock()
+    state.update_data = _update
+    state.set_state = _set_state
+    state.clear = _clear
+
+    target = AsyncMock()
+    settings = Settings(bot_token="1:TEST", travelpayouts_token="")
+    data = {
+        "origin_code": "MOW",
+        "destination_code": "LED",
+        "pending_threshold": 10_000.0,
+    }
+
+    with caplog.at_level(logging.ERROR, logger="flypingavia.bot.handlers"):
+        first = await h._finalize_after_low_threshold_confirm(
+            target=target,
+            telegram_id=42,
+            username="u",
+            settings=settings,
+            provider=MagicMock(),
+            state=state,
+            data=data,
+            pending=10_000.0,
+        )
+
+    assert first is None
+    assert stored.get("pending_threshold") == 10_000.0
+    assert stored.get("_state") == h.AddWatch.waiting_low_threshold_confirmation
+    assert not stored.get("_cleared")
+    assert "Failed to create Watch after low-threshold confirmation" in caplog.text
+    target.answer.assert_awaited()
+    assert "Не удалось сохранить подписку" in target.answer.await_args.args[0]
+
+    # Повтор после «починки» — успех и очистка FSM через finalize.
+    second = await h._finalize_after_low_threshold_confirm(
+        target=target,
+        telegram_id=42,
+        username="u",
+        settings=settings,
+        provider=MagicMock(),
+        state=state,
+        data=data,
+        pending=10_000.0,
+    )
+    assert second == 99
+    assert calls["n"] == 2
+    assert stored.get("_cleared") is True
 
 
 # --- Mini App / API ---

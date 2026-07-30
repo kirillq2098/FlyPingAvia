@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
@@ -30,6 +31,8 @@ from flypingavia.services.threshold_policy import (
     band_from_snapshot,
     evaluate_low_threshold,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AddWatch(StatesGroup):
@@ -364,6 +367,44 @@ async def _finalize_watch_creation(
     await state.clear()
     await _confirm_watch_message(target, settings, provider, data, watch_id, max_price)
     return watch_id
+
+
+async def _finalize_after_low_threshold_confirm(
+    *,
+    target: Message,
+    telegram_id: int,
+    username: Optional[str],
+    settings: Settings,
+    provider: PriceProvider,
+    state: FSMContext,
+    data: dict,
+    pending: float,
+) -> int | None:
+    """Снять pending (анти-дубль), создать Watch; при ошибке вернуть pending."""
+    await state.update_data(pending_threshold=None)
+    try:
+        return await _finalize_watch_creation(
+            target=target,
+            telegram_id=telegram_id,
+            username=username,
+            settings=settings,
+            provider=provider,
+            state=state,
+            data=data,
+            max_price=float(pending),
+        )
+    except Exception:
+        await state.update_data(pending_threshold=float(pending))
+        await state.set_state(AddWatch.waiting_low_threshold_confirmation)
+        logger.exception(
+            "Failed to create Watch after low-threshold confirmation user=%s",
+            telegram_id,
+        )
+        await target.answer(
+            "Не удалось сохранить подписку. Попробуйте ещё раз.",
+            reply_markup=kb.low_threshold_confirm_kb(),
+        )
+        return None
 
 
 async def _offer_or_create_watch(
@@ -805,9 +846,8 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         if pending is None or not data.get("origin_code"):
             await callback.answer("Уже сохранено или сессия истекла", show_alert=True)
             return
-        await state.update_data(pending_threshold=None)
         await callback.answer("Сохраняю…")
-        await _finalize_watch_creation(
+        await _finalize_after_low_threshold_confirm(
             target=callback.message,
             telegram_id=callback.from_user.id,
             username=callback.from_user.username,
@@ -815,7 +855,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             provider=provider,
             state=state,
             data=data,
-            max_price=float(pending),
+            pending=float(pending),
         )
 
     @router.callback_query(

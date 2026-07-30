@@ -17,6 +17,7 @@
 ### Fixed
 
 - **NT-04 review fixes:** `asyncio.Lock` против параллельных `run_once`; раздельные ошибки Telegram send vs persistence `AlertEvent`; валидация `NOTIFICATION_COOLDOWN_HOURS` / `MIN_PRICE_DELTA` ≥ 0 при старте.
+- **CS-05 review fix:** восстановление pending threshold при ошибке создания Watch.
 
 ### Documentation
 
