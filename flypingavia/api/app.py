@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Optional
@@ -14,10 +15,12 @@ from flypingavia.config import Settings, get_settings
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
-from flypingavia.services.prices import align_band_to_quote, build_affiliate_url, build_price_provider
+from flypingavia.services.prices import build_affiliate_url, build_price_provider
 from flypingavia.services.flexible_dates import search_flexible_trip, validate_flexibility_days
 from flypingavia.services.threshold_policy import evaluate_low_threshold
 from flypingavia.bot.formatters import money as format_money
+
+logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 
@@ -334,31 +337,27 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        # CS-05: серверный band; клиентский cheap_max не принимается.
+        # CS-05: band через тот же flexible search, что и /api/quote.
         band = None
         try:
-            quote = await provider.get_trip_quote(
-                origin_place.search_codes,
-                dest_place.search_codes,
+            result = await search_flexible_trip(
+                provider,
+                origins=origin_place.search_codes,
+                destinations=dest_place.search_codes,
                 depart_date=body.depart_date,
                 return_date=body.return_date,
+                flexibility_days=flex,
                 adults=body.adults,
                 children=body.children,
                 infants=body.infants,
                 currency=settings.currency,
             )
-            band = await provider.get_trip_band(
-                origin_place.search_codes,
-                dest_place.search_codes,
-                depart_date=body.depart_date,
-                return_date=body.return_date,
-                adults=body.adults,
-                children=body.children,
-                infants=body.infants,
-                currency=settings.currency,
-            )
-            band = align_band_to_quote(band, quote)
+            if result is not None:
+                band = result.band
         except Exception:
+            logger.exception(
+                "Failed to evaluate flexible market band before Watch creation"
+            )
             band = None
 
         decision = evaluate_low_threshold(

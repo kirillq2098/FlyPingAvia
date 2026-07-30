@@ -552,3 +552,290 @@ async def test_api_flexibility_days_validation(api_client, monkeypatch) -> None:
         )
         assert default.status_code == 200
         assert default.json()["flexibility_days"] == 0
+
+
+# --- CS-07 review: единый flexible band для quote и create ---
+
+
+class _NeighborCheaperBandProvider:
+    """Основная дата: дороже + один band; соседняя: дешевле + другой band."""
+
+    def __init__(self, primary: date, neighbor: date) -> None:
+        self.primary = primary
+        self.neighbor = neighbor
+        self.quote_calls: list[date | None] = []
+        self.band_calls: list[date | None] = []
+        self.primary_band = _band(cheap=10_000, typical=14_000, expensive=18_000)
+        self.neighbor_band = _band(cheap=18_000, typical=22_000, expensive=28_000)
+
+    async def get_trip_quote(self, *args, **kwargs) -> PriceQuote | None:
+        d = kwargs.get("depart_date")
+        self.quote_calls.append(d)
+        if d == self.neighbor:
+            price = 12_000
+        elif d == self.primary:
+            price = 20_000
+        else:
+            price = 25_000
+        return PriceQuote(
+            price=price,
+            currency="RUB",
+            source="test",
+            origin_code="MOW",
+            destination_code="LED",
+        )
+
+    async def get_trip_band(self, *args, **kwargs) -> PriceBand | None:
+        d = kwargs.get("depart_date")
+        self.band_calls.append(d)
+        if d == self.neighbor:
+            return self.neighbor_band
+        if d == self.primary:
+            return self.primary_band
+        return _band(cheap=8_000, typical=12_000, expensive=16_000)
+
+
+def _make_api_client(monkeypatch, provider):
+    import flypingavia.api.app as api_mod
+    from flypingavia.config import get_settings
+    from flypingavia.api.app import create_api
+    from httpx import ASGITransport, AsyncClient
+
+    monkeypatch.setattr(api_mod, "build_price_provider", lambda _s: provider)
+    app = create_api(get_settings())
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+@pytest.mark.asyncio
+async def test_api_flexible_create_uses_found_date_band(api_client, monkeypatch) -> None:
+    """CS-05 решение по band соседней найденной даты, не по основной."""
+    primary = date.today() + timedelta(days=30)
+    neighbor = primary + timedelta(days=1)
+    provider = _NeighborCheaperBandProvider(primary, neighbor)
+    threshold = 12_000  # primary cheap_max=10k → без warn; neighbor=18k → warn
+
+    async with _make_api_client(monkeypatch, provider) as c:
+        res = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": threshold,
+                "depart_date": primary.isoformat(),
+                "flexibility_days": 3,
+            },
+        )
+
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["code"] == "LOW_THRESHOLD_CONFIRMATION_REQUIRED"
+    assert detail["cheap_max"] == provider.neighbor_band.cheap_max
+    assert detail["cheap_max"] != provider.primary_band.cheap_max
+    # band берётся только для найденной даты (через search_flexible_trip)
+    assert provider.band_calls == [neighbor]
+    assert neighbor in provider.quote_calls
+    assert primary in provider.quote_calls
+
+
+@pytest.mark.asyncio
+async def test_api_quote_and_watches_agree_on_flexible_band(
+    api_client, monkeypatch
+) -> None:
+    primary = date.today() + timedelta(days=40)
+    neighbor = primary + timedelta(days=2)
+    provider = _NeighborCheaperBandProvider(primary, neighbor)
+
+    async with _make_api_client(monkeypatch, provider) as c:
+        quote = await c.get(
+            "/api/quote",
+            params={
+                "origin": "MOW",
+                "destination": "LED",
+                "depart_date": primary.isoformat(),
+                "flexibility_days": 3,
+            },
+        )
+        assert quote.status_code == 200
+        q = quote.json()
+        assert q["cheap_max"] == provider.neighbor_band.cheap_max
+        assert q["found_depart_date"] == neighbor.isoformat()
+
+        create = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 12_000,
+                "depart_date": primary.isoformat(),
+                "flexibility_days": 3,
+            },
+        )
+    assert create.status_code == 409
+    assert create.json()["detail"]["cheap_max"] == q["cheap_max"]
+
+
+@pytest.mark.asyncio
+async def test_api_flexible_confirm_creates_once_keeps_flex(
+    api_client, monkeypatch
+) -> None:
+    from flypingavia.db.session import session_scope
+
+    primary = date.today() + timedelta(days=35)
+    neighbor = primary + timedelta(days=1)
+    provider = _NeighborCheaperBandProvider(primary, neighbor)
+    payload = {
+        "origin": "MOW",
+        "destination": "LED",
+        "max_price": 12_000,
+        "depart_date": primary.isoformat(),
+        "flexibility_days": 3,
+        "confirm_low_threshold": True,
+    }
+
+    async with _make_api_client(monkeypatch, provider) as c:
+        res = await c.post("/api/watches", json=payload)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["flexibility_days"] == 3
+        watch_id = body["id"]
+
+    async with session_scope() as session:
+        watches = (await session.execute(select(Watch))).scalars().all()
+        assert len(watches) == 1
+        assert watches[0].id == watch_id
+        assert watches[0].flexibility_days == 3
+
+
+@pytest.mark.asyncio
+async def test_api_exact_flex0_single_search_cs05(api_client, monkeypatch) -> None:
+    primary = date.today() + timedelta(days=50)
+    provider = _FixedBandProvider(_band(cheap=15_000), price=18_000)
+    quote_n = {"n": 0}
+    band_n = {"n": 0}
+    orig_quote = provider.get_trip_quote
+    orig_band = provider.get_trip_band
+
+    async def _q(*a, **k):
+        quote_n["n"] += 1
+        return await orig_quote(*a, **k)
+
+    async def _b(*a, **k):
+        band_n["n"] += 1
+        return await orig_band(*a, **k)
+
+    provider.get_trip_quote = _q  # type: ignore[method-assign]
+    provider.get_trip_band = _b  # type: ignore[method-assign]
+
+    async with _make_api_client(monkeypatch, provider) as c:
+        warn = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 10_000,
+                "depart_date": primary.isoformat(),
+                "flexibility_days": 0,
+            },
+        )
+        assert warn.status_code == 409
+        assert warn.json()["detail"]["cheap_max"] == 15_000
+
+        ok = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 15_000,
+                "depart_date": primary.isoformat(),
+                "flexibility_days": 0,
+            },
+        )
+        assert ok.status_code == 200
+
+    # exact path: по одному quote+band на каждый create-запрос
+    assert quote_n["n"] == 2
+    assert band_n["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_api_flexible_search_none_creates_without_warn(
+    api_client, monkeypatch
+) -> None:
+    import flypingavia.api.app as api_mod
+
+    async def _none(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(api_mod, "search_flexible_trip", _none)
+    # provider не должен влиять — search замокан
+    monkeypatch.setattr(
+        api_mod, "build_price_provider", lambda _s: _FixedBandProvider(_band(cheap=15_000))
+    )
+
+    from flypingavia.config import get_settings
+    from flypingavia.api.app import create_api
+    from httpx import ASGITransport, AsyncClient
+
+    app = create_api(get_settings())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        res = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 1_000,
+                "depart_date": (date.today() + timedelta(days=20)).isoformat(),
+                "flexibility_days": 3,
+            },
+        )
+    assert res.status_code == 200
+    assert res.json()["flexibility_days"] == 3
+
+
+@pytest.mark.asyncio
+async def test_api_flexible_search_error_logs_and_creates(
+    api_client, monkeypatch, caplog
+) -> None:
+    import logging
+
+    import flypingavia.api.app as api_mod
+
+    async def _boom(*_a, **_k):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(api_mod, "search_flexible_trip", _boom)
+    monkeypatch.setattr(
+        api_mod, "build_price_provider", lambda _s: _FixedBandProvider(_band(cheap=15_000))
+    )
+
+    from flypingavia.config import get_settings
+    from flypingavia.api.app import create_api
+    from httpx import ASGITransport, AsyncClient
+
+    app = create_api(get_settings())
+    with caplog.at_level(logging.ERROR, logger="flypingavia.api.app"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            res = await c.post(
+                "/api/watches",
+                json={
+                    "origin": "MOW",
+                    "destination": "LED",
+                    "max_price": 1_000,
+                    "depart_date": (date.today() + timedelta(days=22)).isoformat(),
+                    "flexibility_days": 3,
+                },
+            )
+    assert res.status_code == 200
+    assert "Failed to evaluate flexible market band before Watch creation" in caplog.text
+
+
+def test_frontend_confirm_preserves_flexibility_days() -> None:
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "flypingavia/web/static/app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "confirm_low_threshold: !!confirmLow" in src
+    assert "flexibility_days: state.flexibilityDays || 0" in src
+    # createWatch(threshold, true) не перезаписывает flex
+    assert "await createWatch(threshold, true)" in src
