@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -23,8 +24,17 @@ class PriceChecker:
         self.bot = bot
         self.settings = settings
         self.provider = provider
+        self._run_lock = asyncio.Lock()
 
     async def run_once(self) -> int:
+        if self._run_lock.locked():
+            logger.info("Price check skipped: another run is active")
+            return 0
+
+        async with self._run_lock:
+            return await self._run_once_locked()
+
+    async def _run_once_locked(self) -> int:
         alerts = 0
         async with session_scope() as session:
             watches = list(await repo.get_active_watches(session))
@@ -153,6 +163,11 @@ class PriceChecker:
                     reply_markup=kb.watch_actions_kb(snapshot.id, link),
                     disable_web_page_preview=True,
                 )
+            except Exception:
+                logger.exception("Telegram send failed user=%s", telegram_id)
+                continue
+
+            try:
                 async with session_scope() as session:
                     await repo.log_alert_event(
                         session,
@@ -167,6 +182,12 @@ class PriceChecker:
                         fresh.last_alert_price = float(quote.price)
                 alerts += 1
             except Exception:
-                logger.exception("Не удалось отправить алерт user=%s", telegram_id)
+                logger.exception(
+                    "Alert sent successfully but AlertEvent persistence failed "
+                    "watch_id=%s user=%s",
+                    snapshot.id,
+                    telegram_id,
+                )
+                continue
 
         return alerts

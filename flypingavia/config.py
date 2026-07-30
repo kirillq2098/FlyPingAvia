@@ -98,6 +98,7 @@ class Settings(BaseSettings):
 
     notification_cooldown_hours: float = Field(
         default=24.0,
+        ge=0,
         validation_alias=AliasChoices(
             "NOTIFICATION_COOLDOWN_HOURS",
             "notification_cooldown_hours",
@@ -106,6 +107,7 @@ class Settings(BaseSettings):
     )
     min_price_delta: float = Field(
         default=500.0,
+        ge=0,
         validation_alias=AliasChoices("MIN_PRICE_DELTA", "min_price_delta"),
         description="Минимальное падение цены (в валюте watch) для алерта внутри cooldown",
     )
