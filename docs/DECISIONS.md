@@ -15,6 +15,9 @@
 
 | Дата (по git / факт) | Решение | Почему | Где | Статус |
 |----------------------|---------|--------|-----|--------|
+| 2026-07 (WA-02) | `APP_ENV` + canonical HTTPS `WEBAPP_URL`; temp trycloudflare только development; production supervise не переписывает URL | Ephemeral URL ломает Telegram кнопку | `config.py`, `webapp_url.py`, `scripts/supervise.sh`, `deploy/*` | Active (Partial ops — нужен живой домен) |
+| 2026-07 (WA-02) | Same-origin Mini App+API; CORS middleware не добавляем | Static и `/api` с одного origin за reverse proxy | `api/app.py`, docs | Active |
+| 2026-07 (WA-02) | Uvicorn `proxy_headers` + `FORWARDED_ALLOW_IPS=127.0.0.1` (не `*`) | Canonical URL из env, не из Host | `main.py` | Active |
 | 2026-07 (коммит `f7bbabf` и след.) | UI пассажиров скрыт; всегда 1 взрослый | Нет доступа к Flight Search API у партнёра; кэш Data API не даёт корректную цену за состав | `handlers.py` (`_continue_to_preview`), Mini App `#pax-block` hidden, `app.js` | Active |
 | 2026-07 (`91e516d`) | One-way на дату брать из month-matrix, не из `prices/cheap` | `cheap` отдавал нерелевантный/кэш RT | `prices.py` (CHEAP_URL не вызывается для dated OW) | Active |
 | 2026-07 (`d2659c8`) | Не умножать кэш-цену Data API на число пассажиров | Цена в кэше за 1 взрослого | `prices.py` | Active |
@@ -35,7 +38,7 @@
 | Freemium | Включить `FREE_WATCH_LIMIT` / убрать из доков / оставить 0 навсегда | Честность README и монетизация | Какой лимит и когда? |
 | Повторные алерты | Алертить каждый цикл / только если цена изменилась / cooldown | Шум в UX | Использовать ли `last_alert_price`? |
 | Live Search | Ждать доступ партнёра / искать другой источник / остаться на 1 взрослом | UI пассажиров, «семейные» цены | Когда снова включаем pax UI? |
-| Хостинг Mini App | Quick tunnel + supervise / named tunnel / VPS+домен | Надёжность кнопки приложения | Какой целевой URL? |
+| Хостинг Mini App | **Целевой:** свой домен или named Cloudflare Tunnel + `APP_ENV=production`. Quick tunnel — только development | Надёжность кнопки | Checklist: `docs/PRODUCTION_CHECKLIST.md` |
 | Версионирование | Выровнять всё на 0.2.0 / оставить `__init__` 0.1.0 до релиза | Документы и ожидания | Когда считаем релиз «официальным»? |
 
 ## Как обновлять этот файл

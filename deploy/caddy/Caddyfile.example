@@ -1,0 +1,32 @@
+# Example Caddyfile for FlyPingAvia (WA-02).
+# Caddy получает TLS автоматически (Let's Encrypt) при публичном DNS.
+#
+# Replace app.example.com with your hostname (must match WEBAPP_URL).
+# Upstream: WEBAPP_HOST/WEBAPP_PORT → 127.0.0.1:8080
+
+app.example.com {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# Reject accidental exposure of secrets if placed under a docroot.
+	@hidden path /.env /.git* /credentials.json
+	respond @hidden 404
+
+	reverse_proxy 127.0.0.1:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 60s
+		}
+	}
+}

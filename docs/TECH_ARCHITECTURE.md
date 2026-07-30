@@ -46,12 +46,13 @@ Telegram users
 
 | Путь | Назначение |
 |------|------------|
-| `flypingavia/main.py` | Старт бота, scheduler, uvicorn; сброс MenuButton в commands |
-| `flypingavia/config.py` | Settings, demo/live флаги, интервал polling |
+| `flypingavia/main.py` | Старт бота, scheduler, uvicorn (+ proxy headers); сброс MenuButton в commands |
+| `flypingavia/config.py` | Settings: `APP_ENV`, WEBAPP_*, readiness |
+| `flypingavia/webapp_url.py` | Нормализация/валидация canonical WEBAPP_URL |
 | `flypingavia/bot/handlers.py` | Команды, FSM, колбэки |
-| `flypingavia/bot/keyboards.py` | Reply/Inline клавиатуры |
+| `flypingavia/bot/keyboards.py` | Reply/Inline клавиатуры (WebApp только публичный HTTPS) |
 | `flypingavia/bot/formatters.py` | Тексты карточек/алертов |
-| `flypingavia/api/app.py` | FastAPI routes + раздача static |
+| `flypingavia/api/app.py` | FastAPI routes + static; `/api/health`, `/api/ready` |
 | `flypingavia/api/telegram_auth.py` | Проверка WebApp `initData` |
 | `flypingavia/db/models.py` | `User`, `Watch` |
 | `flypingavia/db/repository.py` | CRUD подписок |
@@ -60,7 +61,8 @@ Telegram users
 | `flypingavia/services/flight_search.py` | Affiliate Flight Search start/results |
 | `flypingavia/services/checker.py` | Фоновые проверки и алерты |
 | `flypingavia/services/locations.py` | Справочник городов/аэропортов |
-| `scripts/supervise.sh` | Watchdog бота + cloudflared |
+| `scripts/supervise.sh` | Watchdog: production = фиксированный WEBAPP_URL; development = optional quick tunnel |
+| `deploy/` | Nginx/Caddy/cloudflared/compose examples |
 
 ## HTTP API Mini App
 
@@ -68,7 +70,8 @@ Telegram users
 |-------|------|------|
 | GET | `/` | нет (index.html) |
 | GET | `/assets/*` | нет |
-| GET | `/api/health` | нет |
+| GET | `/api/health` | нет (liveness + readiness flags) |
+| GET | `/api/ready` | нет (200/503 относительно `APP_ENV`) |
 | GET | `/api/me` | да |
 | GET | `/api/resolve?q=` | да |
 | GET | `/api/quote` | да |
@@ -104,23 +107,30 @@ Auth: заголовок `X-Telegram-Init-Data` или `Authorization: tma <init
 
 ## Деплой и эксплуатация
 
-- Локально / VPS: `python -m flypingavia`  
-- Docker: `Dockerfile`, volume на `./data`, `--env-file .env`  
-- Mini App требует публичный HTTPS → `WEBAPP_URL`  
-- `scripts/supervise.sh`: рестарт бота и cloudflared; при новом trycloudflare URL пишет `WEBAPP_URL` в `.env`  
+Целевая схема production (WA-02):
+
+```text
+Telegram → https://app.example.com → reverse proxy → 127.0.0.1:8080 (FastAPI+static)
+```
+
+- `APP_ENV=production` требует canonical HTTPS `WEBAPP_URL` (без path/query); `WEBAPP_DEV_USER_ID=0`
+- CORS не нужен: UI и API на одном origin
+- Proxy: `FORWARDED_ALLOW_IPS=127.0.0.1` (не `*`); canonical URL **не** берётся из Host
+- Примеры: `deploy/nginx/`, `deploy/caddy/`, `deploy/cloudflared/`, `deploy/docker-compose.production.example.yml`
+- Checklist: [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)
+- `scripts/supervise.sh`: в production **не** запускает trycloudflare и **не** переписывает `WEBAPP_URL`; temporary tunnel — только development
+- Docker: non-root `appuser`, HEALTHCHECK на `/api/health`, secrets только через env
 - Логи watchdog: `/tmp/flypingavia/`
 
 ## Тесты
 
-- `tests/test_core.py` — репозиторий, demo prices, affiliate URL, settings, formatters, resolve (сеть), live quote fake  
-- `tests/test_webapp_auth.py` — HMAC initData  
-
-Не покрыто автотестами: handlers/FSM, checker алерты, FastAPI integration, enforcement лимита.
+- `pytest -q` — unit/integration (в т.ч. WA-02 URL/health/ready, TR-04, CS/NT)  
+- Auth Mini App: `tests/test_webapp_auth.py`
 
 ## TODO — архитектура на рост
 
 - [ ] Когда переходим с SQLite на Postgres (при каком N users / watches)?
 - [ ] Нужен ли отдельный worker процесса проверки цен от polling бота?
 - [ ] Как хранить и ротировать секреты вне `.env` на одном сервере?
-- [ ] Нужен ли named Cloudflare Tunnel / свой домен вместо quick tunnel?
+- [x] Named Cloudflare Tunnel / свой домен — шаблоны в `deploy/` (ops остаётся)
 - [ ] Нужна ли очередь (Redis и т.п.) или хватит APScheduler до v1.0?

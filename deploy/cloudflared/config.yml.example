@@ -1,0 +1,19 @@
+# Example Cloudflare named tunnel (WA-02).
+# DO NOT commit real tunnel ID or credentials JSON.
+#
+# Setup (manual):
+#   cloudflared tunnel create flypingavia
+#   cloudflared tunnel route dns flypingavia app.example.com
+#   # credentials → ~/.cloudflared/<TUNNEL_ID>.json  (gitignored)
+#
+# Temporary `cloudflared tunnel --url` / trycloudflare.com = development-only.
+# In APP_ENV=production set WEBAPP_URL to the stable hostname and do not
+# let supervise rewrite it.
+
+tunnel: <TUNNEL_ID>
+credentials-file: /home/deploy/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: app.example.com
+    service: http://127.0.0.1:8080
+  - service: http_status:404

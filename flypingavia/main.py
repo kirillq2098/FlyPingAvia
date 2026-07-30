@@ -22,11 +22,43 @@ logging.basicConfig(
 logger = logging.getLogger("flypingavia")
 
 
+def _log_startup_summary(settings) -> None:
+    price_mode = "demo" if settings.is_demo_prices else "live"
+    logger.info("Environment: %s", settings.app_env)
+    logger.info(
+        "Mini App URL: %s",
+        settings.webapp_url or "(не задан — кнопка Mini App скрыта)",
+    )
+    logger.info("Display timezone: %s", settings.display_timezone)
+    logger.info("Price mode: %s", price_mode)
+    logger.info(
+        "Bind: %s:%s | Telegram WebApp: %s",
+        settings.webapp_host,
+        settings.webapp_port,
+        settings.telegram_webapp_url or "disabled",
+    )
+    issues = settings.readiness_issues()
+    if issues:
+        level = logging.ERROR if settings.is_production else logging.WARNING
+        logger.log(
+            level,
+            "Readiness issues (%s): %s",
+            settings.app_env,
+            ", ".join(issues),
+        )
+
+
 async def _async_main() -> None:
     settings = get_settings()
     if not settings.bot_token or settings.bot_token == "REPLACE_ME":
         raise SystemExit(
             "Укажите BOT_TOKEN в .env (см. .env.example). Токен выдаёт @BotFather."
+        )
+
+    if settings.is_production and not settings.webapp_url:
+        raise SystemExit(
+            "APP_ENV=production требует WEBAPP_URL=https://… "
+            "(постоянный HTTPS, не temporary tunnel)."
         )
 
     if settings.database_url.startswith("sqlite"):
@@ -62,6 +94,8 @@ async def _async_main() -> None:
     scheduler.start()
 
     api = create_api(settings)
+    # Proxy headers: только с доверенных IP reverse proxy (по умолчанию loopback).
+    # Не используйте forwarded_allow_ips="*" при публичном bind.
     server = uvicorn.Server(
         uvicorn.Config(
             api,
@@ -69,19 +103,15 @@ async def _async_main() -> None:
             port=settings.webapp_port,
             log_level="info",
             loop="asyncio",
+            proxy_headers=True,
+            forwarded_allow_ips=settings.forwarded_allow_ips,
         )
     )
 
-    logger.info(
-        "FlyPingAvia started (interval=%ss, demo=%s, webapp=%s:%s, url=%s)",
-        interval,
-        settings.is_demo_prices,
-        settings.webapp_host,
-        settings.webapp_port,
-        settings.webapp_url or "(не задан — кнопка Mini App скрыта)",
-    )
+    _log_startup_summary(settings)
+    logger.info("Price check interval=%ss", interval)
 
-    if settings.webapp_url:
+    if settings.telegram_webapp_url:
         # Menu button в Telegram часто кэширует старый tunnel URL (Error 1033).
         # Надёжнее обновлять WebApp через reply/inline-кнопки после /start.
         try:

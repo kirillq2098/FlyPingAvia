@@ -221,3 +221,9 @@ __marimo__/
 data/*.db
 data/*.sqlite3
 .env
+
+# Cloudflare tunnel credentials (never commit)
+**/.cloudflared/
+**/credentials.json
+deploy/cloudflared/*.json
+!deploy/cloudflared/config.yml.example
