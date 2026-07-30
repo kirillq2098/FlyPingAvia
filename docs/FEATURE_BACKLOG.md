@@ -429,15 +429,16 @@
 - **Статус:** Todo · **Source:** KPI TODO, Strategy
 
 ### AN-03 · Лог алертов в БД
-- **Описание:** Таблица alert_events (watch_id, price, threshold, sent_at) для NSM и антиспама.
+- **Описание:** Таблица `alert_events` (watch_id, user_id, price, threshold, currency, sent_at); запись только после успешного `send_message`.
 - **Проблема:** Сейчас Alerted Watchers плохо считать из last_alert_price alone.
 - **Важность:** Точный North Star.
 - **NSM:** **High** (измерение).
 - **Value 8 · Effort 3 · Время:** 1–2 д · **P0**
 - **Зависимости:** NT-01
-- **DoD:** каждая отправка пишется; запрос Alerted Watchers 30d
+- **DoD:** каждая успешная отправка пишется; запрос Alerted Watchers 30d (`scripts/kpi_alerted_watchers.sql`, `repo.count_alerted_watchers`)
 - **Метрики:** Alerted Watchers считается SQL
-- **Статус:** Todo · **Source:** Strategy NSM, KPI
+- **Статус:** Done · **Source:** Strategy NSM, KPI
+- **Артефакты:** `flypingavia/db/models.py` (`AlertEvent`), `repository.log_alert_event`, `checker.py`, `scripts/migrations/001_alert_events.sql`, `tests/test_alert_events.py`
 
 ---
 
@@ -605,7 +606,8 @@
 | NT-01 | Done |
 | TG-01, TG-05 | Done |
 | WA-01, RL-01, IN-01, IT-01 | Done |
-| **NT-04, NT-02, NT-03, CS-05, TR-04, AN-03, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| **NT-04, NT-02, NT-03, CS-05, TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| AN-03 | Done |
 
 ## v1.0 — «Стабильный сторож»
 
@@ -696,7 +698,7 @@
 | 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Todo |
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
 | 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Todo |
-| 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Todo |
+| 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Done |
 | 10 | WA-03 | Web App | P1 | 6 | 2 | 3.0 | 0.5–1д | Partial |
 | 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Todo |
 | 12 | CS-08 | Search | P0 | 9 | 1 | 9.0 | 0.5д ops | Partial |
@@ -725,7 +727,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03 — **Done**.
 
 ### Матрица (схема)
 

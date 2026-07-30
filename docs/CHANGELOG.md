@@ -6,9 +6,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- **AN-03:** таблица `alert_events` — лог успешных алертов; `repo.count_alerted_watchers`; SQL `scripts/kpi_alerted_watchers.sql`; миграция `scripts/migrations/001_alert_events.sql`.
+
 ### Documentation
 
-- Папка `docs/`: vision, strategy, feature backlog, user journey, roadmap, competitive analysis, architecture, monetization, marketing, decisions, KPI, changelog.
+- Папка `docs/`: vision, strategy, feature backlog, user journey, sprint 01, roadmap, competitive analysis, architecture, monetization, marketing, decisions, KPI, changelog.
 
 ## [0.2.0] — 2026-07
 

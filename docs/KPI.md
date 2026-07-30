@@ -86,6 +86,7 @@
 
 Без новой инфраструктуры:
 
-1. Раз в неделю: `users`, `active watches`, watches per user.  
-2. Сверка с кабинетом Travelpayouts: клики/брони по `AFFILIATE_MARKER`.  
-3. Запись результата в этот файл или отдельный лог — когда появятся первые цифры.
+1. Раз в неделю: `users`, `active watches`, **Alerted Watchers (30d)**.  
+2. SQL: [`scripts/kpi_alerted_watchers.sql`](../scripts/kpi_alerted_watchers.sql) или `repo.count_alerted_watchers(session, within_days=30)` (таблица `alert_events`, AN-03).  
+3. Сверка с кабинетом Travelpayouts: клики/брони по `AFFILIATE_MARKER`.  
+4. Запись результата в этот файл или отдельный лог — когда появятся первые цифры.

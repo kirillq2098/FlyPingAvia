@@ -136,6 +136,15 @@ class PriceChecker:
                     reply_markup=kb.watch_actions_kb(snapshot.id, link),
                     disable_web_page_preview=True,
                 )
+                async with session_scope() as session:
+                    await repo.log_alert_event(
+                        session,
+                        watch_id=snapshot.id,
+                        user_id=snapshot.user_id,
+                        price=float(quote.price),
+                        threshold=float(snapshot.max_price),
+                        currency=snapshot.currency,
+                    )
                 alerts += 1
             except Exception:
                 logger.exception("Не удалось отправить алерт user=%s", telegram_id)
