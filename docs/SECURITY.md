@@ -4,9 +4,11 @@
 
 ## Telegram deep-link attribution (TG-03)
 
-`/start <payload>` сохраняет только whitelist-строку `[A-Za-z0-9_-]{1,64}` в `users.first_start_source` / `last_start_source`.
+`/start <payload>` сохраняет whitelist-строку `[A-Za-z0-9_-]{1,64}` в `users.first_start_source` / `last_start_source`.
 
-Не сохраняем: полный URL, IP, User-Agent, initData, referrer Mini App, произвольные query, текст сообщения.
+Для share-ссылок TG-04 (`share_<token>`) в attribution пишется только `share` — **raw token не сохраняется**.
+
+Не сохраняем: полный URL, IP, User-Agent, initData, referrer Mini App, произвольные query, текст сообщения, raw share token.
 
 Payload **не секрет** (виден в URL) и **не исполняется** как команда. Подробности: [ATTRIBUTION.md](ATTRIBUTION.md).
 
@@ -14,10 +16,12 @@ Payload **не секрет** (виден в URL) и **не исполняетс
 
 Ссылка `?start=share_<token>` создаёт **копию** Watch у получателя, а не доступ к оригиналу.
 
-- В URL только opaque token; raw token **не** хранится в БД (только SHA-256 `token_hash`).
+- В URL только opaque token; raw token **не** хранится в БД (только SHA-256 `token_hash`; attribution = `share`).
+- Confirm: HMAC callback proof `sc:<share_id>:<exp>:<sig>`, привязан к Telegram user id + TTL (`WATCH_SHARE_CALLBACK_SECRET`).
+- Подбор `share_id` / старый `share_confirm:<id>` не создаёт Watch.
 - Preview и confirm не раскрывают owner id/username, Watch id, историю цены, alert history.
 - Чужой Watch при создании/отзыве share → `404`.
-- Истёкший / отозванный / исчерпанный / неверный token → одно безопасное сообщение без причины.
+- Истёкший / отозванный / исчерпанный / неверный token / битый proof → одно безопасное сообщение без причины.
 - Owner, открывший свою ссылку, видит preview, но копия не создаётся и `used_count` не растёт.
 - Подробности: [WATCH_SHARING.md](WATCH_SHARING.md).
 

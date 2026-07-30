@@ -136,12 +136,15 @@ def watch_actions_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def share_confirm_kb(share_id: int) -> InlineKeyboardMarkup:
+def share_confirm_kb(callback_proof: str) -> InlineKeyboardMarkup:
+    """Confirm с HMAC proof (не сырой share_id)."""
+    if len(callback_proof.encode("utf-8")) > 64:
+        raise ValueError("callback_data превышает лимит Telegram (64 bytes)")
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
             text="✅ Создать подписку",
-            callback_data=f"share_confirm:{share_id}",
+            callback_data=callback_proof,
         )
     )
     builder.row(

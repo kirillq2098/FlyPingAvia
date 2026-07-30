@@ -282,7 +282,7 @@
 - **Статус:** Done · **Source:** Compete O6, Strategy, Marketing
 
 ### TG-04 · Поделиться подпиской через deep link
-- **Описание:** Opaque `share_<token>`; hash в БД; preview + confirm → копия Watch у получателя; TTL 7д / max uses 20; revoke; Mini App `POST/DELETE …/share(s)`. Без referral rewards.
+- **Описание:** Opaque `share_<token>`; hash в БД; attribution `share`; HMAC confirm proof; preview + confirm → копия Watch; TTL 7д / max uses 20; revoke; Mini App `POST/DELETE …/share(s)`. Без referral rewards.
 - **Проблема:** Гиганты слабо шарятся; нужен organic.
 - **Важность:** Strategy 1k growth.
 - **NSM:** High (viral → new Alerted Watchers).

@@ -382,13 +382,17 @@ async def get_share_by_id(
     return share
 
 
-async def clone_watch_from_share(
+async def clone_watch_from_verified_share(
     session: AsyncSession,
     *,
     share_id: int,
     recipient_user_id: int,
     now: datetime,
 ) -> ShareCloneResult:
+    """Клонировать Watch по share_id после HMAC proof (handler/service).
+
+    Не вызывать из публичного callback с «голым» share_id без verify_share_callback_proof.
+    """
     from flypingavia.db.models import WatchShareRedemption, WatchShareToken
     from sqlalchemy.exc import IntegrityError
 

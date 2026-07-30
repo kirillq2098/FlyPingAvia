@@ -579,24 +579,30 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     @router.message(CommandStart())
     async def cmd_start(message: Message, state: FSMContext, command: CommandObject) -> None:
         await state.clear()
+        from datetime import timedelta
+
         from flypingavia.bot.share_tokens import (
             INVALID_SHARE_MESSAGE,
+            attribution_source_for_start_payload,
+            create_share_callback_proof,
             parse_share_payload,
         )
         from flypingavia.bot.start_payload import normalize_start_payload
 
         source = normalize_start_payload(command.args if command else None)
+        attribution_source = attribution_source_for_start_payload(source)
         user = message.from_user
         if user is None:
             return
         now = datetime.now(timezone.utc)
         share_id = None
         share_snapshot = None
+        confirm_proof = None
         async with session_scope() as session:
             await repo.record_user_start(
                 session,
                 telegram_user_id=user.id,
-                source=source,
+                source=attribution_source,
                 started_at=now,
                 username=user.username,
             )
@@ -622,21 +628,28 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                         "currency": w.currency,
                         "flexibility_days": int(getattr(w, "flexibility_days", 0) or 0),
                     }
-        if source:
+                    confirm_proof = create_share_callback_proof(
+                        share_id=share_id,
+                        telegram_user_id=user.id,
+                        expires_at=now
+                        + timedelta(seconds=settings.watch_share_callback_ttl_seconds),
+                        secret=settings.watch_share_callback_secret,
+                    )
+        if attribution_source:
             logging.getLogger("flypingavia.bot").debug("Telegram start source recorded")
 
         await get_location_directory().ensure_loaded()
 
         # TG-04: валидный share → preview вместо полного welcome
         if source and parse_share_payload(source):
-            if share_id is not None and share_snapshot is not None:
+            if share_id is not None and share_snapshot is not None and confirm_proof:
                 preview = fmt.format_shared_watch_preview(
                     type("W", (), share_snapshot)()
                 )
                 await message.answer(
                     preview,
                     parse_mode="HTML",
-                    reply_markup=kb.share_confirm_kb(share_id),
+                    reply_markup=kb.share_confirm_kb(confirm_proof),
                 )
                 await message.answer("Главное меню:", reply_markup=menu())
                 return
@@ -1391,11 +1404,34 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await callback.answer(f"Отозвано ссылок: {n}")
 
     @router.callback_query(F.data.startswith("share_confirm:"))
-    async def cb_share_confirm(callback: CallbackQuery) -> None:
-        from flypingavia.bot.share_tokens import INVALID_SHARE_MESSAGE, OWN_SHARE_MESSAGE
+    async def cb_share_confirm_legacy(callback: CallbackQuery) -> None:
+        """Старый формат share_confirm:<id> без proof — отклоняем."""
+        from flypingavia.bot.share_tokens import INVALID_SHARE_MESSAGE
 
-        share_id = int(callback.data.split(":")[1])
+        await callback.answer()
+        await callback.message.answer(INVALID_SHARE_MESSAGE, reply_markup=menu())
+
+    @router.callback_query(F.data.startswith("sc:"))
+    async def cb_share_confirm(callback: CallbackQuery) -> None:
+        from flypingavia.bot.share_tokens import (
+            INVALID_SHARE_MESSAGE,
+            OWN_SHARE_MESSAGE,
+            verify_share_callback_proof,
+        )
+
+        proof = callback.data or ""
         now = datetime.now(timezone.utc)
+        share_id = verify_share_callback_proof(
+            proof,
+            telegram_user_id=callback.from_user.id,
+            secret=settings.watch_share_callback_secret,
+            now=now,
+        )
+        if share_id is None:
+            await callback.answer()
+            await callback.message.answer(INVALID_SHARE_MESSAGE, reply_markup=menu())
+            return
+
         created_new = False
         is_owner = False
         invalid = False
@@ -1408,7 +1444,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 username=callback.from_user.username,
             )
             recipient_db_id = user.id
-            result = await repo.clone_watch_from_share(
+            result = await repo.clone_watch_from_verified_share(
                 session,
                 share_id=share_id,
                 recipient_user_id=user.id,

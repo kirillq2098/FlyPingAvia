@@ -13,24 +13,40 @@
 - Генерация: `secrets.token_urlsafe` (≥128 бит)
 - В БД хранится только **SHA-256 hash**, raw token — нет
 - Token ≠ Watch ID и не раскрывает структуру данных
+- Attribution: в `users.*_start_source` пишется только `share` (не raw token)
+
+## Confirm (proof-of-possession)
+
+После `/start share_<token>` кнопки содержат HMAC proof:
+
+```text
+sc:<share_id>:<exp>:<signature>
+```
+
+- Подпись HMAC-SHA256 (`WATCH_SHARE_CALLBACK_SECRET`), truncate + base64url
+- Привязка к Telegram user id получателя
+- TTL: `WATCH_SHARE_CALLBACK_TTL_SECONDS` (default 900)
+- Старый callback `share_confirm:<id>` отклоняется
+- Clone только через `clone_watch_from_verified_share` после проверки proof
 
 ## Срок и лимиты
 
 | Параметр | Default | Env |
 |----------|---------|-----|
-| TTL | 168 ч (7 дней) | `WATCH_SHARE_TTL_HOURS` (1–720) |
+| TTL ссылки | 168 ч (7 дней) | `WATCH_SHARE_TTL_HOURS` (1–720) |
 | Max uses | 20 успешных копий | `WATCH_SHARE_MAX_USES` (1–1000) |
 | Активных ссылок на Watch | 10 | при 11-й отзывается самая старая |
+| Callback proof TTL | 900 с | `WATCH_SHARE_CALLBACK_TTL_SECONDS` (60–3600) |
 
 Preview **не** увеличивает `used_count`. Повторный confirm того же пользователя идемпотентен.
 
 ## Безопасность
 
 Получатель не видит: owner Telegram ID/username, Watch ID, историю цен, алерты.  
-Истёкшая / отозванная / исчерпанная / чужая ссылка → единое сообщение без деталей.  
+Истёкшая / отозванная / исчерпанная / чужая / поддельный callback → единое сообщение без деталей.  
 Owner, открывший свою ссылку: «Это ваша подписка — копия не требуется.»
 
-TG-03 attribution сохраняет полный payload `share_…` как `last_start_source`.
+Обычные deep-link payload сохраняются полностью. Share payload в attribution — только `"share"`. Секретная часть token не сохраняется.
 
 ## Отзыв
 
