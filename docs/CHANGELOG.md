@@ -10,6 +10,7 @@
 
 - **AN-03:** таблица `alert_events` — лог успешных алертов; `repo.count_alerted_watchers`; SQL `scripts/kpi_alerted_watchers.sql`; миграция `scripts/migrations/001_alert_events.sql`.
 - **NT-04:** антиспам алертов — `NOTIFICATION_COOLDOWN_HOURS` (default 24) и `MIN_PRICE_DELTA` (default 500); решение по истории `AlertEvent` (`notify_policy.decide_notification`); `last_alert_price` обновляется только после успешной отправки.
+- **NT-02:** явный контракт порога в алерте — `format_threshold_contract` / `threshold_contract=True` в `format_price_card`; блок «Текущая цена / Ваш порог / X ≤ Y / Выгода к порогу».
 
 ### Fixed
 
