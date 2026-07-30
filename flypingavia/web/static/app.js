@@ -162,8 +162,14 @@
       try { data = await res.json(); } catch (_) {}
       if (!res.ok) {
         const detail = data.detail;
-        const msg = typeof detail === "string" ? detail : (data.message || ("Ошибка " + res.status));
-        throw new Error(msg);
+        const err = new Error(
+          typeof detail === "string"
+            ? detail
+            : (detail && detail.message) || data.message || ("Ошибка " + res.status)
+        );
+        err.status = res.status;
+        if (detail && typeof detail === "object") err.detail = detail;
+        throw err;
       }
       return data;
     }
@@ -378,8 +384,43 @@
         if (!state.quote) return;
         const key = btn.getAttribute("data-preset");
         $("#threshold").value = Math.round(state.quote[key === "cheap" ? "cheap_max" : "typical"] || 0);
+        hideLowThresholdWarn();
       });
     });
+
+    function hideLowThresholdWarn() {
+      const box = $("#low-threshold-warn");
+      if (box) box.classList.add("hidden");
+    }
+
+    function showLowThresholdWarn(detail) {
+      const box = $("#low-threshold-warn");
+      const text = $("#low-threshold-text");
+      if (!box || !text) return;
+      const thr = money(detail.threshold);
+      const cheap = money(detail.cheap_max);
+      text.textContent =
+        "Вы выбрали: " + thr + ". Дешёвая цена по текущим данным: до " + cheap +
+        ". С таким порогом уведомление может долго не прийти.";
+      box.classList.remove("hidden");
+    }
+
+    async function createWatch(threshold, confirmLow) {
+      return api("/api/watches", {
+        method: "POST",
+        body: JSON.stringify({
+          origin: state.quote.origin,
+          destination: state.quote.destination,
+          max_price: threshold,
+          depart_date: state.depart || null,
+          return_date: state.returnDate || null,
+          adults: state.adults,
+          children: state.children,
+          infants: state.infants,
+          confirm_low_threshold: !!confirmLow,
+        }),
+      });
+    }
 
     $("#watch-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -389,27 +430,53 @@
         toast("Введите порог числом, например 12000");
         return;
       }
+      hideLowThresholdWarn();
       try {
-        await api("/api/watches", {
-          method: "POST",
-          body: JSON.stringify({
-            origin: state.quote.origin,
-            destination: state.quote.destination,
-            max_price: threshold,
-            depart_date: state.depart || null,
-            return_date: state.returnDate || null,
-            adults: state.adults,
-            children: state.children,
-            infants: state.infants,
-          }),
-        });
+        await createWatch(threshold, false);
         toast("Подписка создана");
         if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
         switchTab("watches");
       } catch (err) {
+        if (
+          err.status === 409 &&
+          err.detail &&
+          err.detail.code === "LOW_THRESHOLD_CONFIRMATION_REQUIRED"
+        ) {
+          showLowThresholdWarn(err.detail);
+          return;
+        }
         toast(err.message);
       }
     });
+
+    const confirmBtn = $("#low-threshold-confirm");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async () => {
+        if (!state.quote) return;
+        const threshold = Math.round(Number($("#threshold").value));
+        try {
+          await createWatch(threshold, true);
+          hideLowThresholdWarn();
+          toast("Подписка создана");
+          if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+          switchTab("watches");
+        } catch (err) {
+          toast(err.message);
+        }
+      });
+    }
+
+    const editBtn = $("#low-threshold-edit");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        hideLowThresholdWarn();
+        const input = $("#threshold");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      });
+    }
 
     $("#watches").addEventListener("click", async (e) => {
       const id = e.target && e.target.getAttribute("data-del");

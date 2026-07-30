@@ -207,6 +207,20 @@ body {
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
 .hidden { display: none !important; }
 
+.low-threshold-warn {
+  border: 1px solid rgba(244, 201, 95, 0.45);
+  background: rgba(244, 201, 95, 0.08);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.low-threshold-warn .warn-title {
+  margin: 0;
+  color: var(--warn);
+  font-weight: 700;
+}
+
 .trip-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;

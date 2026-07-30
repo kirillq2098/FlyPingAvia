@@ -26,6 +26,10 @@ from flypingavia.services.prices import (
     build_affiliate_url,
     build_price_provider,
 )
+from flypingavia.services.threshold_policy import (
+    band_from_snapshot,
+    evaluate_low_threshold,
+)
 
 
 class AddWatch(StatesGroup):
@@ -36,6 +40,7 @@ class AddWatch(StatesGroup):
     return_date = State()
     passengers = State()
     custom_price = State()
+    waiting_low_threshold_confirmation = State()
 
 
 def _parse_date(value: str) -> date | None:
@@ -255,6 +260,11 @@ async def _show_route_preview(
         children=children,
         infants=infants,
         draft_id=draft_id,
+        band_cheap_max=float(band.cheap_max) if band else None,
+        band_typical=float(band.typical) if band else None,
+        band_expensive_min=float(band.expensive_min) if band else None,
+        band_sample_size=int(band.sample_size) if band else None,
+        pending_threshold=None,
     )
 
     text = fmt.format_price_card(
@@ -320,6 +330,79 @@ async def _create_watch_from_state(
             currency=settings.currency,
         )
         return watch.id
+
+
+def _band_from_state_data(data: dict):
+    return band_from_snapshot(
+        cheap_max=data.get("band_cheap_max"),
+        typical=data.get("band_typical"),
+        expensive_min=data.get("band_expensive_min"),
+        sample_size=data.get("band_sample_size"),
+        currency=str(data.get("currency") or "RUB"),
+    )
+
+
+async def _finalize_watch_creation(
+    *,
+    target: Message,
+    telegram_id: int,
+    username: Optional[str],
+    settings: Settings,
+    provider: PriceProvider,
+    state: FSMContext,
+    data: dict,
+    max_price: float,
+) -> int:
+    """Создать Watch ровно один раз и показать карточку успеха."""
+    watch_id = await _create_watch_from_state(
+        telegram_id=telegram_id,
+        username=username,
+        settings=settings,
+        data=data,
+        max_price=max_price,
+    )
+    await state.clear()
+    await _confirm_watch_message(target, settings, provider, data, watch_id, max_price)
+    return watch_id
+
+
+async def _offer_or_create_watch(
+    *,
+    target: Message,
+    telegram_id: int,
+    username: Optional[str],
+    settings: Settings,
+    provider: PriceProvider,
+    state: FSMContext,
+    data: dict,
+    max_price: float,
+) -> int | None:
+    """CS-05: предупредить при низком пороге либо сразу создать Watch."""
+    band = _band_from_state_data(data)
+    decision = evaluate_low_threshold(max_price, band, currency=settings.currency)
+    if decision.warn and decision.cheap_max is not None:
+        await state.update_data(pending_threshold=float(max_price))
+        await state.set_state(AddWatch.waiting_low_threshold_confirmation)
+        await target.answer(
+            fmt.format_low_threshold_warning(
+                max_price,
+                decision.cheap_max,
+                decision.currency,
+            ),
+            parse_mode="HTML",
+            reply_markup=kb.low_threshold_confirm_kb(),
+        )
+        return None
+    return await _finalize_watch_creation(
+        target=target,
+        telegram_id=telegram_id,
+        username=username,
+        settings=settings,
+        provider=provider,
+        state=state,
+        data=data,
+        max_price=max_price,
+    )
 
 
 async def _confirm_watch_message(
@@ -675,16 +758,17 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             return
 
         max_price = float(price_raw)
-        watch_id = await _create_watch_from_state(
+        await callback.answer()
+        await _offer_or_create_watch(
+            target=callback.message,
             telegram_id=callback.from_user.id,
             username=callback.from_user.username,
             settings=settings,
+            provider=provider,
+            state=state,
             data=data,
             max_price=max_price,
         )
-        await state.clear()
-        await callback.answer("Готово")
-        await _confirm_watch_message(callback.message, settings, provider, data, watch_id, max_price)
 
     @router.message(AddWatch.custom_price)
     async def add_custom_price(message: Message, state: FSMContext) -> None:
@@ -700,15 +784,78 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await state.clear()
             await message.answer("Сессия истекла. Нажмите ➕ Добавить", reply_markup=menu())
             return
-        watch_id = await _create_watch_from_state(
+        await _offer_or_create_watch(
+            target=message,
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             settings=settings,
+            provider=provider,
+            state=state,
             data=data,
             max_price=max_price,
         )
-        await state.clear()
-        await _confirm_watch_message(message, settings, provider, data, watch_id, max_price)
+
+    @router.callback_query(
+        AddWatch.waiting_low_threshold_confirmation,
+        F.data == "lowthr:save",
+    )
+    async def confirm_low_threshold(callback: CallbackQuery, state: FSMContext) -> None:
+        data = await state.get_data()
+        pending = data.get("pending_threshold")
+        if pending is None or not data.get("origin_code"):
+            await callback.answer("Уже сохранено или сессия истекла", show_alert=True)
+            return
+        await state.update_data(pending_threshold=None)
+        await callback.answer("Сохраняю…")
+        await _finalize_watch_creation(
+            target=callback.message,
+            telegram_id=callback.from_user.id,
+            username=callback.from_user.username,
+            settings=settings,
+            provider=provider,
+            state=state,
+            data=data,
+            max_price=float(pending),
+        )
+
+    @router.callback_query(
+        AddWatch.waiting_low_threshold_confirmation,
+        F.data == "lowthr:edit",
+    )
+    async def edit_low_threshold(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.update_data(pending_threshold=None)
+        await state.set_state(AddWatch.custom_price)
+        await callback.answer()
+        await callback.message.answer(
+            "Введите новую цену-порог числом, например <code>15000</code>",
+            parse_mode="HTML",
+            reply_markup=kb.cancel_kb(),
+        )
+
+    @router.callback_query(
+        AddWatch.waiting_low_threshold_confirmation,
+        F.data == "lowthr:presets",
+    )
+    async def presets_low_threshold(callback: CallbackQuery, state: FSMContext) -> None:
+        data = await state.get_data()
+        await state.update_data(pending_threshold=None)
+        cheap = data.get("band_cheap_max")
+        typical = data.get("band_typical")
+        draft_id = data.get("draft_id") or "draft"
+        await callback.answer()
+        if cheap is None or typical is None:
+            await state.set_state(AddWatch.custom_price)
+            await callback.message.answer(
+                "Вилка недоступна. Введите порог числом, например <code>15000</code>",
+                parse_mode="HTML",
+                reply_markup=kb.cancel_kb(),
+            )
+            return
+        await state.set_state(None)
+        await callback.message.answer(
+            "Выберите порог по рынку или введите свою сумму.",
+            reply_markup=kb.threshold_kb(str(draft_id), int(cheap), int(typical)),
+        )
 
     @router.message(Command("watch"))
     async def cmd_watch(message: Message, command: CommandObject, state: FSMContext) -> None:
@@ -799,14 +946,34 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await state.update_data(**data)
 
         if max_price is not None:
-            watch_id = await _create_watch_from_state(
+            try:
+                _, band = await _fetch_quote_band(
+                    provider,
+                    origin,
+                    destination,
+                    depart_date,
+                    settings.currency,
+                )
+            except Exception:
+                band = None
+            if band is not None:
+                await state.update_data(
+                    band_cheap_max=float(band.cheap_max),
+                    band_typical=float(band.typical),
+                    band_expensive_min=float(band.expensive_min),
+                    band_sample_size=int(band.sample_size),
+                )
+            data = await state.get_data()
+            await _offer_or_create_watch(
+                target=message,
                 telegram_id=message.from_user.id,
                 username=message.from_user.username,
                 settings=settings,
+                provider=provider,
+                state=state,
                 data=data,
                 max_price=max_price,
             )
-            await _confirm_watch_message(message, settings, provider, data, watch_id, max_price)
             return
 
         if depart_date is not None:
