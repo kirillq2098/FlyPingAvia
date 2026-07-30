@@ -9,6 +9,13 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+# TG-02: пользовательские подписи кнопок (callback data не меняем)
+BTN_OPEN_FLYPING = "🌐 Открыть FlyPing"
+BTN_CREATE_WATCH = "➕ Создать подписку"
+BTN_MY_WATCHES = "📋 Мои подписки"
+BTN_CHECK_PRICES = "🔄 Проверить цены"
+BTN_HELP = "ℹ️ Помощь"
+
 
 def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
@@ -16,17 +23,17 @@ def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     if webapp_url:
         builder.row(
             KeyboardButton(
-                text="🛩 Открыть приложение",
+                text=BTN_OPEN_FLYPING,
                 web_app=WebAppInfo(url=webapp_url),
             )
         )
     builder.row(
-        KeyboardButton(text="➕ Добавить"),
-        KeyboardButton(text="📋 Мои маршруты"),
+        KeyboardButton(text=BTN_CREATE_WATCH),
+        KeyboardButton(text=BTN_MY_WATCHES),
     )
     builder.row(
-        KeyboardButton(text="🔄 Проверить цены"),
-        KeyboardButton(text="ℹ️ Помощь"),
+        KeyboardButton(text=BTN_CHECK_PRICES),
+        KeyboardButton(text=BTN_HELP),
     )
     return builder.as_markup(resize_keyboard=True)
 
@@ -128,7 +135,7 @@ def watch_actions_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
 def after_watch_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="📋 Мои маршруты", callback_data="menu:list"),
+        InlineKeyboardButton(text="📋 Мои подписки", callback_data="menu:list"),
         InlineKeyboardButton(text="🔎 Проверить", callback_data=f"wcheck:{watch_id}"),
     )
     builder.row(InlineKeyboardButton(text="🎫 Открыть билеты", url=tickets_url))
@@ -141,13 +148,13 @@ def open_app_kb(webapp_url: str | None = None) -> InlineKeyboardMarkup | None:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="🛩 Открыть Mini App",
+            text="🌐 Открыть FlyPing",
             web_app=WebAppInfo(url=webapp_url),
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text="🌐 Открыть в браузере",
+            text="Открыть в браузере",
             url=webapp_url,
         )
     )
@@ -224,5 +231,7 @@ def passengers_kb(adults: int, children: int, infants: int = 0) -> InlineKeyboar
 
 def list_empty_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="➕ Добавить маршрут", callback_data="menu:add"))
+    builder.row(
+        InlineKeyboardButton(text="➕ Создать подписку", callback_data="menu:add")
+    )
     return builder.as_markup()

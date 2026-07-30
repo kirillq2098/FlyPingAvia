@@ -259,16 +259,16 @@
 - **Метрики:** /start → watch &lt; 24ч
 - **Статус:** Done · **Source:** Code, Vision
 
-### TG-02 · Позиционирование watchdog в /start (копирайт)
-- **Описание:** «Не ищем 1000 рейсов — сторожим поездку» (O4); без BotFather-инструкций.
+### TG-02 · Позиционирование FlyPing как сторожа цены
+- **Описание:** Fixed copy `/start` / `/help` / empty states: «не каталог рейсов — сторожим поездку»; glossary; единая терминология в Telegram и Mini App. A/B не внедрялось.
 - **Проблема:** Путают с поисковиком Aviasales.
 - **Важность:** Выбор vs конкурент в том же канале.
 - **NSM:** Medium — ↑ conversion start→watch.
 - **Value 7 · Effort 1 · Время:** 0.5 д · **P1**
 - **Зависимости:** —
-- **DoD:** A/B или зафиксированный текст в formatters; согласован со Strategy USP
+- **DoD:** зафиксированный текст в formatters; COPY_GUIDE; кнопки без битого Mini App
 - **Метрики:** start→watch rate
-- **Статус:** Partial (тексты улучшались; USP-формулировка не зафиксирована) · **Source:** Compete O4, Strategy, Marketing
+- **Статус:** Done · **Source:** Compete O4, Strategy, Marketing
 
 ### TG-03 · Deep-link `?start=` с источником
 - **Описание:** Парсинг payload; сохранить source на user (O6).
@@ -691,7 +691,7 @@
 
 | Очередь | ID | Раздел | P | Value | Effort | Score | Время | Статус |
 |---------|----|--------|---|-------|--------|-------|-------|--------|
-| 1 | TG-02 | Telegram | P1* | 7 | 1 | 7.0 | 0.5д | Partial |
+| 1 | TG-02 | Telegram | P1* | 7 | 1 | 7.0 | 0.5д | Done |
 | 2 | CS-05 | Search | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
 | 3 | NT-02 | Notifications | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
 | 4 | NT-03 | Notifications | P0 | 8 | 2 | 4.0 | 1д | Done |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 

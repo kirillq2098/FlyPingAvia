@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from html import escape
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,10 @@ _MONTHS_GENITIVE = (
     "ноября",
     "декабря",
 )
+
+# TG-02: фиксированная формулировка USP (см. docs/COPY_GUIDE.md)
+USP_WATCHDOG = "сторож цены"
+SESSION_EXPIRED_HINT = "Сессия истекла. Нажмите ➕ Создать подписку"
 
 
 def money(value: float | int, currency: str = "RUB") -> str:
@@ -495,9 +500,11 @@ def format_price_card(
         if threshold is not None and quote is not None:
             lines.append("")
             lines.append(format_threshold_contract(quote.price, threshold, currency))
+            lines.append("FlyPing заметил цену не выше вашего порога.")
         elif threshold is not None:
             lines.append("")
             lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
+            lines.append("FlyPing заметил цену не выше вашего порога.")
 
         if quote is not None:
             assessment = format_market_assessment(
@@ -546,51 +553,88 @@ def format_price_card(
     return "\n".join(lines).strip()
 
 
-def welcome_text() -> str:
+def format_start_message(first_name: str | None = None) -> str:
+    """TG-02: фиксированное приветствие — FlyPing как сторож цены (не поисковик)."""
+    name = (first_name or "").strip()
+    if name:
+        greeting = f"Привет, {escape(name)}! 👋"
+    else:
+        greeting = "Привет! 👋"
+
     return (
-        "<b>FlyPingAvia</b> — мониторинг цен на авиабилеты\n\n"
-        "Вы задаёте маршрут и максимальную цену.\n"
-        "Я проверяю предложения и пишу, когда билет стал ≤ вашего порога.\n\n"
-        "<b>Что умею</b>\n"
-        "• города словами — <code>Москва</code>, <code>Сургут</code>\n"
-        "• билет в одну сторону или туда-обратно\n"
-        "• вилка рынка: 🟢 дёшево · 🟡 обычно · 🔴 дорого\n"
-        "• алерты и партнёрские ссылки на билеты\n\n"
-        "<b>Как начать</b>\n"
-        "1. Нажмите <b>➕ Добавить</b>\n"
-        "2. Укажите откуда / куда / дату\n"
-        "3. Выберите порог по вилке или введите свой\n\n"
-        "Дальше можно ничего не делать — напишу сам, когда цена станет выгодной."
+        f"{greeting}\n\n"
+        f"<b>FlyPing</b> — {USP_WATCHDOG} на авиабилеты.\n\n"
+        "Вы один раз задаёте:\n"
+        "• направление;\n"
+        "• даты поездки;\n"
+        "• цену, за которую готовы купить билет.\n\n"
+        "Дальше FlyPing сам регулярно проверяет стоимость и присылает "
+        "уведомление, когда цена становится подходящей.\n\n"
+        "Это не каталог из сотен рейсов: вам не нужно каждый день "
+        "повторять один и тот же поиск.\n\n"
+        "Создайте первую подписку — это займёт около минуты."
+    )
+
+
+def welcome_text(first_name: str | None = None) -> str:
+    """Совместимость: то же, что format_start_message."""
+    return format_start_message(first_name)
+
+
+def format_help_message() -> str:
+    return (
+        "<b>Что делает FlyPing</b>\n\n"
+        "1. Вы создаёте подписку на конкретную поездку.\n"
+        "2. Указываете максимальную подходящую цену.\n"
+        "3. FlyPing периодически проверяет предложения.\n"
+        "4. Когда цена подходит, бот присылает уведомление.\n\n"
+        "FlyPing не продаёт билеты. Покупка происходит на сайте партнёра.\n"
+        "Цена на сайте партнёра может измениться — это ориентир, а не бронь.\n\n"
+        "<b>Команды</b>\n"
+        "/start — приветствие и меню\n"
+        "/add — создать подписку\n"
+        "/list — мои подписки\n"
+        "/check — проверить цены сейчас\n"
+        "/unwatch ID — удалить подписку\n"
+        "/help — эта справка"
+    )
+
+
+def help_text() -> str:
+    return format_help_message()
+
+
+def format_empty_watches_message() -> str:
+    return (
+        "У вас пока нет подписок.\n\n"
+        "Создайте первую — укажите поездку и подходящую цену, "
+        "а FlyPing будет следить за стоимостью."
+    )
+
+
+def format_watches_list_header(count: int) -> str:
+    return f"<b>Ваши подписки</b> · {count}"
+
+
+def format_add_watch_intro() -> str:
+    return (
+        "Создадим подписку на поездку.\n\n"
+        "Откуда планируете вылететь?\n"
+        "Напишите <b>город</b> или код: <code>Москва</code>, <code>MOW</code>"
     )
 
 
 def mini_app_unavailable_text() -> str:
     return (
-        "<b>Mini App пока недоступен.</b>\n"
-        "Используйте команды бота: ➕ Добавить, 📋 Мои маршруты, /help."
+        "<b>FlyPing в окне Telegram пока недоступен.</b>\n"
+        "Создайте подписку прямо здесь: ➕ Создать подписку, "
+        "📋 Мои подписки или /help."
     )
 
 
 def mini_app_text(host: str) -> str:
     _ = host
     return (
-        "<b>Mini App</b> — то же самое в удобном окне внутри Telegram.\n\n"
-        "Нажмите кнопку ниже: поиск, вилка цен и подписки в одном экране."
-    )
-
-
-def help_text() -> str:
-    return (
-        "<b>Помощь</b>\n\n"
-        "<b>Добавить маршрут</b>\n"
-        "Кнопка <b>➕ Добавить</b> или команда:\n"
-        "<code>/watch Москва Анталья 25000</code>\n\n"
-        "<b>Рынок и порог</b>\n"
-        "🟢 / 🟡 / 🔴 — насколько цена хороша относительно рынка.\n"
-        "Порог — ваша планка: алерт приходит, когда цена ≤ порога.\n\n"
-        "<b>Команды</b>\n"
-        "/list — мои подписки\n"
-        "/check — проверить цены сейчас\n"
-        "/unwatch ID — удалить подписку\n"
-        "/help — эта справка"
+        "<b>Открыть FlyPing</b> — то же самое в удобном окне.\n\n"
+        "Настройте поездку один раз: FlyPing будет проверять цену за вас."
     )
