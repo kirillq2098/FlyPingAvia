@@ -26,6 +26,42 @@ async def get_or_create_user(
     return user
 
 
+async def record_user_start(
+    session: AsyncSession,
+    *,
+    telegram_user_id: int,
+    source: Optional[str],
+    started_at: datetime,
+    username: Optional[str] = None,
+) -> User:
+    """Записать /start attribution (first-touch / last-touch).
+
+    - first_start_at заполняется только если пуст;
+    - first_start_source — только если пуст и source валиден;
+    - last_start_at всегда обновляется;
+    - last_start_source обновляется только при переданном source;
+    - отсутствие/невалидный source не стирает last_start_source.
+    """
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    else:
+        started_at = started_at.astimezone(timezone.utc)
+
+    user = await get_or_create_user(session, telegram_id=telegram_user_id, username=username)
+
+    if user.first_start_at is None:
+        user.first_start_at = started_at
+    user.last_start_at = started_at
+
+    if source:
+        if user.first_start_source is None:
+            user.first_start_source = source
+        user.last_start_source = source
+
+    await session.flush()
+    return user
+
+
 async def count_active_watches(session: AsyncSession, user_id: int) -> int:
     result = await session.execute(
         select(Watch).where(Watch.user_id == user_id, Watch.is_active.is_(True))

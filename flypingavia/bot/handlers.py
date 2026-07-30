@@ -577,13 +577,27 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         return kb.main_menu(webapp)
 
     @router.message(CommandStart())
-    async def cmd_start(message: Message, state: FSMContext) -> None:
+    async def cmd_start(message: Message, state: FSMContext, command: CommandObject) -> None:
         await state.clear()
-        await _ensure_user(message)
+        from flypingavia.bot.start_payload import normalize_start_payload
+
+        source = normalize_start_payload(command.args if command else None)
+        user = message.from_user
+        if user is None:
+            return
+        async with session_scope() as session:
+            await repo.record_user_start(
+                session,
+                telegram_user_id=user.id,
+                source=source,
+                started_at=datetime.now(timezone.utc),
+                username=user.username,
+            )
+        if source:
+            logging.getLogger("flypingavia.bot").debug("Telegram start source recorded")
         await get_location_directory().ensure_loaded()
-        first_name = message.from_user.first_name if message.from_user else None
         await message.answer(
-            fmt.format_start_message(first_name),
+            fmt.format_start_message(user.first_name),
             parse_mode="HTML",
             reply_markup=menu(),
         )

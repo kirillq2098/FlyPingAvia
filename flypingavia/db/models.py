@@ -18,6 +18,11 @@ class User(Base):
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # TG-03 attribution (nullable для существующих пользователей / WA-03-first)
+    first_start_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    last_start_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    first_start_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_start_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     watches: Mapped[list["Watch"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

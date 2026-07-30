@@ -23,6 +23,7 @@
 | [DECISIONS.md](DECISIONS.md) | Зафиксированные продуктовые/технические решения |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений по коммитам |
 | [COPY_GUIDE.md](COPY_GUIDE.md) | USP «сторож цены», glossary, fixed copy |
+| [ATTRIBUTION.md](ATTRIBUTION.md) | Deep-link start payload, first/last touch |
 | [KPI.md](KPI.md) | Какие метрики уже можно считать; чего не хватает |
 
 ## Быстрый ориентир «что есть / чего нет»

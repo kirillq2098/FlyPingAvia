@@ -271,15 +271,15 @@
 - **Статус:** Done · **Source:** Compete O4, Strategy, Marketing
 
 ### TG-03 · Deep-link `?start=` с источником
-- **Описание:** Парсинг payload; сохранить source на user (O6).
+- **Описание:** Whitelist payload `[A-Za-z0-9_-]{1,64}`; `first_start_source` / `last_start_source` + timestamps; `record_user_start`; `build_telegram_start_link`. Без dashboard / A/B / TG-04.
 - **Проблема:** Нет атрибуции каналов/блогеров.
 - **Важность:** Must-have к 1k (Strategy §4.11).
 - **NSM:** High для роста качественного трафика.
 - **Value 8 · Effort 4 · Время:** 2–3 д · **P1**
-- **Зависимости:** UA-01 поле source; AN-02
-- **DoD:** `t.me/bot?start=blogger_x` пишет source; отчёт по source
-- **Метрики:** users by source; Alerted Watchers by source
-- **Статус:** Todo · **Source:** Compete O6, Strategy, Marketing
+- **Зависимости:** поля на User (в этой задаче); TG-02 copy без изменений
+- **DoD:** `t.me/bot?start=site` пишет attribution; first/last touch; миграция; docs
+- **Метрики:** users by source (SQL-пример в ATTRIBUTION.md)
+- **Статус:** Done · **Source:** Compete O6, Strategy, Marketing
 
 ### TG-04 · Шаринг карточки «жду цену ≤ N»
 - **Описание:** Кнопка share + deep-link приглашения (O5).
@@ -707,7 +707,7 @@
 | 14 | TR-05 | Tracking | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
 | 15 | TR-06 | Tracking | P1 | 5 | 3 | 1.7 | 1д | Todo |
 | 16 | UA-01 | Account | P1 | 6 | 3 | 2.0 | 1–2д | Todo |
-| 17 | TG-03 | Telegram | P1 | 8 | 4 | 2.0 | 2–3д | Todo |
+| 17 | TG-03 | Telegram | P1 | 8 | 4 | 2.0 | 2–3д | Done |
 | 18 | GR-01 | Growth | P1 | 8 | 4 | 2.0 | 2–3д | Todo |
 | 19 | TG-04 | Telegram | P1 | 8 | 4 | 2.0 | 2–4д | Todo |
 | 20 | WA-02 | Web App | P0 | 9 | 5 | 1.8 | 2–5д | Partial |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 
