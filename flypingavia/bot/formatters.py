@@ -39,6 +39,46 @@ def format_band_block(band: PriceBand, currency: str = "RUB") -> str:
     )
 
 
+def format_market_assessment(
+    price: float,
+    band: Optional[PriceBand],
+    currency: str = "RUB",
+    *,
+    round_trip: bool = False,
+) -> Optional[str]:
+    """NT-03: компактная оценка найденной цены относительно рынка.
+
+    Возвращает None, если данных недостаточно — алерт должен работать без блока.
+    Не использует порог пользователя и не выдаёт ориентир за гарантированную цену.
+    """
+    if band is None:
+        return None
+    if band.sample_size < 1:
+        return None
+    if band.typical <= 0 or band.cheap_max <= 0 or band.expensive_min <= 0:
+        return None
+
+    level = band.classify(price)
+    if level == PriceLevel.UNKNOWN:
+        return None
+
+    headline = {
+        PriceLevel.CHEAP: "🟢 Дёшево относительно рынка",
+        PriceLevel.NORMAL: "🟡 Обычная цена",
+        PriceLevel.EXPENSIVE: "🔴 Дороже обычного",
+    }[level]
+
+    # RT band ≈ ×2 one-way — нейтральная формулировка, без ложной точности.
+    if round_trip:
+        orient = f"Ориентир по текущим данным: около {money(band.typical, currency)}"
+    elif level == PriceLevel.CHEAP:
+        orient = f"Обычно по этому направлению: около {money(band.typical, currency)}"
+    else:
+        orient = f"Рыночный ориентир: около {money(band.typical, currency)}"
+
+    return f"{headline}\n{orient}"
+
+
 def _fmt_day(value: Optional[date]) -> str:
     if not value:
         return "любая дата"
@@ -176,7 +216,8 @@ def format_price_card(
     if quote is not None:
         level = band.classify(quote.price) if band else PriceLevel.UNKNOWN
         lines.append(f"<b>{money(quote.price, currency)}</b>")
-        if band is not None and level != PriceLevel.UNKNOWN:
+        # В алерте (threshold_contract) рынок идёт отдельным блоком после порога (NT-03).
+        if not threshold_contract and band is not None and level != PriceLevel.UNKNOWN:
             lines.append(f"Относительно рынка: {level_label(level)}")
         meta = _meta_line(quote)
         if meta:
@@ -190,17 +231,37 @@ def format_price_card(
     if airport_note:
         lines.append(airport_note)
 
-    # 4) Вилка рынка
-    if band is not None:
-        lines.append("")
-        lines.append(format_band_block(band, currency))
+    is_round_trip = return_date is not None or (
+        quote is not None and quote.return_date is not None
+    )
 
-    # 5) Порог: NT-02 контракт (алерты) или краткий статус (остальные карточки)
-    if threshold is not None:
-        lines.append("")
-        if threshold_contract and quote is not None:
+    if threshold_contract:
+        # Алерт: NT-02 контракт → NT-03 рыночная оценка (без полной вилки-таблицы).
+        if threshold is not None and quote is not None:
+            lines.append("")
             lines.append(format_threshold_contract(quote.price, threshold, currency))
-        else:
+        elif threshold is not None:
+            lines.append("")
+            lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
+
+        if quote is not None:
+            assessment = format_market_assessment(
+                quote.price,
+                band,
+                currency,
+                round_trip=is_round_trip,
+            )
+            if assessment:
+                lines.append("")
+                lines.append(assessment)
+    else:
+        # Обычные карточки: полная вилка, затем краткий статус порога.
+        if band is not None:
+            lines.append("")
+            lines.append(format_band_block(band, currency))
+
+        if threshold is not None:
+            lines.append("")
             lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
             if quote is not None:
                 if quote.price <= threshold:
