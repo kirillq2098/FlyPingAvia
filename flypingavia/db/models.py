@@ -50,6 +50,10 @@ class Watch(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="watches")
+    alert_events: Mapped[list["AlertEvent"]] = relationship(
+        back_populates="watch",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def origin_label(self) -> str:
@@ -105,3 +109,29 @@ class Watch(Base):
         else:
             date_part = f"{_d(self.depart_date)}, в одну сторону"
         return f"{self.origin_label} → {self.destination_label} ({date_part}; {self.passengers_label})"
+
+
+class AlertEvent(Base):
+    """Факт успешной отправки алерта (для NSM Alerted Watchers и аналитики)."""
+
+    __tablename__ = "alert_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    watch_id: Mapped[int] = mapped_column(
+        ForeignKey("watches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    price: Mapped[float] = mapped_column(Float)
+    threshold: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3), default="RUB")
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
+    )
+
+    watch: Mapped[Watch] = relationship(back_populates="alert_events")

@@ -50,6 +50,10 @@ async def _migrate_sqlite(conn) -> None:
 
 
 async def init_db() -> None:
+    """Создаёт таблицы (в т.ч. alert_events) и догоняет колонки watches на SQLite.
+
+    Явная SQL-миграция: scripts/migrations/001_alert_events.sql
+    """
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

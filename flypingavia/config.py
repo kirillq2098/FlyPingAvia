@@ -96,6 +96,22 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("WEBAPP_DEV_USER_ID", "webapp_dev_user_id"),
     )
 
+    notification_cooldown_hours: float = Field(
+        default=24.0,
+        ge=0,
+        validation_alias=AliasChoices(
+            "NOTIFICATION_COOLDOWN_HOURS",
+            "notification_cooldown_hours",
+        ),
+        description="Минимальный интервал между алертами по одному watch (часы)",
+    )
+    min_price_delta: float = Field(
+        default=500.0,
+        ge=0,
+        validation_alias=AliasChoices("MIN_PRICE_DELTA", "min_price_delta"),
+        description="Минимальное падение цены (в валюте watch) для алерта внутри cooldown",
+    )
+
     @model_validator(mode="after")
     def _apply_db_path(self) -> Settings:
         if self.db_path:

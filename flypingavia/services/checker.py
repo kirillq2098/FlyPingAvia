@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -12,6 +13,7 @@ from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Watch
 from flypingavia.db.session import session_scope
+from flypingavia.services.notify_policy import decide_notification
 from flypingavia.services.prices import PriceProvider, align_band_to_quote, build_affiliate_url
 
 logger = logging.getLogger(__name__)
@@ -22,8 +24,17 @@ class PriceChecker:
         self.bot = bot
         self.settings = settings
         self.provider = provider
+        self._run_lock = asyncio.Lock()
 
     async def run_once(self) -> int:
+        if self._run_lock.locked():
+            logger.info("Price check skipped: another run is active")
+            return 0
+
+        async with self._run_lock:
+            return await self._run_once_locked()
+
+    async def _run_once_locked(self) -> int:
         alerts = 0
         async with session_scope() as session:
             watches = list(await repo.get_active_watches(session))
@@ -59,8 +70,9 @@ class PriceChecker:
             if quote is None:
                 continue
 
-            should_alert = False
+            below_threshold = False
             snapshot: Watch | None = None
+            decision_allow = False
 
             async with session_scope() as session:
                 fresh = await session.get(Watch, watch.id)
@@ -71,9 +83,24 @@ class PriceChecker:
                 fresh.last_checked_at = datetime.now(timezone.utc)
                 fresh.last_origin_airport = quote.origin_code
                 fresh.last_destination_airport = quote.destination_code
-                should_alert = quote.price <= fresh.max_price
-                if should_alert:
-                    fresh.last_alert_price = quote.price
+                below_threshold = quote.price <= fresh.max_price
+
+                if below_threshold:
+                    last_event = await repo.get_latest_alert_event(session, fresh.id)
+                    decision = decide_notification(
+                        new_price=float(quote.price),
+                        last_event=last_event,
+                        cooldown_hours=self.settings.notification_cooldown_hours,
+                        min_price_delta=self.settings.min_price_delta,
+                    )
+                    logger.info(
+                        "%s watch_id=%s price=%s threshold=%s",
+                        decision.log_message,
+                        fresh.id,
+                        quote.price,
+                        fresh.max_price,
+                    )
+                    decision_allow = decision.allow
 
                 await session.flush()
                 snapshot = Watch(
@@ -98,7 +125,7 @@ class PriceChecker:
                     is_active=fresh.is_active,
                 )
 
-            if not should_alert or snapshot is None:
+            if not below_threshold or not decision_allow or snapshot is None:
                 continue
 
             link = build_affiliate_url(
@@ -136,8 +163,31 @@ class PriceChecker:
                     reply_markup=kb.watch_actions_kb(snapshot.id, link),
                     disable_web_page_preview=True,
                 )
+            except Exception:
+                logger.exception("Telegram send failed user=%s", telegram_id)
+                continue
+
+            try:
+                async with session_scope() as session:
+                    await repo.log_alert_event(
+                        session,
+                        watch_id=snapshot.id,
+                        user_id=snapshot.user_id,
+                        price=float(quote.price),
+                        threshold=float(snapshot.max_price),
+                        currency=snapshot.currency,
+                    )
+                    fresh = await session.get(Watch, snapshot.id)
+                    if fresh is not None:
+                        fresh.last_alert_price = float(quote.price)
                 alerts += 1
             except Exception:
-                logger.exception("Не удалось отправить алерт user=%s", telegram_id)
+                logger.exception(
+                    "Alert sent successfully but AlertEvent persistence failed "
+                    "watch_id=%s user=%s",
+                    snapshot.id,
+                    telegram_id,
+                )
+                continue
 
         return alerts

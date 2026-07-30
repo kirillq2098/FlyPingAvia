@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from flypingavia.db.models import User, Watch
+from flypingavia.db.models import AlertEvent, User, Watch
 
 
 async def get_or_create_user(
@@ -103,3 +103,55 @@ async def get_active_watches(session: AsyncSession) -> Sequence[Watch]:
         .where(Watch.is_active.is_(True))
     )
     return result.scalars().all()
+
+
+async def log_alert_event(
+    session: AsyncSession,
+    *,
+    watch_id: int,
+    user_id: int,
+    price: float,
+    threshold: float,
+    currency: str = "RUB",
+    sent_at: datetime | None = None,
+) -> AlertEvent:
+    """Писать только после успешной отправки сообщения пользователю."""
+    event = AlertEvent(
+        watch_id=watch_id,
+        user_id=user_id,
+        price=price,
+        threshold=threshold,
+        currency=(currency or "RUB").upper(),
+        sent_at=sent_at or datetime.now(timezone.utc),
+    )
+    session.add(event)
+    await session.flush()
+    return event
+
+
+async def get_latest_alert_event(
+    session: AsyncSession,
+    watch_id: int,
+) -> AlertEvent | None:
+    result = await session.execute(
+        select(AlertEvent)
+        .where(AlertEvent.watch_id == watch_id)
+        .order_by(AlertEvent.sent_at.desc(), AlertEvent.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def count_alerted_watchers(
+    session: AsyncSession,
+    *,
+    within_days: int = 30,
+) -> int:
+    """North Star proxy: пользователи с ≥1 алертом за окно."""
+    since = datetime.now(timezone.utc) - timedelta(days=max(1, within_days))
+    result = await session.execute(
+        select(func.count(func.distinct(AlertEvent.user_id))).where(
+            AlertEvent.sent_at >= since
+        )
+    )
+    return int(result.scalar_one() or 0)
