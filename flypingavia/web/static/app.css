@@ -1,14 +1,21 @@
 :root {
-  --bg: #071821;
-  --card: #102833;
+  --tg-bg-color: #071821;
+  --tg-text-color: #f4fbfa;
+  --tg-hint-color: #9db4b8;
+  --tg-button-color: #5eead4;
+  --tg-button-text-color: #071821;
+  --tg-secondary-bg-color: #102833;
+  --tg-destructive-text-color: #fb7185;
+  --bg: var(--tg-bg-color, #071821);
+  --card: var(--tg-secondary-bg-color, #102833);
   --line: #234454;
-  --text: #f4fbfa;
-  --muted: #9db4b8;
-  --mint: #5eead4;
+  --text: var(--tg-text-color, #f4fbfa);
+  --muted: var(--tg-hint-color, #9db4b8);
+  --mint: var(--tg-button-color, #5eead4);
   --sun: #f4c95f;
   --ok: #6ee7b7;
   --warn: #f4c95f;
-  --bad: #fb7185;
+  --bad: var(--tg-destructive-text-color, #fb7185);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -306,3 +313,30 @@ body {
   max-width: min(92vw, 420px);
   z-index: 20;
 }
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--bg);
+}
+.auth-gate.hidden { display: none; }
+.auth-card {
+  width: min(100%, 420px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px 20px;
+}
+.auth-card h1 {
+  margin: 12px 0 8px;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+.auth-card .btn { margin-top: 16px; display: inline-flex; }
+body.auth-locked .app,
+body.auth-locked .sky { display: none !important; }

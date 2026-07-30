@@ -79,8 +79,17 @@ Telegram users
 | POST | `/api/watches` | да |
 | DELETE | `/api/watches/{id}` | да |
 
-Auth: заголовок `X-Telegram-Init-Data` или `Authorization: tma <initData>`; иначе `WEBAPP_DEV_USER_ID` для локальной отладки; иначе 401.  
-Срок `initData`: `max_age_seconds=86400`.
+Auth (WA-03):
+
+1. Предпочтительный заголовок: `Authorization: tma <initData>` (legacy `X-Telegram-Init-Data` ещё принимается backend).
+2. Проверка: официальный HMAC (`secret = HMAC_SHA256(key="WebAppData", msg=bot_token)`), `hmac.compare_digest`, `auth_date` ≤ `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS` (default **3600**), future skew ≤ 30 с.
+3. Telegram user id берётся **только** из проверенного `user` JSON; frontend id / query / body не доверенные.
+4. Production: без валидного initData → `401` (`MISSING_INIT_DATA` / `INVALID_HASH` / …). `WEBAPP_DEV_USER_ID` обязан быть `0`.
+5. Development/test: без initData допускается `WEBAPP_DEV_USER_ID > 0`; плохой initData **не** падает в dev-fallback.
+6. Изоляция: `get_or_create_user(telegram_id)` → `list_watches` / `deactivate_watch` только для своего `user_id`; чужой watch → `404`.
+7. Health публичный; безопасные поля: `telegram_webapp_auth`, опционально `telegram_bot_username` / `telegram_bot_link` (без token / dev user id).
+
+Подробности: [SECURITY.md](SECURITY.md).
 
 ## Модель данных
 
@@ -124,8 +133,8 @@ Telegram → https://app.example.com → reverse proxy → 127.0.0.1:8080 (FastA
 
 ## Тесты
 
-- `pytest -q` — unit/integration (в т.ч. WA-02 URL/health/ready, TR-04, CS/NT)  
-- Auth Mini App: `tests/test_webapp_auth.py`
+- `pytest -q` — unit/integration (в т.ч. WA-03 initData/HMAC/isolation, WA-02 URL/health/ready, TR-04, CS/NT)  
+- Auth Mini App: `tests/test_wa03_telegram_auth.py`, `tests/test_webapp_auth.py`
 
 ## TODO — архитектура на рост
 

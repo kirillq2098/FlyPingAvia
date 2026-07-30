@@ -16,7 +16,7 @@
 - **CS-07 MVP:** flexible date window ±1/±3/±7 days — поле `Watch.flexibility_days`, `flexible_dates` / `search_flexible_trip`, FSM + Mini App, checker ищет минимум по окну.
 - **TR-04:** время последней проверки — `format_last_checked` / `DISPLAY_TIMEZONE` (default `Europe/Moscow`); показ в Telegram-карточке, алерте и Mini App; `WatchOut.last_checked_at` (UTC ISO); обновление после каждой завершённой проверки (в т.ч. Quote=None), не при ошибке поиска.
 - **WA-02 (код):** `APP_ENV` + строгая валидация canonical `WEBAPP_URL`; `/api/health` readiness + `/api/ready`; Telegram-кнопка только на публичный HTTPS; reverse-proxy/compose/cloudflared examples; production checklist. Статус Feature — Partial до живого домена.
-- **WA-02 review fix:** production startup rejects temporary trycloudflare URLs and exits on invalid configuration.
+- **WA-03:** безопасный запуск Mini App — `Authorization: tma <initData>`, официальный HMAC + `auth_date` (`TELEGRAM_INIT_DATA_MAX_AGE_SECONDS=3600`), dependency `get_current_telegram_user`, `/api/me`, изоляция Watch, bootstrap/auth-gate/theme/closing confirmation на frontend; `WEBAPP_DEV_USER_ID` только вне production.
 
 ### Fixed
 

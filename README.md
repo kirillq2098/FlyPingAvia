@@ -109,7 +109,9 @@ python -m flypingavia
 APP_ENV=development
 WEBAPP_DEV_USER_ID=1
 ```
-и откройте `http://127.0.0.1:8080/`.
+и откройте `http://127.0.0.1:8080/`. В **production** `WEBAPP_DEV_USER_ID` должен быть `0`: вход только через подписанный Telegram `initData` (`Authorization: tma …`). Подробности — [docs/SECURITY.md](docs/SECURITY.md).
+
+**Smoke auth (WA-03):** открыть Mini App из Telegram → создать Watch → закрыть/открыть снова → открыть URL в браузере (должен быть экран «внутри Telegram») → поддельный initData даёт `401`.
 
 Docker:
 
@@ -147,6 +149,8 @@ docker run --env-file .env -p 127.0.0.1:8080:8080 -v "$(pwd)/data:/app/data" fly
 | `DATABASE_URL` | `DB_PATH` | SQLite |
 | `CURRENCY` | — | Валюта (по умолчанию `rub`) |
 | `DISPLAY_TIMEZONE` | — | IANA timezone для показа времени проверки (default `Europe/Moscow`) |
+| `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS` | — | Срок жизни WebApp initData (default `3600`) |
+| `TELEGRAM_BOT_USERNAME` | — | Username бота без `@` (кнопка вне Telegram; опционально) |
 | `AFFILIATE_MARKER` | — | Маркер CPA в ссылках |
 | `TRAVELPAYOUTS_SEARCH_MARKER` | — | Числовой partner ID для Flight Search |
 | `LIVE_SEARCH_MODE` | `multi` | `off` / `multi` / `always` |

@@ -3,21 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light dark" />
   <title>FlyPingAvia</title>
-  <script src="/assets/telegram-web-app.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body>
+  <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite">
+    <div class="auth-card">
+      <div class="brand">FlyPingAvia</div>
+      <h1 id="auth-title">FlyPing работает внутри Telegram</h1>
+      <p id="auth-message" class="meta">Откройте бота и нажмите кнопку «Открыть FlyPing».</p>
+      <a id="auth-bot-link" class="btn primary hidden" href="#" rel="noopener">Открыть бота</a>
+    </div>
+  </div>
+
   <div class="sky" aria-hidden="true">
     <div class="plane" id="plane">
       <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor" aria-hidden="true">
-        <!-- Telegram-style paper plane -->
         <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
       </svg>
     </div>
   </div>
-  <main class="app">
+  <main class="app" id="app-main">
     <header class="hero">
       <div class="brand">FlyPingAvia</div>
       <p class="tagline">Следите за ценой. Покупайте вовремя.</p>

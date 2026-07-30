@@ -108,6 +108,25 @@ class Settings(BaseSettings):
         default=0,
         validation_alias=AliasChoices("WEBAPP_DEV_USER_ID", "webapp_dev_user_id"),
     )
+    # WA-03: срок жизни Telegram WebApp initData (секунды)
+    telegram_init_data_max_age_seconds: int = Field(
+        default=3600,
+        gt=0,
+        validation_alias=AliasChoices(
+            "TELEGRAM_INIT_DATA_MAX_AGE_SECONDS",
+            "telegram_init_data_max_age_seconds",
+        ),
+        description="Максимальный возраст initData (default 3600)",
+    )
+    # Публичный @username бота без @ (для кнопки «Открыть бота» вне Telegram)
+    telegram_bot_username: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TELEGRAM_BOT_USERNAME",
+            "telegram_bot_username",
+        ),
+        description="Публичный username бота без @ (опционально)",
+    )
     # Uvicorn: кому доверять X-Forwarded-* (IP reverse proxy на loopback)
     forwarded_allow_ips: str = Field(
         default="127.0.0.1",
@@ -175,6 +194,17 @@ class Settings(BaseSettings):
                 "В production WEBAPP_DEV_USER_ID должен быть 0 "
                 "(отладка без Telegram запрещена)"
             )
+
+        username = (self.telegram_bot_username or "").strip().lstrip("@")
+        if username:
+            import re
+
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{4,31}", username):
+                raise ValueError(
+                    "TELEGRAM_BOT_USERNAME: некорректный username "
+                    "(5–32 символа, латиница/цифры/_, начинается с буквы)"
+                )
+        self.telegram_bot_username = username
 
         return self
 
