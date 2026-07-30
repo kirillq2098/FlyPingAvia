@@ -179,6 +179,22 @@ def trip_type_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def flexibility_kb() -> InlineKeyboardMarkup:
+    """CS-07 MVP: окно дат вокруг основной даты."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🎯 Только эта дата", callback_data="flex:0"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="±1 день", callback_data="flex:1"),
+        InlineKeyboardButton(text="±3 дня", callback_data="flex:3"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="±7 дней", callback_data="flex:7"),
+    )
+    return builder.as_markup()
+
+
 def skip_return_kb() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.row(KeyboardButton(text="📅 Обратно +7 дней"))

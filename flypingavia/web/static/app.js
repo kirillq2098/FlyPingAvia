@@ -132,6 +132,7 @@
       adults: 1,
       children: 0,
       infants: 0,
+      flexibilityDays: 0,
     };
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
@@ -282,10 +283,12 @@
         }
         box.innerHTML = items.map((w) => {
           const trip = w.return_date ? "туда-обратно" : "в одну сторону";
+          const flex = Number(w.flexibility_days || 0);
+          const flexLabel = flex > 0 ? (" · гибкость ±" + flex + " дн.") : "";
           return (
             "<article class=\"watch-card\" data-id=\"" + w.id + "\">" +
               "<h3>" + (w.origin_name || w.origin) + " → " + (w.destination_name || w.destination) + "</h3>" +
-              "<div class=\"meta\">" + trip + "</div>" +
+              "<div class=\"meta\">" + trip + flexLabel + "</div>" +
               "<div class=\"meta mono\">#" + w.id + " · порог " + money(w.max_price) + "</div>" +
               "<div class=\"meta\">сейчас: " + (w.last_price != null ? money(w.last_price) : "ещё не проверяли") +
                 (w.last_origin_airport ? (" · вылет " + w.last_origin_airport) : "") + "</div>" +
@@ -368,6 +371,7 @@
         });
         if (state.depart) params.set("depart_date", state.depart);
         if (state.returnDate) params.set("return_date", state.returnDate);
+        params.set("flexibility_days", String(state.flexibilityDays || 0));
         const q = await api("/api/quote?" + params.toString());
         renderQuote(q);
         if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
@@ -405,6 +409,32 @@
       box.classList.remove("hidden");
     }
 
+    function syncFlexUi() {
+      $$(".flex-btn").forEach((b) => {
+        b.classList.toggle("active", Number(b.getAttribute("data-flex")) === state.flexibilityDays);
+      });
+      const hint = $("#flex-hint");
+      if (!hint) return;
+      if (!state.flexibilityDays) {
+        hint.textContent = "Ищем только выбранную дату вылета.";
+      } else if (state.trip === "round") {
+        hint.textContent =
+          "Обе даты сдвигаются вместе (±" + state.flexibilityDays +
+          " дн.), длительность поездки сохраняется.";
+      } else {
+        hint.textContent = "Ищем билеты в окне ±" + state.flexibilityDays + " дня вокруг выбранной даты.";
+      }
+    }
+
+    $$(".flex-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.flexibilityDays = Number(btn.getAttribute("data-flex")) || 0;
+        syncFlexUi();
+        hideLowThresholdWarn();
+      });
+    });
+    syncFlexUi();
+
     async function createWatch(threshold, confirmLow) {
       return api("/api/watches", {
         method: "POST",
@@ -418,6 +448,7 @@
           children: state.children,
           infants: state.infants,
           confirm_low_threshold: !!confirmLow,
+          flexibility_days: state.flexibilityDays || 0,
         }),
       });
     }

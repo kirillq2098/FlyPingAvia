@@ -221,6 +221,12 @@ body {
   font-weight: 700;
 }
 
+.flex-btn.active {
+  color: #062016;
+  background: var(--sun);
+  border-color: var(--sun);
+}
+
 .trip-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;

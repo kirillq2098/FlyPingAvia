@@ -509,3 +509,46 @@ async def test_api_ignores_client_cheap_max(api_client, monkeypatch) -> None:
         )
     assert res.status_code == 409
     assert res.json()["detail"]["cheap_max"] == 15_000
+
+
+@pytest.mark.asyncio
+async def test_api_flexibility_days_validation(api_client, monkeypatch) -> None:
+    import flypingavia.api.app as api_mod
+    from flypingavia.config import get_settings
+    from flypingavia.api.app import create_api
+    from httpx import ASGITransport, AsyncClient
+
+    monkeypatch.setattr(
+        api_mod, "build_price_provider", lambda _s: _FixedBandProvider(_band(cheap=15_000))
+    )
+    app2 = create_api(get_settings())
+    async with AsyncClient(transport=ASGITransport(app=app2), base_url="http://test") as c:
+        bad = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 20_000,
+                "flexibility_days": 2,
+            },
+        )
+        assert bad.status_code == 400
+
+        ok = await c.post(
+            "/api/watches",
+            json={
+                "origin": "MOW",
+                "destination": "LED",
+                "max_price": 20_000,
+                "flexibility_days": 3,
+            },
+        )
+        assert ok.status_code == 200
+        assert ok.json()["flexibility_days"] == 3
+
+        default = await c.post(
+            "/api/watches",
+            json={"origin": "SVO", "destination": "AER", "max_price": 25_000},
+        )
+        assert default.status_code == 200
+        assert default.json()["flexibility_days"] == 0

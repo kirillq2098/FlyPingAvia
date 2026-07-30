@@ -13,6 +13,7 @@
 - **NT-02:** явный контракт порога в алерте — `format_threshold_contract` / `threshold_contract=True` в `format_price_card`; блок «Текущая цена / Ваш порог / X ≤ Y / Выгода к порогу».
 - **NT-03:** рыночная оценка в алерте — `format_market_assessment` (🟢/🟡/🔴 + ориентир «около typical»); порядок: NT-02 → рынок; fallback при `band=None`; аудит существующего `get_trip_band`/`align_band_to_quote`/`format_band_block`.
 - **CS-05:** предупреждение порога ниже рынка — `threshold_policy.should_warn_low_threshold` (`threshold < cheap_max`); подтверждение в Telegram FSM и Mini App (`confirm_low_threshold` / HTTP 409).
+- **CS-07 MVP:** flexible date window ±1/±3/±7 days — поле `Watch.flexibility_days`, `flexible_dates` / `search_flexible_trip`, FSM + Mini App, checker ищет минимум по окну.
 
 ### Fixed
 

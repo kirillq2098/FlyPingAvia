@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from flypingavia.services.prices import PriceBand, PriceLevel, PriceQuote
@@ -176,6 +176,77 @@ def format_low_threshold_warning(
     )
 
 
+def _days_word(n: int) -> str:
+    n_abs = abs(int(n))
+    mod10 = n_abs % 10
+    mod100 = n_abs % 100
+    if mod10 == 1 and mod100 != 11:
+        return "день"
+    if 2 <= mod10 <= 4 and not (12 <= mod100 <= 14):
+        return "дня"
+    return "дней"
+
+
+def format_offset_label(offset_days: int) -> str:
+    """Единый формат сдвига: +2 дня / −2 дня."""
+    sign = "−" if offset_days < 0 else "+"
+    n = abs(int(offset_days))
+    return f"{sign}{n} {_days_word(n)}"
+
+
+def format_flexible_offset_block(
+    *,
+    found_depart: date,
+    found_return: date | None,
+    primary_depart: date,
+    primary_return: date | None,
+    offset_days: int,
+) -> str | None:
+    """CS-07: блок соседней даты в алерте; None при offset=0."""
+    if offset_days == 0:
+        return None
+    shift = format_offset_label(offset_days)
+    if found_return is not None and primary_return is not None:
+        return (
+            f"📅 Цена найдена на соседнюю дату: {_fmt_day(found_depart)} – {_fmt_day(found_return)}\n"
+            f"Основные даты: {_fmt_day(primary_depart)} – {_fmt_day(primary_return)} · сдвиг {shift}"
+        )
+    return (
+        f"📅 Цена найдена на соседнюю дату: {_fmt_day(found_depart)}\n"
+        f"Основная дата: {_fmt_day(primary_depart)} · сдвиг {shift}"
+    )
+
+
+def format_flexibility_summary(
+    *,
+    depart_date: Optional[date],
+    return_date: Optional[date] = None,
+    flexibility_days: int = 0,
+) -> str:
+    """Краткое описание гибкости для карточек Watch / подтверждения."""
+    flex = max(0, int(flexibility_days or 0))
+    if not depart_date:
+        return "Дата: любая"
+    if return_date is not None:
+        base = f"Основные даты: {_fmt_day(depart_date)} – {_fmt_day(return_date)}"
+        if flex == 0:
+            return base
+        trip_len = (return_date - depart_date).days
+        return (
+            f"{base}\n"
+            f"Гибкость: ±{flex} {_days_word(flex)}, длительность поездки сохраняется "
+            f"({trip_len} {_days_word(trip_len)})"
+        )
+    if flex == 0:
+        return f"Дата: {_fmt_day(depart_date)}"
+    window_from = depart_date - timedelta(days=flex)
+    window_to = depart_date + timedelta(days=flex)
+    return (
+        f"Основная дата: {_fmt_day(depart_date)}\n"
+        f"Гибкость: ±{flex} {_days_word(flex)} ({_fmt_day(window_from)} – {_fmt_day(window_to)})"
+    )
+
+
 def format_price_card(
     *,
     origin: str,
@@ -194,6 +265,12 @@ def format_price_card(
     children: int = 0,
     infants: int = 0,
     threshold_contract: bool = False,
+    found_depart_date: Optional[date] = None,
+    found_return_date: Optional[date] = None,
+    offset_days: int = 0,
+    primary_depart_date: Optional[date] = None,
+    primary_return_date: Optional[date] = None,
+    flexibility_days: int = 0,
 ) -> str:
     currency = (quote.currency if quote else None) or (band.currency if band else "RUB")
     if quote is not None:
@@ -201,6 +278,11 @@ def format_price_card(
         children = quote.children
         infants = quote.infants
         return_date = quote.return_date if quote.return_date is not None else return_date
+
+    display_depart = found_depart_date if found_depart_date is not None else depart_date
+    display_return = found_return_date if found_return_date is not None else return_date
+    primary_dep = primary_depart_date if primary_depart_date is not None else depart_date
+    primary_ret = primary_return_date if primary_return_date is not None else return_date
 
     lines: list[str] = []
 
@@ -210,21 +292,42 @@ def format_price_card(
     if watch_id is not None:
         lines.append(f"Подписка <code>#{watch_id}</code>")
 
-    # 2) Маршрут
+    # 2) Маршрут (для алерта — фактические найденные даты)
     lines.append("")
     route = format_route(
         origin,
         destination,
-        depart_date,
+        display_depart,
         origin_name=origin_name,
         destination_name=destination_name,
-        return_date=return_date,
+        return_date=display_return,
     )
     lines.append(f"<b>{route.splitlines()[0]}</b>")
     for extra in route.splitlines()[1:]:
         lines.append(extra)
     if adults > 1 or children or infants:
         lines.append(f"Пассажиры: {passengers_text(adults, children, infants)}")
+    if flexibility_days and not threshold_contract:
+        lines.append(
+            format_flexibility_summary(
+                depart_date=primary_dep or depart_date,
+                return_date=primary_ret if primary_ret is not None else return_date,
+                flexibility_days=flexibility_days,
+            )
+        )
+
+    # CS-07: соседняя дата в алерте
+    if threshold_contract and offset_days and found_depart_date is not None and primary_dep is not None:
+        flex_block = format_flexible_offset_block(
+            found_depart=found_depart_date,
+            found_return=found_return_date,
+            primary_depart=primary_dep,
+            primary_return=primary_ret,
+            offset_days=offset_days,
+        )
+        if flex_block:
+            lines.append("")
+            lines.append(flex_block)
 
     # 3) Цена — главный акцент
     lines.append("")
@@ -237,7 +340,7 @@ def format_price_card(
         meta = _meta_line(quote)
         if meta:
             lines.append(meta)
-        if return_date is not None and not quote.is_live:
+        if display_return is not None and not quote.is_live:
             lines.append("Туда+обратно ≈ сумма двух one-way")
     else:
         lines.append("<b>Цена не найдена</b>")
@@ -246,7 +349,7 @@ def format_price_card(
     if airport_note:
         lines.append(airport_note)
 
-    is_round_trip = return_date is not None or (
+    is_round_trip = display_return is not None or (
         quote is not None and quote.return_date is not None
     )
 

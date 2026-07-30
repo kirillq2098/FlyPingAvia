@@ -41,6 +41,8 @@ class Watch(Base):
     children: Mapped[int] = mapped_column(Integer, default=0)
     infants: Mapped[int] = mapped_column(Integer, default=0)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
+    # CS-07 MVP: ширина окна вокруг depart_date (0 | 1 | 3 | 7)
+    flexibility_days: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_origin_airport: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
     last_destination_airport: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)

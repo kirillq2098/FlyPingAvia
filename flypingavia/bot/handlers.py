@@ -27,6 +27,7 @@ from flypingavia.services.prices import (
     build_affiliate_url,
     build_price_provider,
 )
+from flypingavia.services.flexible_dates import search_flexible_trip, validate_flexibility_days
 from flypingavia.services.threshold_policy import (
     band_from_snapshot,
     evaluate_low_threshold,
@@ -42,6 +43,7 @@ class AddWatch(StatesGroup):
     trip_type = State()
     return_date = State()
     passengers = State()
+    flexibility = State()
     custom_price = State()
     waiting_low_threshold_confirmation = State()
 
@@ -200,6 +202,19 @@ async def _continue_to_preview(message: Message, state: FSMContext, settings: Se
         return
     depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
     return_date = _return_from_data(data)
+
+    # CS-07: спросить гибкость, если есть конкретная дата и значение ещё не выбрано.
+    if depart_date is not None and data.get("flexibility_days") is None:
+        await state.set_state(AddWatch.flexibility)
+        await message.answer(
+            "Насколько дата может измениться?",
+            reply_markup=kb.flexibility_kb(),
+        )
+        return
+
+    if data.get("flexibility_days") is None:
+        await state.update_data(flexibility_days=0)
+
     await _show_route_preview(
         message,
         settings,
@@ -229,24 +244,56 @@ async def _show_route_preview(
     children: int = 0,
     infants: int = 0,
 ) -> None:
+    data = await state.get_data()
+    try:
+        flex = validate_flexibility_days(data.get("flexibility_days", 0))
+    except ValueError:
+        flex = 0
+        await state.update_data(flexibility_days=0)
+
     wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=kb.cancel_kb())
-    quote, band = await _fetch_quote_band(
-        provider,
-        origin,
-        destination,
-        depart_date,
-        settings.currency,
-        return_date=return_date,
-        adults=adults,
-        children=children,
-        infants=infants,
-    )
+    quote = None
+    band = None
+    found_depart = depart_date
+    found_return = return_date
+    offset_days = 0
+    try:
+        result = await search_flexible_trip(
+            provider,
+            origins=origin.search_codes,
+            destinations=destination.search_codes,
+            depart_date=depart_date,
+            return_date=return_date,
+            flexibility_days=flex,
+            adults=adults,
+            children=children,
+            infants=infants,
+            currency=settings.currency,
+        )
+        if result is not None:
+            quote = result.quote
+            band = result.band
+            found_depart = result.found_depart_date
+            found_return = result.found_return_date
+            offset_days = result.offset_days
+    except Exception:
+        quote, band = await _fetch_quote_band(
+            provider,
+            origin,
+            destination,
+            depart_date,
+            settings.currency,
+            return_date=return_date,
+            adults=adults,
+            children=children,
+            infants=infants,
+        )
 
     draft_id = (
         f"{origin.code}{destination.code}"
         f"{depart_date.isoformat() if depart_date else 'any'}"
         f"{return_date.isoformat() if return_date else 'ow'}"
-        f"a{adults}c{children}i{infants}"
+        f"a{adults}c{children}i{infants}f{flex}"
     )
     await state.update_data(
         origin_code=origin.code,
@@ -262,6 +309,7 @@ async def _show_route_preview(
         adults=adults,
         children=children,
         infants=infants,
+        flexibility_days=flex,
         draft_id=draft_id,
         band_cheap_max=float(band.cheap_max) if band else None,
         band_typical=float(band.typical) if band else None,
@@ -273,17 +321,28 @@ async def _show_route_preview(
     text = fmt.format_price_card(
         origin=origin.code,
         destination=destination.code,
-        depart_date=depart_date,
+        depart_date=found_depart if found_depart is not None else depart_date,
         quote=quote,
         band=band,
         title="📊 Выберите порог",
         origin_name=origin.name,
         destination_name=destination.name,
         airport_note=_airport_note(origin, destination),
-        return_date=return_date,
+        return_date=found_return if found_return is not None else return_date,
         adults=adults,
         children=children,
         infants=infants,
+        found_depart_date=found_depart,
+        found_return_date=found_return,
+        offset_days=offset_days,
+        primary_depart_date=depart_date,
+        primary_return_date=return_date,
+        flexibility_days=flex,
+    )
+    text += "\n\n" + fmt.format_flexibility_summary(
+        depart_date=depart_date,
+        return_date=return_date,
+        flexibility_days=flex,
     )
     text += "\n\nВыберите порог кнопкой или введите свою сумму."
 
@@ -331,6 +390,7 @@ async def _create_watch_from_state(
             children=children,
             infants=infants,
             currency=settings.currency,
+            flexibility_days=int(data.get("flexibility_days") or 0),
         )
         return watch.id
 
@@ -776,6 +836,27 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await callback.answer()
         await _continue_to_preview(callback.message, state, settings, provider)
 
+    @router.callback_query(AddWatch.flexibility, F.data.startswith("flex:"))
+    async def choose_flexibility(callback: CallbackQuery, state: FSMContext) -> None:
+        raw = (callback.data or "").split(":")[-1]
+        try:
+            flex = validate_flexibility_days(int(raw))
+        except (ValueError, TypeError):
+            await callback.answer("Некорректная гибкость", show_alert=True)
+            return
+        await state.update_data(flexibility_days=flex)
+        await callback.answer()
+        data = await state.get_data()
+        depart_date = date.fromisoformat(data["depart_date"]) if data.get("depart_date") else None
+        return_date = _return_from_data(data)
+        summary = fmt.format_flexibility_summary(
+            depart_date=depart_date,
+            return_date=return_date,
+            flexibility_days=flex,
+        )
+        await callback.message.answer(summary)
+        await _continue_to_preview(callback.message, state, settings, provider)
+
     @router.callback_query(F.data.startswith("thr:"))
     async def choose_threshold(callback: CallbackQuery, state: FSMContext) -> None:
         parts = callback.data.split(":")
@@ -1091,6 +1172,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             adults=w.adults,
             children=w.children,
             infants=w.infants,
+            flexibility_days=int(getattr(w, "flexibility_days", 0) or 0),
         )
         await message.answer(
             text,
