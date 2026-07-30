@@ -219,7 +219,7 @@
 - **Зависимости:** NT-01; band уже в checker path
 - **DoD:** band в каждом алерте; fallback если band нет
 - **Метрики:** CTR алертов
-- **Статус:** Partial/Todo · **Source:** Compete O3, Strategy
+- **Статус:** Done · **Source:** Compete O3, Strategy
 
 ### NT-04 · Антиповтор / cooldown по last_alert_price
 - **Описание:** Не слать повтор на ту же/почти ту же цену каждый цикл (O2).
@@ -606,8 +606,8 @@
 | NT-01 | Done |
 | TG-01, TG-05 | Done |
 | WA-01, RL-01, IN-01, IT-01 | Done |
-| **NT-03, CS-05, TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
-| AN-03, NT-04, NT-02 | Done |
+| **CS-05, TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| AN-03, NT-04, NT-02, NT-03 | Done |
 
 ## v1.0 — «Стабильный сторож»
 
@@ -693,7 +693,7 @@
 | 1 | TG-02 | Telegram | P1* | 7 | 1 | 7.0 | 0.5д | Partial |
 | 2 | CS-05 | Search | P0 | 8 | 2 | 4.0 | 0.5–1д | Todo |
 | 3 | NT-02 | Notifications | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
-| 4 | NT-03 | Notifications | P0 | 8 | 2 | 4.0 | 1д | Todo |
+| 4 | NT-03 | Notifications | P0 | 8 | 2 | 4.0 | 1д | Done |
 | 5 | TR-04 | Tracking | P0 | 7 | 2 | 3.5 | 0.5–1д | Partial |
 | 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Todo |
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
@@ -727,7 +727,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03, NT-04, NT-02 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03 — **Done**.
 
 ### Матрица (схема)
 
