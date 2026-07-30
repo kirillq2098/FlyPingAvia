@@ -143,15 +143,21 @@ pytest -q
 ## Структура
 
 ```
+docs/                  # продуктовая документация (точка входа: docs/README.md)
 flypingavia/
-  bot/handlers.py      # команды Telegram
-  db/models.py         # User, Watch
-  db/repository.py     # CRUD подписок
-  services/prices.py   # demo + Travelpayouts + affiliate URL
-  services/checker.py  # фоновые алерты
-  main.py              # точка входа
+  bot/                 # Telegram handlers / keyboards / formatters
+  api/                 # FastAPI Mini App + auth
+  web/static/          # UI Mini App
+  db/                  # User, Watch
+  services/            # prices, checker, locations, flight_search
+  main.py              # бот + scheduler + uvicorn
+scripts/               # supervise (автоперезапуск)
 ```
+
+Подробнее: [docs/TECH_ARCHITECTURE.md](docs/TECH_ARCHITECTURE.md).
 
 ## Статус
 
-MVP 0.1.0 готов к запуску с `BOT_TOKEN`. Без `TRAVELPAYOUTS_TOKEN` работает на demo-ценах — удобно для разработки и демо.
+MVP **0.2.0** (бот + Mini App). Запуск с `BOT_TOKEN`. Без `TRAVELPAYOUTS_TOKEN` — demo-цены.  
+История: [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
