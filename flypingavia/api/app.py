@@ -227,8 +227,30 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         """
         from fastapi.responses import JSONResponse
 
+        from flypingavia.db.session import session_scope
+        from flypingavia.monitoring.health_alerts import count_open_incidents
+
         issues = settings.readiness_issues()
-        payload = {"ready": len(issues) == 0, "issues": issues, "app_env": settings.app_env}
+        open_incidents = 0
+        try:
+            async with session_scope() as session:
+                open_incidents = await count_open_incidents(session)
+        except Exception:
+            open_incidents = -1
+
+        if open_incidents < 0:
+            monitor = {"status": "unknown", "open_incidents": 0}
+        elif open_incidents > 0:
+            monitor = {"status": "degraded", "open_incidents": open_incidents}
+        else:
+            monitor = {"status": "ok", "open_incidents": 0}
+
+        payload = {
+            "ready": len(issues) == 0,
+            "issues": issues,
+            "app_env": settings.app_env,
+            "health_monitor": monitor,
+        }
         if issues:
             return JSONResponse(status_code=503, content=payload)
         return JSONResponse(status_code=200, content=payload)

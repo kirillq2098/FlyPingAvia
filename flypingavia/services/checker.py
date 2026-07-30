@@ -13,6 +13,14 @@ from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Watch
 from flypingavia.db.session import session_scope
+from flypingavia.monitoring.heartbeat import (
+    mark_checker_error,
+    mark_checker_started,
+    mark_checker_success,
+)
+from flypingavia.monitoring.keys import INCIDENT_PROVIDER, INCIDENT_TELEGRAM
+from flypingavia.monitoring.notify import notify_failure, notify_recovery
+from flypingavia.monitoring.telegram_errors import classify_telegram_send_error, SYSTEM
 from flypingavia.services.flexible_dates import search_flexible_trip
 from flypingavia.services.notify_policy import decide_notification
 from flypingavia.services.prices import PriceProvider, build_affiliate_url
@@ -37,8 +45,21 @@ class PriceChecker:
 
     async def _run_once_locked(self) -> int:
         alerts = 0
+        now = datetime.now(timezone.utc)
         async with session_scope() as session:
+            await mark_checker_started(session, at=now)
             watches = list(await repo.get_active_watches(session))
+
+        if not watches:
+            async with session_scope() as session:
+                await mark_checker_success(session, at=datetime.now(timezone.utc))
+            return 0
+
+        provider_ok = 0
+        provider_fail = 0
+        system_tg_fail = 0
+        tg_ok = 0
+        last_provider_err = "provider error"
 
         for watch in watches:
             telegram_id = watch.user.telegram_id
@@ -56,9 +77,13 @@ class PriceChecker:
                     infants=watch.infants,
                     currency=watch.currency.lower(),
                 )
-            except Exception:
+            except Exception as exc:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
+                provider_fail += 1
+                last_provider_err = type(exc).__name__
                 continue
+
+            provider_ok += 1
 
             # Завершённая проверка (в т.ч. result=None) — фиксируем UTC now.
             checked_at = datetime.now(timezone.utc)
@@ -182,8 +207,11 @@ class PriceChecker:
                     reply_markup=kb.watch_actions_kb(snapshot.id, link),
                     disable_web_page_preview=True,
                 )
-            except Exception:
+                tg_ok += 1
+            except Exception as exc:
                 logger.exception("Telegram send failed user=%s", telegram_id)
+                if classify_telegram_send_error(exc) == SYSTEM:
+                    system_tg_fail += 1
                 continue
 
             try:
@@ -208,5 +236,39 @@ class PriceChecker:
                     telegram_id,
                 )
                 continue
+
+        done_at = datetime.now(timezone.utc)
+        if provider_ok > 0:
+            async with session_scope() as session:
+                await mark_checker_success(session, at=done_at)
+            await notify_recovery(
+                self.bot, self.settings, incident_key=INCIDENT_PROVIDER, recovered_at=done_at
+            )
+        else:
+            async with session_scope() as session:
+                await mark_checker_error(
+                    session, at=done_at, summary=last_provider_err
+                )
+            if provider_fail > 0:
+                await notify_failure(
+                    self.bot,
+                    self.settings,
+                    incident_key=INCIDENT_PROVIDER,
+                    summary=last_provider_err,
+                    occurred_at=done_at,
+                )
+
+        if system_tg_fail > 0 and tg_ok == 0:
+            await notify_failure(
+                self.bot,
+                self.settings,
+                incident_key=INCIDENT_TELEGRAM,
+                summary="system telegram delivery failures",
+                occurred_at=done_at,
+            )
+        elif tg_ok > 0:
+            await notify_recovery(
+                self.bot, self.settings, incident_key=INCIDENT_TELEGRAM, recovered_at=done_at
+            )
 
         return alerts

@@ -25,6 +25,16 @@ Payload **не секрет** (виден в URL) и **не исполняетс
 - Owner, открывший свою ссылку, видит preview, но копия не создаётся и `used_count` не растёт.
 - Подробности: [WATCH_SHARING.md](WATCH_SHARING.md).
 
+## Admin health alerts (RL-03)
+
+Служебные алерты в `ADMIN_TELEGRAM_CHAT_ID` (не пользовательские price alerts).
+
+- Состояние инцидентов в БД; без admin chat id в логах info и в `/api/health`/`/api/ready`.
+- `/api/ready` показывает только `{status, open_incidents}`.
+- Пользовательские Telegram-ошибки (blocked/chat not found) не открывают system incident.
+- Ошибка доставки admin alert не создаёт рекурсивный incident.
+- Подробности: [HEALTH_MONITORING.md](HEALTH_MONITORING.md).
+
 ## Mini App Auth (WA-03)
 
 Пользователь **не вводит** логин/пароль и не использует OAuth/JWT.

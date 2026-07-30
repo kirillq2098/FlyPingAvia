@@ -100,6 +100,8 @@ Auth (WA-03):
 
 **watch_share_tokens / redemptions:** TG-04 opaque share (token_hash, TTL, max_uses, revoke, idempotent clone); confirm через HMAC `sc:…` proof; attribution source = `share`
 
+**system_health_incidents / system_runtime_state:** RL-03 admin health alerts (threshold/cooldown, checker heartbeat)
+
 Удаление подписки — soft (`is_active=False`).
 
 ## Источники цен

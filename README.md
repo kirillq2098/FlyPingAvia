@@ -159,6 +159,10 @@ https://t.me/FlyPingBot?start=partner_blog
 Получатель подтверждает копию через подписанный callback; в attribution пишется `share`, не raw token.  
 См. [docs/WATCH_SHARING.md](docs/WATCH_SHARING.md).
 
+### Health-алерты админу (RL-03)
+
+При системных сбоях (БД, провайдер, stalled checker, Telegram API, readiness) бот пишет админу в `ADMIN_TELEGRAM_CHAT_ID` с threshold/cooldown и recovery. См. [docs/HEALTH_MONITORING.md](docs/HEALTH_MONITORING.md).
+
 ## Команды бота
 
 | Команда | Описание |

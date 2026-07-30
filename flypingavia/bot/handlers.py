@@ -688,6 +688,70 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     async def cmd_help(message: Message) -> None:
         await message.answer(fmt.format_help_message(), parse_mode="HTML", reply_markup=menu())
 
+    @router.message(Command("admin_health"))
+    async def cmd_admin_health(message: Message) -> None:
+        user = message.from_user
+        if user is None or user.id not in settings.admin_user_id_set:
+            return
+        from sqlalchemy import func, select, text
+
+        from flypingavia.db.models import Watch
+        from flypingavia.monitoring.formatters import format_admin_health_status
+        from flypingavia.monitoring.health_alerts import count_open_incidents
+        from flypingavia.monitoring.heartbeat import get_runtime_state
+        from flypingavia.monitoring.keys import COMPONENT_PRICE_CHECKER
+
+        db_ok = True
+        open_n = 0
+        last_success = None
+        checker_ok = True
+        try:
+            async with session_scope() as session:
+                await session.execute(text("SELECT 1"))
+                open_n = await count_open_incidents(session)
+                state = await get_runtime_state(
+                    session, component_key=COMPONENT_PRICE_CHECKER
+                )
+                if state is not None:
+                    last_success = state.last_success_at
+                    stale = settings.effective_checker_stale_after_seconds
+                    if state.last_completed_at is not None:
+                        from flypingavia.monitoring.health_alerts import _aware
+
+                        age = (
+                            datetime.now(timezone.utc) - _aware(state.last_completed_at)
+                        ).total_seconds()
+                        checker_ok = age < stale
+                active = int(
+                    (
+                        await session.execute(
+                            select(func.count())
+                            .select_from(Watch)
+                            .where(Watch.is_active.is_(True))
+                        )
+                    ).scalar_one()
+                    or 0
+                )
+                if active == 0:
+                    checker_ok = True
+        except Exception:
+            db_ok = False
+            checker_ok = False
+
+        webapp_ok: bool | None = None
+        if settings.is_production:
+            webapp_ok = bool(settings.webapp_url and settings.webapp_https)
+        text = format_admin_health_status(
+            db_ok=db_ok,
+            checker_ok=checker_ok,
+            provider_ok=not settings.is_demo_prices,
+            webapp_ok=webapp_ok,
+            open_incidents=open_n,
+            last_success_at=last_success,
+            display_timezone=settings.display_tz,
+        )
+        await message.answer(text, parse_mode="HTML", reply_markup=menu())
+
     @router.message(F.text == "❌ Отмена")
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
         await state.clear()

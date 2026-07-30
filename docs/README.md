@@ -25,6 +25,7 @@
 | [COPY_GUIDE.md](COPY_GUIDE.md) | USP «сторож цены», glossary, fixed copy |
 | [ATTRIBUTION.md](ATTRIBUTION.md) | Deep-link start payload, first/last touch |
 | [WATCH_SHARING.md](WATCH_SHARING.md) | Share подписки через `share_<token>` |
+| [HEALTH_MONITORING.md](HEALTH_MONITORING.md) | RL-03 admin health alerts |
 | [KPI.md](KPI.md) | Какие метрики уже можно считать; чего не хватает |
 
 ## Быстрый ориентир «что есть / чего нет»
