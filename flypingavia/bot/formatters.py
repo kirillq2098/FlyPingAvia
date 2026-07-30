@@ -96,6 +96,31 @@ def _meta_line(quote: PriceQuote) -> Optional[str]:
     return " · ".join(parts) if parts else None
 
 
+def format_threshold_contract(
+    price: float,
+    threshold: float,
+    currency: str = "RUB",
+) -> str:
+    """NT-02: явный контракт X ≤ Y и дельта к пользовательскому порогу.
+
+    Дельта — только Y − X (разница до порога), не рыночная/историческая экономия.
+    """
+    x = money(price, currency)
+    y = money(threshold, currency)
+    lines = [
+        f"Текущая цена: {x}",
+        f"Ваш порог: {y}",
+    ]
+    if price <= threshold:
+        delta = threshold - price
+        lines.append(f"✅ {x} ≤ {y}")
+        lines.append(f"Выгода к порогу: {money(delta, currency)}")
+    else:
+        diff = price - threshold
+        lines.append(f"⏳ до порога ещё {money(diff, currency)}")
+    return "\n".join(lines)
+
+
 def format_price_card(
     *,
     origin: str,
@@ -113,6 +138,7 @@ def format_price_card(
     adults: int = 1,
     children: int = 0,
     infants: int = 0,
+    threshold_contract: bool = False,
 ) -> str:
     currency = (quote.currency if quote else None) or (band.currency if band else "RUB")
     if quote is not None:
@@ -169,17 +195,20 @@ def format_price_card(
         lines.append("")
         lines.append(format_band_block(band, currency))
 
-    # 5) Порог пользователя — отдельно от «рынка»
+    # 5) Порог: NT-02 контракт (алерты) или краткий статус (остальные карточки)
     if threshold is not None:
         lines.append("")
-        lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
-        if quote is not None:
-            if quote.price <= threshold:
-                saved = threshold - quote.price
-                lines.append(f"✅ ниже порога на {money(saved, currency)}")
-            else:
-                diff = quote.price - threshold
-                lines.append(f"⏳ до порога ещё {money(diff, currency)}")
+        if threshold_contract and quote is not None:
+            lines.append(format_threshold_contract(quote.price, threshold, currency))
+        else:
+            lines.append(f"<b>Ваш порог</b> · {money(threshold, currency)}")
+            if quote is not None:
+                if quote.price <= threshold:
+                    saved = threshold - quote.price
+                    lines.append(f"✅ ниже порога на {money(saved, currency)}")
+                else:
+                    diff = quote.price - threshold
+                    lines.append(f"⏳ до порога ещё {money(diff, currency)}")
 
     return "\n".join(lines).strip()
 
