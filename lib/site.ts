@@ -5,7 +5,7 @@ export const siteConfig = {
     "Укажите маршрут один раз. FlyPing будет следить за ценой и отправит сообщение в Telegram, когда появится более выгодный билет.",
   url: "https://flyping.app",
   locale: "ru_RU",
-  telegramBotUrl: "https://t.me/FlyPingAvia_Bot",
+  telegramBotUrl: "https://web.telegram.org/k/#@FlyPingAvia_Bot",
   telegramHandle: "@FlyPingAvia_Bot",
   links: {
     privacy: "/privacy",
