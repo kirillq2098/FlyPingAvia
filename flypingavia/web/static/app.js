@@ -663,6 +663,9 @@
               '<a class="btn ghost" href="' +
               w.tickets_url +
               '" target="_blank" rel="noopener">Билеты</a>' +
+              '<button class="btn ghost" data-share="' +
+              w.id +
+              '" type="button">Поделиться</button>' +
               '<button class="btn ghost" data-del="' +
               w.id +
               '" type="button">Удалить</button>' +
@@ -901,6 +904,48 @@
         const createBtn = e.target && e.target.closest && e.target.closest("[data-empty-create]");
         if (createBtn) {
           switchTab("search");
+          return;
+        }
+        const shareId = e.target && e.target.getAttribute("data-share");
+        if (shareId) {
+          try {
+            const data = await api("/api/watches/" + shareId + "/share", { method: "POST" });
+            const url = data && data.url ? String(data.url) : "";
+            if (!url) {
+              toast("Не удалось создать ссылку");
+              return;
+            }
+            const sharePage =
+              "https://t.me/share/url?url=" +
+              encodeURIComponent(url) +
+              "&text=" +
+              encodeURIComponent("Следи за ценой на эту поездку в FlyPing");
+            const box = document.createElement("div");
+            box.className = "share-modal";
+            box.innerHTML =
+              '<div class="share-modal-card">' +
+              "<h3>Ссылка готова</h3>" +
+              '<p class="meta mono" id="share-url-text"></p>' +
+              '<div class="btn-row">' +
+              '<a class="btn primary" id="share-send" href="' +
+              sharePage +
+              '" target="_blank" rel="noopener">Отправить</a>' +
+              '<button class="btn ghost" type="button" id="share-close">Закрыть</button>' +
+              "</div></div>";
+            document.body.appendChild(box);
+            const urlEl = box.querySelector("#share-url-text");
+            if (urlEl) urlEl.textContent = url;
+            const close = () => {
+              if (box.parentNode) box.parentNode.removeChild(box);
+            };
+            const closeBtn = box.querySelector("#share-close");
+            if (closeBtn) closeBtn.addEventListener("click", close);
+            box.addEventListener("click", (ev) => {
+              if (ev.target === box) close();
+            });
+          } catch (err) {
+            if (!(err && err.auth)) toast(err.message);
+          }
           return;
         }
         const id = e.target && e.target.getAttribute("data-del");

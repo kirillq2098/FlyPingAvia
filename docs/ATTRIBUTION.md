@@ -27,14 +27,17 @@ Helper в коде: `flypingavia.bot.start_payload.build_telegram_start_link`.
 - Не исполняется как команда / callback
 - Невалидный payload → как отсутствие (без ошибки пользователю)
 
-Зарезервированные префиксы на будущее (`src_`, `cmp_`, `share_`) пока хранятся как обычная строка. **TG-04 не реализован.**
+Зарезервированные префиксы (`src_`, `cmp_`, `share_`):
+
+- обычные payload (`site`, `instagram`, …) сохраняются **полностью**;
+- payload вида `share_<token>` (TG-04) сохраняется в attribution **только как** `share` — raw token **не** пишется в `first_start_source` / `last_start_source` (см. [WATCH_SHARING](WATCH_SHARING.md), helper `attribution_source_for_start_payload`).
 
 ## First-touch / last-touch
 
 | Поле | Смысл |
 |------|--------|
-| `first_start_source` | Первый валидный payload за всё время (не перезаписывается) |
-| `last_start_source` | Последний валидный payload |
+| `first_start_source` | Первый валидный attribution source (не перезаписывается) |
+| `last_start_source` | Последний валидный attribution source |
 | `first_start_at` | Первый `/start` (UTC) |
 | `last_start_at` | Последний `/start` (UTC) |
 
@@ -42,6 +45,7 @@ Helper в коде: `flypingavia.bot.start_payload.build_telegram_start_link`.
 
 - `/start` без payload **не стирает** `last_start_source`
 - невалидный payload обрабатывается как отсутствие
+- share deep link → source = `share` (не полный `share_<token>`)
 - открытие Mini App (WA-03) **не** заполняет start attribution
 - A/B analytics и dashboard **не реализованы**
 

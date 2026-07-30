@@ -579,23 +579,83 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
     @router.message(CommandStart())
     async def cmd_start(message: Message, state: FSMContext, command: CommandObject) -> None:
         await state.clear()
+        from datetime import timedelta
+
+        from flypingavia.bot.share_tokens import (
+            INVALID_SHARE_MESSAGE,
+            attribution_source_for_start_payload,
+            create_share_callback_proof,
+            parse_share_payload,
+        )
         from flypingavia.bot.start_payload import normalize_start_payload
 
         source = normalize_start_payload(command.args if command else None)
+        attribution_source = attribution_source_for_start_payload(source)
         user = message.from_user
         if user is None:
             return
+        now = datetime.now(timezone.utc)
+        share_id = None
+        share_snapshot = None
+        confirm_proof = None
         async with session_scope() as session:
             await repo.record_user_start(
                 session,
                 telegram_user_id=user.id,
-                source=source,
-                started_at=datetime.now(timezone.utc),
+                source=attribution_source,
+                started_at=now,
                 username=user.username,
             )
-        if source:
+            raw_share = parse_share_payload(source)
+            if raw_share:
+                share_row = await repo.get_valid_watch_share(
+                    session, raw_token=raw_share, now=now
+                )
+                if share_row is not None and share_row.watch is not None:
+                    share_id = share_row.id
+                    w = share_row.watch
+                    share_snapshot = {
+                        "origin": w.origin,
+                        "destination": w.destination,
+                        "origin_name": w.origin_name,
+                        "destination_name": w.destination_name,
+                        "depart_date": w.depart_date,
+                        "return_date": w.return_date,
+                        "adults": w.adults,
+                        "children": w.children,
+                        "infants": w.infants,
+                        "max_price": w.max_price,
+                        "currency": w.currency,
+                        "flexibility_days": int(getattr(w, "flexibility_days", 0) or 0),
+                    }
+                    confirm_proof = create_share_callback_proof(
+                        share_id=share_id,
+                        telegram_user_id=user.id,
+                        expires_at=now
+                        + timedelta(seconds=settings.watch_share_callback_ttl_seconds),
+                        secret=settings.watch_share_callback_secret,
+                    )
+        if attribution_source:
             logging.getLogger("flypingavia.bot").debug("Telegram start source recorded")
+
         await get_location_directory().ensure_loaded()
+
+        # TG-04: валидный share → preview вместо полного welcome
+        if source and parse_share_payload(source):
+            if share_id is not None and share_snapshot is not None and confirm_proof:
+                preview = fmt.format_shared_watch_preview(
+                    type("W", (), share_snapshot)()
+                )
+                await message.answer(
+                    preview,
+                    parse_mode="HTML",
+                    reply_markup=kb.share_confirm_kb(confirm_proof),
+                )
+                await message.answer("Главное меню:", reply_markup=menu())
+                return
+            await message.answer(INVALID_SHARE_MESSAGE)
+            # fall through to normal welcome
+
         await message.answer(
             fmt.format_start_message(user.first_name),
             parse_mode="HTML",
@@ -1265,6 +1325,163 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         await callback.answer("Удалено" if ok else "Не найдено")
         if ok:
             await callback.message.edit_text(f"🗑 Подписка <code>#{watch_id}</code> удалена.", parse_mode="HTML")
+
+    @router.callback_query(F.data.startswith("wshare:"))
+    async def cb_share(callback: CallbackQuery) -> None:
+        from datetime import timedelta
+
+        from flypingavia.bot.share_tokens import build_share_payload
+        from flypingavia.bot.start_payload import build_telegram_start_link
+
+        watch_id = int(callback.data.split(":")[1])
+        bot_username = settings.telegram_bot_username
+        if not bot_username:
+            await callback.answer(
+                "Ссылки пока недоступны: не задан TELEGRAM_BOT_USERNAME",
+                show_alert=True,
+            )
+            return
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(hours=settings.watch_share_ttl_hours)
+        try:
+            async with session_scope() as session:
+                user = await repo.get_or_create_user(
+                    session,
+                    telegram_id=callback.from_user.id,
+                    username=callback.from_user.username,
+                )
+                _row, raw = await repo.create_watch_share_token(
+                    session,
+                    watch_id=watch_id,
+                    owner_user_id=user.id,
+                    expires_at=expires,
+                    max_uses=settings.watch_share_max_uses,
+                    now=now,
+                )
+                payload = build_share_payload(raw)
+                url = build_telegram_start_link(
+                    bot_username=bot_username, payload=payload
+                )
+        except LookupError:
+            await callback.answer("Подписка не найдена", show_alert=True)
+            return
+        except ValueError:
+            await callback.answer("Не удалось создать ссылку", show_alert=True)
+            return
+        logging.getLogger("flypingavia.bot").info(
+            "Watch share created: watch_id=%s", watch_id
+        )
+        await callback.answer()
+        await callback.message.answer(
+            fmt.format_share_link_message(url, ttl_hours=settings.watch_share_ttl_hours),
+            parse_mode="HTML",
+            reply_markup=kb.share_link_kb(url),
+            disable_web_page_preview=True,
+        )
+
+    @router.callback_query(F.data.startswith("wshare_revoke:"))
+    async def cb_share_revoke(callback: CallbackQuery) -> None:
+        watch_id = int(callback.data.split(":")[1])
+        now = datetime.now(timezone.utc)
+        async with session_scope() as session:
+            user = await repo.get_or_create_user(
+                session,
+                telegram_id=callback.from_user.id,
+                username=callback.from_user.username,
+            )
+            n = await repo.revoke_all_watch_shares(
+                session,
+                watch_id=watch_id,
+                owner_user_id=user.id,
+                now=now,
+            )
+        if n == 0:
+            await callback.answer("Нет активных ссылок или подписка не найдена", show_alert=True)
+            return
+        logging.getLogger("flypingavia.bot").info(
+            "Watch shares revoked: watch_id=%s count=%s", watch_id, n
+        )
+        await callback.answer(f"Отозвано ссылок: {n}")
+
+    @router.callback_query(F.data.startswith("share_confirm:"))
+    async def cb_share_confirm_legacy(callback: CallbackQuery) -> None:
+        """Старый формат share_confirm:<id> без proof — отклоняем."""
+        from flypingavia.bot.share_tokens import INVALID_SHARE_MESSAGE
+
+        await callback.answer()
+        await callback.message.answer(INVALID_SHARE_MESSAGE, reply_markup=menu())
+
+    @router.callback_query(F.data.startswith("sc:"))
+    async def cb_share_confirm(callback: CallbackQuery) -> None:
+        from flypingavia.bot.share_tokens import (
+            INVALID_SHARE_MESSAGE,
+            OWN_SHARE_MESSAGE,
+            verify_share_callback_proof,
+        )
+
+        proof = callback.data or ""
+        now = datetime.now(timezone.utc)
+        share_id = verify_share_callback_proof(
+            proof,
+            telegram_user_id=callback.from_user.id,
+            secret=settings.watch_share_callback_secret,
+            now=now,
+        )
+        if share_id is None:
+            await callback.answer()
+            await callback.message.answer(INVALID_SHARE_MESSAGE, reply_markup=menu())
+            return
+
+        created_new = False
+        is_owner = False
+        invalid = False
+        new_watch_id: int | None = None
+        recipient_db_id: int | None = None
+        async with session_scope() as session:
+            user = await repo.get_or_create_user(
+                session,
+                telegram_id=callback.from_user.id,
+                username=callback.from_user.username,
+            )
+            recipient_db_id = user.id
+            result = await repo.clone_watch_from_verified_share(
+                session,
+                share_id=share_id,
+                recipient_user_id=user.id,
+                now=now,
+            )
+            invalid = result.invalid
+            is_owner = result.is_owner
+            created_new = result.created_new
+            if result.watch is not None:
+                new_watch_id = result.watch.id
+        if invalid or new_watch_id is None:
+            await callback.answer()
+            await callback.message.answer(INVALID_SHARE_MESSAGE, reply_markup=menu())
+            return
+        if is_owner:
+            await callback.answer()
+            await callback.message.answer(OWN_SHARE_MESSAGE, reply_markup=menu())
+            return
+        logging.getLogger("flypingavia.bot").info(
+            "Watch share redeemed: share_id=%s recipient_user_id=%s",
+            share_id,
+            recipient_db_id,
+        )
+        await callback.answer("Подписка создана" if created_new else "Уже создана")
+        async with session_scope() as session:
+            watch = await session.get(Watch, new_watch_id)
+        if watch is not None:
+            await _render_watch_card(
+                callback.message,
+                watch,
+                title="✅ Подписка создана" if created_new else "✅ Подписка уже есть",
+            )
+
+    @router.callback_query(F.data == "share_cancel")
+    async def cb_share_cancel(callback: CallbackQuery) -> None:
+        await callback.answer("Ок")
+        await callback.message.answer("Хорошо. Можно создать свою подписку позже.", reply_markup=menu())
 
     @router.callback_query(F.data.startswith("wcheck:"))
     async def cb_check_one(callback: CallbackQuery) -> None:

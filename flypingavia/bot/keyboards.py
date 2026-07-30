@@ -128,7 +128,42 @@ def watch_actions_kb(watch_id: int, tickets_url: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🔎 Цена сейчас", callback_data=f"wcheck:{watch_id}"),
         InlineKeyboardButton(text="🗑 Удалить", callback_data=f"wdel:{watch_id}"),
     )
+    builder.row(
+        InlineKeyboardButton(text="🔗 Поделиться", callback_data=f"wshare:{watch_id}"),
+        InlineKeyboardButton(text="🔒 Отозвать ссылки", callback_data=f"wshare_revoke:{watch_id}"),
+    )
     builder.row(InlineKeyboardButton(text="🎫 Смотреть билеты", url=tickets_url))
+    return builder.as_markup()
+
+
+def share_confirm_kb(callback_proof: str) -> InlineKeyboardMarkup:
+    """Confirm с HMAC proof (не сырой share_id)."""
+    if len(callback_proof.encode("utf-8")) > 64:
+        raise ValueError("callback_data превышает лимит Telegram (64 bytes)")
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="✅ Создать подписку",
+            callback_data=callback_proof,
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ Не нужно",
+            callback_data="share_cancel",
+        )
+    )
+    return builder.as_markup()
+
+
+def share_link_kb(share_url: str, share_text: str = "Следи за ценой на эту поездку в FlyPing") -> InlineKeyboardMarkup:
+    from urllib.parse import urlencode
+
+    share_page = "https://t.me/share/url?" + urlencode({"url": share_url, "text": share_text})
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="📤 Отправить ссылку", url=share_page)
+    )
     return builder.as_markup()
 
 

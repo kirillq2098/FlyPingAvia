@@ -153,6 +153,12 @@ https://t.me/FlyPingBot?start=partner_blog
 
 Подробности: [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md).
 
+### Поделиться подпиской (TG-04)
+
+В карточке подписки — «Поделиться»: создаётся ссылка `?start=share_…` (7 дней, до 20 копий).  
+Получатель подтверждает копию через подписанный callback; в attribution пишется `share`, не raw token.  
+См. [docs/WATCH_SHARING.md](docs/WATCH_SHARING.md).
+
 ## Команды бота
 
 | Команда | Описание |

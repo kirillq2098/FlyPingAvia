@@ -149,6 +149,45 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MIN_PRICE_DELTA", "min_price_delta"),
         description="Минимальное падение цены (в валюте watch) для алерта внутри cooldown",
     )
+    # TG-04: срок жизни share-ссылки (часы)
+    watch_share_ttl_hours: int = Field(
+        default=168,
+        ge=1,
+        le=720,
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_TTL_HOURS",
+            "watch_share_ttl_hours",
+        ),
+        description="TTL share deep-link в часах (default 168 = 7 дней)",
+    )
+    watch_share_max_uses: int = Field(
+        default=20,
+        ge=1,
+        le=1000,
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_MAX_USES",
+            "watch_share_max_uses",
+        ),
+        description="Максимум успешных копий по одной share-ссылке",
+    )
+    watch_share_callback_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_CALLBACK_SECRET",
+            "watch_share_callback_secret",
+        ),
+        description="HMAC secret для share confirm callback (не bot token)",
+    )
+    watch_share_callback_ttl_seconds: int = Field(
+        default=900,
+        ge=60,
+        le=3600,
+        validation_alias=AliasChoices(
+            "WATCH_SHARE_CALLBACK_TTL_SECONDS",
+            "watch_share_callback_ttl_seconds",
+        ),
+        description="TTL HMAC callback proof для share confirm (секунды)",
+    )
     # TR-04: единая бизнес-таймзона для отображения last_checked_at (БД хранит UTC)
     display_timezone: str = Field(
         default="Europe/Moscow",
@@ -205,6 +244,20 @@ class Settings(BaseSettings):
                     "(5–32 символа, латиница/цифры/_, начинается с буквы)"
                 )
         self.telegram_bot_username = username
+
+        secret = (self.watch_share_callback_secret or "").strip()
+        if self.app_env == "production":
+            if len(secret) < 32:
+                raise ValueError(
+                    "В production WATCH_SHARE_CALLBACK_SECRET обязателен "
+                    "(минимум 32 символа). Не используйте BOT_TOKEN."
+                )
+            self.watch_share_callback_secret = secret
+        else:
+            # development/test: стабильный default, чтобы кнопки переживали рестарт
+            from flypingavia.bot.share_tokens import DEV_SHARE_CALLBACK_SECRET
+
+            self.watch_share_callback_secret = secret or DEV_SHARE_CALLBACK_SECRET
 
         return self
 

@@ -553,6 +553,58 @@ def format_price_card(
     return "\n".join(lines).strip()
 
 
+def format_shared_watch_preview(watch) -> str:
+    """Безопасный preview поездки из share-ссылки (без owner / watch id / token)."""
+    origin = escape(str(watch.origin_name or watch.origin or ""))
+    dest = escape(str(watch.destination_name or watch.destination or ""))
+    lines = [
+        "Вам поделились поездкой ✈️",
+        "",
+        f"<b>{origin} → {dest}</b>",
+    ]
+    if watch.depart_date:
+        lines.append(f"Туда: {escape(_fmt_day(watch.depart_date))}")
+    else:
+        lines.append("Туда: любая дата")
+    if watch.return_date:
+        lines.append(f"Обратно: {escape(_fmt_day(watch.return_date))}")
+    pax = passengers_text(
+        watch.adults or 1,
+        watch.children or 0,
+        watch.infants or 0,
+    )
+    lines.append(f"Пассажиры: {escape(pax)}")
+    currency = (watch.currency or "RUB").upper()
+    lines.append(f"Максимальная цена: {money(watch.max_price, currency)}")
+    flex = int(getattr(watch, "flexibility_days", 0) or 0)
+    if flex > 0:
+        lines.append(f"Гибкие даты: ±{flex} дня")
+    else:
+        lines.append("Гибкие даты: только выбранная дата")
+    lines.append("")
+    lines.append("Создать такую подписку для вас?")
+    return "\n".join(lines)
+
+
+def format_share_link_message(url: str, *, ttl_hours: int) -> str:
+    if ttl_hours >= 24:
+        days = max(1, ttl_hours // 24)
+        if days == 7:
+            ttl_label = "7 дней"
+        elif days == 1:
+            ttl_label = "1 день"
+        else:
+            ttl_label = f"{days} дн."
+    else:
+        ttl_label = f"{ttl_hours} ч."
+    safe_url = escape(url)
+    return (
+        f"Ссылка готова и действует {ttl_label}:\n\n"
+        f"<code>{safe_url}</code>\n\n"
+        "Отправьте её человеку, который хочет следить за такой же поездкой."
+    )
+
+
 def format_start_message(first_name: str | None = None) -> str:
     """TG-02: фиксированное приветствие — FlyPing как сторож цены (не поисковик)."""
     name = (first_name or "").strip()

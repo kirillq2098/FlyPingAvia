@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -142,3 +142,66 @@ class AlertEvent(Base):
     )
 
     watch: Mapped[Watch] = relationship(back_populates="alert_events")
+
+
+class WatchShareToken(Base):
+    """Opaque share link для копирования Watch (TG-04). Raw token не хранится."""
+
+    __tablename__ = "watch_share_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    watch_id: Mapped[int] = mapped_column(
+        ForeignKey("watches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    owner_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    max_uses: Mapped[int] = mapped_column(Integer, default=20, server_default="20")
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    watch: Mapped[Watch] = relationship()
+    owner: Mapped[User] = relationship()
+    redemptions: Mapped[list["WatchShareRedemption"]] = relationship(
+        back_populates="share_token",
+        cascade="all, delete-orphan",
+    )
+
+
+class WatchShareRedemption(Base):
+    """Идемпотентное создание копии Watch по share token."""
+
+    __tablename__ = "watch_share_redemptions"
+    __table_args__ = (
+        UniqueConstraint("share_token_id", "recipient_user_id", name="uq_share_recipient"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    share_token_id: Mapped[int] = mapped_column(
+        ForeignKey("watch_share_tokens.id", ondelete="CASCADE"),
+        index=True,
+    )
+    recipient_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    created_watch_id: Mapped[int] = mapped_column(
+        ForeignKey("watches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    redeemed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    share_token: Mapped[WatchShareToken] = relationship(back_populates="redemptions")
+    recipient: Mapped[User] = relationship()
+    created_watch: Mapped[Watch] = relationship()

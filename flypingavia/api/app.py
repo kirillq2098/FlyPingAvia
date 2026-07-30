@@ -515,4 +515,88 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "Подписка не найдена")
         return {"ok": True}
 
+    @app.post("/api/watches/{watch_id}/share")
+    async def api_share_watch(
+        watch_id: int,
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> dict:
+        from datetime import timedelta
+
+        from flypingavia.bot.share_tokens import build_share_payload
+        from flypingavia.bot.start_payload import build_telegram_start_link
+
+        if not settings.telegram_bot_username:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "BOT_USERNAME_REQUIRED",
+                    "message": "Ссылки недоступны: не задан TELEGRAM_BOT_USERNAME.",
+                },
+            )
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(hours=settings.watch_share_ttl_hours)
+        try:
+            async with session_scope() as session:
+                db_user = await repo.get_or_create_user(
+                    session, telegram_id=user.id, username=user.username
+                )
+                _row, raw = await repo.create_watch_share_token(
+                    session,
+                    watch_id=watch_id,
+                    owner_user_id=db_user.id,
+                    expires_at=expires,
+                    max_uses=settings.watch_share_max_uses,
+                    now=now,
+                )
+                payload = build_share_payload(raw)
+                url = build_telegram_start_link(
+                    bot_username=settings.telegram_bot_username,
+                    payload=payload,
+                )
+        except LookupError as exc:
+            raise HTTPException(404, "Подписка не найдена") from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "SHARE_LINK_UNAVAILABLE",
+                    "message": "Не удалось создать ссылку.",
+                },
+            ) from exc
+        logger.info("Watch share created via API: watch_id=%s", watch_id)
+        return {
+            "url": url,
+            "expires_at": expires.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
+    @app.delete("/api/watches/{watch_id}/shares")
+    async def api_revoke_watch_shares(
+        watch_id: int,
+        user: TelegramWebAppUser = Depends(current_user),
+    ) -> dict:
+        now = datetime.now(timezone.utc)
+        async with session_scope() as session:
+            db_user = await repo.get_or_create_user(
+                session, telegram_id=user.id, username=user.username
+            )
+            n = await repo.revoke_all_watch_shares(
+                session,
+                watch_id=watch_id,
+                owner_user_id=db_user.id,
+                now=now,
+            )
+        if n == 0:
+            # либо нет ссылок, либо чужой/несуществующий Watch
+            async with session_scope() as session:
+                db_user = await repo.get_or_create_user(
+                    session, telegram_id=user.id, username=user.username
+                )
+                own = await repo.get_watch_for_user(
+                    session, watch_id=watch_id, user_id=db_user.id
+                )
+            if own is None:
+                raise HTTPException(404, "Подписка не найдена")
+        logger.info("Watch shares revoked via API: watch_id=%s count=%s", watch_id, n)
+        return {"revoked": n}
+
     return app
