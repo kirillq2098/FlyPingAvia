@@ -129,6 +129,19 @@ async def log_alert_event(
     return event
 
 
+async def get_latest_alert_event(
+    session: AsyncSession,
+    watch_id: int,
+) -> AlertEvent | None:
+    result = await session.execute(
+        select(AlertEvent)
+        .where(AlertEvent.watch_id == watch_id)
+        .order_by(AlertEvent.sent_at.desc(), AlertEvent.id.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_alerted_watchers(
     session: AsyncSession,
     *,

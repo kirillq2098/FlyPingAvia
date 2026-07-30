@@ -89,6 +89,8 @@ async def test_checker_logs_alert_only_after_successful_send(
     tmp_path,
 ) -> None:
     db_path = tmp_path / "alerts.db"
+    # DB_PATH из .env перекрывает DATABASE_URL в Settings — сбрасываем явно.
+    monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
     monkeypatch.setenv("BOT_TOKEN", "123:TEST")
     monkeypatch.setenv("TRAVELPAYOUTS_TOKEN", "")

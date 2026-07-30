@@ -230,7 +230,7 @@
 - **Зависимости:** NT-01; поле last_alert_price
 - **DoD:** правило задокументировано в DECISIONS; тесты; нет дублей при стабильной цене
 - **Метрики:** алерты на watch / неделя ↓ без потери Alerted Watchers
-- **Статус:** Todo · **Source:** Compete O2, Strategy, Roadmap, Decisions open
+- **Статус:** Done · **Source:** Compete O2, Strategy, Roadmap, Decisions open
 
 ### NT-05 · Тихие часы
 - **Описание:** Не беспокоить ночью; отложить алерт.
@@ -606,8 +606,8 @@
 | NT-01 | Done |
 | TG-01, TG-05 | Done |
 | WA-01, RL-01, IN-01, IT-01 | Done |
-| **NT-04, NT-02, NT-03, CS-05, TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
-| AN-03 | Done |
+| **NT-02, NT-03, CS-05, TR-04, WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| AN-03, NT-04 | Done |
 
 ## v1.0 — «Стабильный сторож»
 
@@ -697,7 +697,7 @@
 | 5 | TR-04 | Tracking | P0 | 7 | 2 | 3.5 | 0.5–1д | Partial |
 | 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Todo |
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
-| 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Todo |
+| 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Done |
 | 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Done |
 | 10 | WA-03 | Web App | P1 | 6 | 2 | 3.0 | 0.5–1д | Partial |
 | 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Todo |
@@ -727,7 +727,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, RL-01, IN-01, IT-01, AN-03, NT-04 — **Done**.
 
 ### Матрица (схема)
 
