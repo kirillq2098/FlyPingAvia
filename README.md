@@ -48,6 +48,16 @@ python -m flypingavia
 3. Перезапустите бота — появится кнопка **🛩 Открыть приложение**.
 4. В @BotFather можно также привязать домен: `/setdomain`.
 
+Автоперезапуск (бот + туннель), если сервис падает:
+
+```bash
+./scripts/supervise.sh
+# или в фоне:
+# tmux new-session -d -s flypingavia-supervise './scripts/supervise.sh'
+```
+
+Watchdog сам рестартит `python -m flypingavia` и `cloudflared`, при новом URL туннеля обновляет `WEBAPP_URL` в `.env` и перезапускает бота. Логи: `/tmp/flypingavia/`.
+
 Локальный просмотр UI в браузере (без Telegram):
 ```env
 WEBAPP_DEV_USER_ID=1
