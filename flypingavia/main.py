@@ -14,6 +14,7 @@ from flypingavia.api.app import create_api
 from flypingavia.bot.handlers import create_dispatcher
 from flypingavia.config import get_settings
 from flypingavia.db.session import init_db
+from flypingavia.version import __version__
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,8 +23,23 @@ logging.basicConfig(
 logger = logging.getLogger("flypingavia")
 
 
+def _print_version() -> None:
+    print(f"FlyPingAvia {__version__}")
+
+
+def _handle_version_argv(argv: list[str]) -> bool:
+    """Обработать --version / -V. True = выйти без запуска приложения."""
+    if not argv:
+        return False
+    if argv[0] in ("--version", "-V"):
+        _print_version()
+        return True
+    return False
+
+
 def _log_startup_summary(settings) -> None:
     price_mode = "demo" if settings.is_demo_prices else "live"
+    logger.info("FlyPingAvia version: %s", __version__)
     logger.info("Environment: %s", settings.app_env)
     logger.info(
         "Mini App URL: %s",
@@ -133,6 +149,10 @@ async def _async_main() -> None:
 
 
 def run() -> None:
+    import sys
+
+    if _handle_version_argv(sys.argv[1:]):
+        return
     asyncio.run(_async_main())
 
 

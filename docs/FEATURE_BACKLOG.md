@@ -493,16 +493,16 @@
 - **Метрики:** MTTR; restarts/day
 - **Статус:** Done · **Source:** Code, Decisions, Arch
 
-### RL-02 · Выровнять версии (__init__ / pyproject / README)
-- **Описание:** Единый 0.2.0 (или tag).
-- **Проблема:** Рассинхрон статуса.
+### RL-02 · Единая версия проекта (release metadata)
+- **Описание:** Один источник истины `pyproject.toml` → `flypingavia.version` / `__version__` / FastAPI / `/api/health` / CLI `--version` / Docker OCI label. Целевая версия **0.3.0**.
+- **Проблема:** Рассинхрон `__init__` 0.1.0 vs pyproject/FastAPI 0.2.0.
 - **Важность:** Roadmap P0 мелкий.
 - **NSM:** None прямо.
 - **Value 3 · Effort 1 · Время:** 0.5 ч · **P0**
 - **Зависимости:** —
-- **DoD:** все версии совпадают; CHANGELOG
+- **DoD:** все runtime-версии совпадают; CHANGELOG 0.3.0; `python -m flypingavia --version`
 - **Метрики:** —
-- **Статус:** Todo · **Source:** Roadmap, Decisions open, Arch
+- **Статус:** Done · **Source:** Roadmap, Decisions open, Arch
 
 ### RL-03 · Health-алерты админу при падении
 - **Описание:** Если public/local health fail N раз — сообщение владельцу в Telegram.
@@ -607,7 +607,7 @@
 | NT-01 | Done |
 | TG-01, TG-05 | Done |
 | WA-01, RL-01, IN-01, IT-01 | Done |
-| **WA-02, RL-02, IT-02** | **Todo / Partial — закрыть до «зовём 100»** |
+| **WA-02, IT-02** | **Partial / Todo — закрыть до «зовём 100»** (RL-02 Done) |
 | AN-03, NT-04, NT-02, NT-03, CS-05, TR-04 | Done |
 
 ## v1.0 — «Стабильный сторож»
@@ -701,7 +701,7 @@
 | 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Done |
 | 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Done |
 | 10 | WA-03 | Web App | P1 | 8 | 3 | 2.7 | 1–2д | Done |
-| 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Todo |
+| 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Done |
 | 12 | CS-08 | Search | P0 | 9 | 1 | 9.0 | 0.5д ops | Partial |
 | 13 | RL-03 | Reliability | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
 | 14 | TR-05 | Tracking | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, WA-03, RL-01, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 

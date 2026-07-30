@@ -23,19 +23,30 @@ Telegram-бот для мониторинга цен на авиабилеты.
 | [Changelog](docs/CHANGELOG.md) | История изменений |
 | [KPI](docs/KPI.md) | Метрики по этапам |
 
-## MVP 0.2.0
+## Текущая версия: 0.3.0
+
+Current application version: **0.3.0**
+
+Проверка без запуска бота:
+
+```bash
+python -m flypingavia --version
+# или: python -m flypingavia -V
+```
 
 Уже есть:
 
-- Telegram Mini App (веб-приложение внутри Telegram)
+- Telegram Mini App с безопасной авторизацией через signed `initData` (WA-03)
 - команды и кнопки меню: приложение / добавить / маршруты / проверить / помощь
 - города словами + поиск по всем аэропортам (самый дешёвый)
 - вилка цен: дёшево / обычно / дорого + кнопки выбора порога
+- гибкость дат ±1/±3/±7 (CS-07 MVP)
 - SQLite-хранилище подписок
-- фоновая проверка цен (APScheduler)
+- фоновая проверка цен (APScheduler) + время последней проверки (TR-04)
 - цены через Travelpayouts API или **demo-режим** без токена
 - партнёрские ссылки Aviasales с `marker`
 - живой поиск за взрослых/детей (Flight Search API, если Travelpayouts выдал доступ)
+- production HTTPS config / readiness (WA-02 code; живой домен — ops)
 
 ## Быстрый старт
 
@@ -200,6 +211,19 @@ scripts/               # supervise (автоперезапуск)
 
 ## Статус
 
-MVP **0.2.0** (бот + Mini App). Запуск с `BOT_TOKEN`. Без `TRAVELPAYOUTS_TOKEN` — demo-цены.  
+Текущая версия приложения: **0.3.0** (бот + Mini App + auth + CS/NT/TR пакет).  
+Запуск с `BOT_TOKEN`. Без `TRAVELPAYOUTS_TOKEN` — demo-цены.  
 История: [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+### Ручной git tag (после merge и production smoke)
+
+> Выполнять только после merge и успешного production smoke test.  
+> Команды **не** запускаются автоматически агентом/CI.
+
+```bash
+git tag -a v0.3.0 -m "FlyPingAvia 0.3.0"
+git push origin v0.3.0
+```
+
+Tag в репозитории на момент документации может ещё не существовать.
 

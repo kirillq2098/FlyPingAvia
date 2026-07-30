@@ -9,7 +9,10 @@
 
 services:
   flypingavia:
-    build: ..
+    build:
+      context: ..
+      args:
+        APP_VERSION: "0.3.0"
     restart: unless-stopped
     env_file:
       - ../.env

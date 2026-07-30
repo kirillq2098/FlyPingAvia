@@ -9,8 +9,7 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Версия продукта (pyproject / FastAPI) | `0.2.0` |
-| Версия пакета `__init__` | `0.1.0` (рассинхрон) |
+| Версия продукта | `0.3.0` (`pyproject.toml` → `flypingavia.__version__`) |
 | Канал доставки | Telegram (polling) + Mini App (FastAPI/uvicorn) |
 | Хранилище | SQLite |
 | Источник цен | Travelpayouts Data API **или** demo |
@@ -22,6 +21,7 @@
 
 - [x] **MVP 0.1.0** — бот мониторинга + demo/Travelpayouts + алерты + affiliate URL  
 - [x] **MVP 0.2.0** — Mini App, города словами, вилка цен, RT, watchdog туннеля  
+- [x] **0.3.0** — CS-05/07, NT-02/03/04, TR-04, WA-02 code, WA-03 auth, RL-02 version metadata  
 - [ ] **v1.0** — определение не зафиксировано (см. TODO ниже)
 
 ## Этап A — стабильный MVP (текущий фокус)
@@ -37,7 +37,7 @@
 
 Открыто по коду (технический долг текущего этапа):
 
-- [ ] Выровнять версии (`__init__` / README Status / pyproject)
+- [x] Выровнять версии (`__init__` / README Status / pyproject) — **RL-02 Done (0.3.0)**
 - [ ] Решить, применять ли `FREE_WATCH_LIMIT` или убрать из README как «уже есть»
 - [ ] Антиспам алертов: `last_alert_price` пишется, но **не используется** для подавления повторов
 - [ ] Стабильный публичный HTTPS (именованный туннель / VPS / домен) вместо ephemeral `trycloudflare.com`

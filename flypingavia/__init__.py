@@ -1,3 +1,5 @@
 """FlyPingAvia — Telegram-бот мониторинга цен на авиабилеты."""
 
-__version__ = "0.1.0"
+from flypingavia.version import __version__
+
+__all__ = ["__version__"]
