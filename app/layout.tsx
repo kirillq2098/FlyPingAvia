@@ -1,18 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Literata, Onest } from "next/font/google";
+import { IBM_Plex_Mono, Manrope } from "next/font/google";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
 
-const onest = Onest({
-  variable: "--font-onest",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin", "cyrillic"],
   display: "swap",
   preload: true,
 });
 
-const literata = Literata({
-  variable: "--font-literata",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "600"],
   display: "swap",
   preload: true,
 });
@@ -30,15 +31,12 @@ export const metadata: Metadata = {
     "авиабилеты",
     "мониторинг цен",
     "Telegram бот",
-    "дешёвые авиабилеты",
     "уведомления о цене",
   ],
   authors: [{ name: siteConfig.name }],
   creator: siteConfig.name,
   publisher: siteConfig.name,
-  alternates: {
-    canonical: "/",
-  },
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: siteConfig.locale,
@@ -66,7 +64,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F2F0EB",
+  themeColor: "#F7F8FA",
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
@@ -78,8 +76,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${onest.variable} ${literata.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans text-ink antialiased">{children}</body>
+    <html lang="ru" className={`${manrope.variable} ${plexMono.variable} h-full antialiased`}>
+      <body className="min-h-full bg-bg font-sans text-ink antialiased">{children}</body>
     </html>
   );
 }

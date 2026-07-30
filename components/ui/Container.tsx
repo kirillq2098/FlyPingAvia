@@ -5,6 +5,7 @@ type ContainerProps = {
   className?: string;
   as?: "div" | "section" | "footer" | "header" | "nav";
   id?: string;
+  wide?: boolean;
 };
 
 export function Container({
@@ -12,11 +13,16 @@ export function Container({
   className,
   as: Tag = "div",
   id,
+  wide = false,
 }: ContainerProps) {
   return (
     <Tag
       id={id}
-      className={cn("mx-auto w-full max-w-6xl px-5 sm:px-6 lg:px-8", className)}
+      className={cn(
+        "mx-auto w-full px-5 sm:px-6 lg:px-8",
+        wide ? "max-w-[1400px]" : "max-w-[1400px]",
+        className,
+      )}
     >
       {children}
     </Tag>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "on-dark";
+type ButtonVariant = "primary" | "ghost" | "on-dark" | "link";
 type ButtonSize = "md" | "lg";
 
 type CommonProps = {
@@ -12,9 +12,7 @@ type CommonProps = {
 };
 
 type ButtonAsButton = CommonProps &
-  React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    href?: undefined;
-  };
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { href?: undefined };
 
 type ButtonAsLink = CommonProps & {
   href: string;
@@ -25,29 +23,24 @@ type ButtonAsLink = CommonProps & {
 
 type ButtonProps = ButtonAsButton | ButtonAsLink;
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    "bg-brand text-white hover:bg-brand-hover focus-visible:ring-brand",
-  secondary:
-    "bg-transparent text-ink underline-offset-4 hover:underline focus-visible:ring-brand",
-  ghost:
-    "bg-transparent text-ink ring-1 ring-line hover:bg-surface-raised focus-visible:ring-brand",
-  "on-dark":
-    "bg-white text-night hover:bg-[#f3f1ec] focus-visible:ring-white",
+const variants: Record<ButtonVariant, string> = {
+  primary: "bg-blue text-white hover:bg-blue-deep",
+  ghost: "bg-transparent text-ink ring-1 ring-line hover:bg-bg-elevated",
+  "on-dark": "bg-white text-navy hover:bg-[#eef2f7]",
+  link: "bg-transparent text-ink underline-offset-4 hover:underline",
 };
 
-const sizeClasses: Record<ButtonSize, string> = {
-  md: "h-11 px-5 text-sm",
-  lg: "h-12 px-6 text-[0.95rem] sm:h-[3.25rem] sm:px-7",
+const sizes: Record<ButtonSize, string> = {
+  md: "h-10 px-4 text-sm",
+  lg: "h-12 px-5 text-sm sm:h-[3.1rem] sm:px-6 sm:text-[0.95rem]",
 };
 
 export function Button(props: ButtonProps) {
   const { children, className, variant = "primary", size = "md" } = props;
-
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-medium tracking-[-0.01em] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-    variant !== "secondary" && sizeClasses[size],
-    variantClasses[variant],
+    "inline-flex items-center justify-center gap-2 rounded-[6px] font-medium tracking-[-0.015em] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+    variant !== "link" && sizes[size],
+    variants[variant],
     className,
   );
 

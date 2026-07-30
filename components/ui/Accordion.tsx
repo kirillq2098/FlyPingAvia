@@ -2,7 +2,6 @@
 
 import { useId, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { FaqItem } from "@/lib/constants";
 
@@ -17,32 +16,34 @@ export function Accordion({ items }: AccordionProps) {
   return (
     <div className="divide-y divide-line border-y border-line">
       {items.map((item) => {
-        const isOpen = openId === item.id;
+        const open = openId === item.id;
         const panelId = `${baseId}-${item.id}-panel`;
         const buttonId = `${baseId}-${item.id}-button`;
-
         return (
           <div key={item.id}>
             <button
               id={buttonId}
               type="button"
-              aria-expanded={isOpen}
+              aria-expanded={open}
               aria-controls={panelId}
-              onClick={() => setOpenId(isOpen ? null : item.id)}
-              className="flex w-full items-center justify-between gap-4 py-5 text-left"
+              onClick={() => setOpenId(open ? null : item.id)}
+              className="flex w-full items-center justify-between gap-6 py-5 text-left"
             >
-              <span className="text-base font-medium tracking-[-0.015em] text-ink sm:text-lg">
+              <span className="text-base font-medium tracking-[-0.02em] text-ink sm:text-lg">
                 {item.question}
               </span>
-              <ChevronDown
+              <span
                 className={cn(
-                  "h-5 w-5 shrink-0 text-muted transition-transform duration-200",
-                  isOpen && "rotate-180",
+                  "mono text-xs text-mute transition-transform",
+                  open && "rotate-45",
                 )}
-              />
+                aria-hidden
+              >
+                +
+              </span>
             </button>
             <AnimatePresence initial={false}>
-              {isOpen ? (
+              {open ? (
                 <motion.div
                   id={panelId}
                   role="region"
@@ -50,9 +51,9 @@ export function Accordion({ items }: AccordionProps) {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{ duration: 0.22 }}
                 >
-                  <p className="pb-5 pr-8 text-sm leading-7 text-muted sm:text-base">
+                  <p className="max-w-2xl pb-5 text-sm leading-7 text-mute sm:text-base">
                     {item.answer}
                   </p>
                 </motion.div>

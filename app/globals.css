@@ -1,57 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  /* Warm milk canvas */
-  --background: #f2f0eb;
-  --surface: #f7f5f1;
-  --surface-raised: #ffffff;
-  --foreground: #1c1b19;
-  --muted: #6b6860;
-  --line: #ddd8cf;
-  --line-strong: #c9c3b8;
-
-  /* Aviation cobalt */
-  --brand: #1a3f8b;
-  --brand-soft: #e8eef8;
-  --brand-hover: #163574;
-
-  /* Price-down green */
-  --gain: #1f6b45;
-  --gain-soft: #e5f2eb;
-
-  /* Deep cool night */
-  --night: #10131a;
-  --night-elevated: #171b24;
-  --night-muted: #9aa3b2;
-  --night-line: #2a303c;
-
-  --radius: 12px;
-  --radius-lg: 16px;
-  --shadow: 0 1px 2px rgba(28, 27, 25, 0.04), 0 12px 32px rgba(28, 27, 25, 0.06);
-  --shadow-soft: 0 1px 1px rgba(28, 27, 25, 0.03), 0 8px 24px rgba(28, 27, 25, 0.05);
+  --bg: #f7f8fa;
+  --bg-elevated: #ffffff;
+  --ink: #0a0b0d;
+  --mute: #5c6570;
+  --line: #d7dde5;
+  --line-strong: #b8c0cc;
+  --blue: #0b4db8;
+  --blue-deep: #083a8c;
+  --blue-soft: #e8f0fc;
+  --gain: #0e9f6e;
+  --gain-soft: #e6f7f0;
+  --navy: #07111f;
+  --navy-elevated: #0d1829;
+  --navy-mute: #8b95a7;
+  --navy-line: #243044;
+  --mono-ink: #1b2430;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-foreground: var(--foreground);
-  --color-ink: var(--foreground);
-  --color-muted: var(--muted);
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
-  --color-brand: var(--brand);
-  --color-brand-soft: var(--brand-soft);
-  --color-brand-hover: var(--brand-hover);
+  --color-blue: var(--blue);
+  --color-blue-deep: var(--blue-deep);
+  --color-blue-soft: var(--blue-soft);
   --color-gain: var(--gain);
   --color-gain-soft: var(--gain-soft);
-  --color-night: var(--night);
-  --color-night-elevated: var(--night-elevated);
-  --color-night-muted: var(--night-muted);
-  --color-night-line: var(--night-line);
-  --font-sans: var(--font-onest);
-  --font-display: var(--font-literata);
-  --radius-card: var(--radius-lg);
+  --color-navy: var(--navy);
+  --color-navy-elevated: var(--navy-elevated);
+  --color-navy-mute: var(--navy-mute);
+  --color-navy-line: var(--navy-line);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
 }
 
 html {
@@ -62,42 +47,49 @@ html {
   html {
     scroll-behavior: auto;
   }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.014em;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.018em;
   min-height: 100%;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(26, 63, 139, 0.16);
-  color: var(--foreground);
+  background: rgba(11, 77, 184, 0.16);
+}
+
+.font-mono,
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-.display {
-  font-family: var(--font-literata), ui-serif, Georgia, serif;
-  letter-spacing: -0.035em;
-  font-weight: 500;
-}
-
-.hairline {
+.rule {
   height: 1px;
   background: var(--line);
+  width: 100%;
+}
+
+.rule-strong {
+  height: 1px;
+  background: var(--line-strong);
+  width: 100%;
+}
+
+.airport-code {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  text-transform: uppercase;
 }

@@ -13,29 +13,17 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen py-12 sm:py-16">
       <Container className="max-w-3xl space-y-8">
-        <Link href="/" className="inline-flex">
-          <Logo />
-        </Link>
-        <div className="space-y-4 border border-line bg-surface-raised p-6 sm:p-10 rounded-[var(--radius-lg)]">
-          <h1 className="display text-3xl text-ink">Политика конфиденциальности</h1>
-          <p className="leading-7 text-muted">
-            Этот документ будет дополнен перед публичным запуском. Сейчас{" "}
-            {siteConfig.name} обрабатывает только данные, необходимые для работы
-            Telegram-бота и отправки уведомлений о снижении цен на авиабилеты.
+        <Logo />
+        <div className="space-y-4 border border-line bg-bg-elevated p-6 sm:p-10">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-ink">
+            Политика конфиденциальности
+          </h1>
+          <p className="leading-7 text-mute">
+            Документ будет дополнен перед публичным запуском. Сейчас {siteConfig.name}
+            обрабатывает только данные, нужные для работы Telegram-бота и уведомлений
+            о снижении цен.
           </p>
-          <p className="leading-7 text-muted">
-            Вопросы по данным:{" "}
-            <a
-              href={siteConfig.telegramBotUrl}
-              className="font-medium text-brand hover:text-brand-hover"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {siteConfig.telegramHandle}
-            </a>
-            .
-          </p>
-          <Link href="/" className="inline-flex text-sm font-medium text-brand hover:text-brand-hover">
+          <Link href="/" className="inline-flex text-sm font-medium text-blue hover:text-blue-deep">
             ← На главную
           </Link>
         </div>

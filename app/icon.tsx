@@ -13,15 +13,21 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          background: "#0B4DB8",
           borderRadius: 8,
-          background: "#1A3F8B",
-          color: "white",
-          fontSize: 12,
-          fontWeight: 700,
-          fontFamily: "sans-serif",
         }}
       >
-        FP
+        <svg width="18" height="18" viewBox="0 0 22 22">
+          <circle cx="4" cy="18" r="2.2" fill="white" />
+          <path
+            d="M5.8 16.4 C9 12.2, 13.2 7.4, 18.5 4.2"
+            stroke="white"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <circle cx="18.5" cy="4.2" r="2.2" fill="white" />
+        </svg>
       </div>
     ),
     size,
