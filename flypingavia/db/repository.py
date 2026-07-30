@@ -50,7 +50,10 @@ async def add_watch(
     adults: int = 1,
     children: int = 0,
     infants: int = 0,
+    flexibility_days: int = 0,
 ) -> Watch:
+    from flypingavia.services.flexible_dates import validate_flexibility_days
+
     watch = Watch(
         user_id=user.id,
         origin=origin.upper(),
@@ -66,6 +69,7 @@ async def add_watch(
         children=max(0, children),
         infants=max(0, infants),
         currency=currency.upper(),
+        flexibility_days=validate_flexibility_days(flexibility_days),
     )
     session.add(watch)
     await session.flush()

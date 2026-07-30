@@ -101,7 +101,8 @@
 - **Зависимости:** CS-02; объём API calendar
 - **DoD:** выбор даты из календаря цен в Mini App; сохранение watch
 - **Метрики:** conversion search→watch для flexible users
-- **Статус:** Todo · **Source:** Roadmap P2, Compete (Skyscanner/Google)
+- **Статус:** Partial · **Source:** Roadmap P2, Compete (Skyscanner/Google)
+- **Partial note:** MVP окна дат `flexibility_days` ∈ {0,1,3,7} в боте/Mini App/checker (CS-07 MVP). Полный календарь дешевизны — Todo.
 
 ### CS-08 · Demo-режим только для разработки
 - **Описание:** Политика: внешним пользователям всегда live token; demo не в проде.
@@ -716,7 +717,7 @@
 | 24 | UA-02 | Account | P2 | 5 | 4 | 1.3 | 2–3д | Todo |
 | 25 | PR-01 | Premium | P2 | 6 | 5 | 1.2 | 3–5д | Icebox |
 | 26 | IN-03 | Infra | P2 | 5 | 5 | 1.0 | 2–5д | Todo |
-| 27 | CS-07 | Search | P2 | 6 | 7 | 0.9 | 7–14д | Todo |
+| 27 | CS-07 | Search | P2 | 6 | 7 | 0.9 | 7–14д | Partial |
 | 28 | CS-06 | Search | P2 | 7 | 7 | 1.0 | 5–10д | Blocked |
 | 29 | IN-02 | Infra | P2 | 6 | 8 | 0.8 | 10–20д | Icebox |
 | 30 | GR-03 | Growth | Icebox | 5 | 7 | 0.7 | 10–20д | Icebox |

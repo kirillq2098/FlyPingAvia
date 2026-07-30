@@ -23,6 +23,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "adults": "INTEGER DEFAULT 1",
     "children": "INTEGER DEFAULT 0",
     "infants": "INTEGER DEFAULT 0",
+    "flexibility_days": "INTEGER DEFAULT 0 NOT NULL",
 }
 
 
@@ -52,7 +53,9 @@ async def _migrate_sqlite(conn) -> None:
 async def init_db() -> None:
     """Создаёт таблицы (в т.ч. alert_events) и догоняет колонки watches на SQLite.
 
-    Явная SQL-миграция: scripts/migrations/001_alert_events.sql
+    Явные SQL-миграции:
+    - scripts/migrations/001_alert_events.sql
+    - scripts/migrations/002_watch_flexibility_days.sql
     """
     engine = get_engine()
     async with engine.begin() as conn:

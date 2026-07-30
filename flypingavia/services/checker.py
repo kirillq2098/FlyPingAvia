@@ -13,8 +13,9 @@ from flypingavia.config import Settings
 from flypingavia.db import repository as repo
 from flypingavia.db.models import Watch
 from flypingavia.db.session import session_scope
+from flypingavia.services.flexible_dates import search_flexible_trip
 from flypingavia.services.notify_policy import decide_notification
-from flypingavia.services.prices import PriceProvider, align_band_to_quote, build_affiliate_url
+from flypingavia.services.prices import PriceProvider, build_affiliate_url
 
 logger = logging.getLogger(__name__)
 
@@ -41,34 +42,32 @@ class PriceChecker:
 
         for watch in watches:
             telegram_id = watch.user.telegram_id
+            flex = int(getattr(watch, "flexibility_days", 0) or 0)
             try:
-                quote = await self.provider.get_trip_quote(
-                    watch.origin_codes,
-                    watch.destination_codes,
+                result = await search_flexible_trip(
+                    self.provider,
+                    origins=watch.origin_codes,
+                    destinations=watch.destination_codes,
                     depart_date=watch.depart_date,
                     return_date=watch.return_date,
+                    flexibility_days=flex,
                     adults=watch.adults,
                     children=watch.children,
                     infants=watch.infants,
                     currency=watch.currency.lower(),
                 )
-                band = await self.provider.get_trip_band(
-                    watch.origin_codes,
-                    watch.destination_codes,
-                    depart_date=watch.depart_date,
-                    return_date=watch.return_date,
-                    adults=watch.adults,
-                    children=watch.children,
-                    infants=watch.infants,
-                    currency=watch.currency.lower(),
-                )
-                band = align_band_to_quote(band, quote)
             except Exception:
                 logger.exception("Не удалось получить цену для watch_id=%s", watch.id)
                 continue
 
-            if quote is None:
+            if result is None or result.quote is None:
                 continue
+
+            quote = result.quote
+            band = result.band
+            found_depart = result.found_depart_date
+            found_return = result.found_return_date
+            offset_days = result.offset_days
 
             below_threshold = False
             snapshot: Watch | None = None
@@ -94,11 +93,12 @@ class PriceChecker:
                         min_price_delta=self.settings.min_price_delta,
                     )
                     logger.info(
-                        "%s watch_id=%s price=%s threshold=%s",
+                        "%s watch_id=%s price=%s threshold=%s offset=%s",
                         decision.log_message,
                         fresh.id,
                         quote.price,
                         fresh.max_price,
+                        offset_days,
                     )
                     decision_allow = decision.allow
 
@@ -119,6 +119,7 @@ class PriceChecker:
                     children=fresh.children,
                     infants=fresh.infants,
                     currency=fresh.currency,
+                    flexibility_days=getattr(fresh, "flexibility_days", 0) or 0,
                     last_price=fresh.last_price,
                     last_origin_airport=fresh.last_origin_airport,
                     last_destination_airport=fresh.last_destination_airport,
@@ -128,12 +129,14 @@ class PriceChecker:
             if not below_threshold or not decision_allow or snapshot is None:
                 continue
 
+            link_depart = found_depart if found_depart is not None else snapshot.depart_date
+            link_return = found_return if found_return is not None else snapshot.return_date
             link = build_affiliate_url(
                 snapshot.origin,
                 snapshot.destination,
                 self.settings.affiliate_marker,
-                snapshot.depart_date,
-                return_date=snapshot.return_date,
+                link_depart,
+                return_date=link_return,
                 adults=snapshot.adults,
                 children=snapshot.children,
                 infants=snapshot.infants,
@@ -141,7 +144,7 @@ class PriceChecker:
             text = fmt.format_price_card(
                 origin=snapshot.origin,
                 destination=snapshot.destination,
-                depart_date=snapshot.depart_date,
+                depart_date=link_depart,
                 quote=quote,
                 band=band,
                 threshold=snapshot.max_price,
@@ -149,11 +152,17 @@ class PriceChecker:
                 watch_id=snapshot.id,
                 origin_name=snapshot.origin_name,
                 destination_name=snapshot.destination_name,
-                return_date=snapshot.return_date,
+                return_date=link_return,
                 adults=snapshot.adults,
                 children=snapshot.children,
                 infants=snapshot.infants,
                 threshold_contract=True,
+                found_depart_date=found_depart,
+                found_return_date=found_return,
+                offset_days=offset_days,
+                primary_depart_date=snapshot.depart_date,
+                primary_return_date=snapshot.return_date,
+                flexibility_days=int(getattr(snapshot, "flexibility_days", 0) or 0),
             )
 
             try:

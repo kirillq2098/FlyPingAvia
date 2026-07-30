@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Optional
@@ -14,9 +15,12 @@ from flypingavia.config import Settings, get_settings
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
-from flypingavia.services.prices import align_band_to_quote, build_affiliate_url, build_price_provider
+from flypingavia.services.prices import build_affiliate_url, build_price_provider
+from flypingavia.services.flexible_dates import search_flexible_trip, validate_flexibility_days
 from flypingavia.services.threshold_policy import evaluate_low_threshold
 from flypingavia.bot.formatters import money as format_money
+
+logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 
@@ -56,6 +60,13 @@ class QuoteOut(BaseModel):
     trip_type: str = "oneway"
     price_for: str = "adult"  # adult | passengers
     source: Optional[str] = None
+    # CS-07 MVP flexible window metadata
+    flexibility_days: int = 0
+    primary_depart_date: Optional[date] = None
+    primary_return_date: Optional[date] = None
+    found_depart_date: Optional[date] = None
+    found_return_date: Optional[date] = None
+    offset_days: int = 0
 
 
 class WatchIn(BaseModel):
@@ -68,6 +79,7 @@ class WatchIn(BaseModel):
     children: int = Field(default=0, ge=0, le=9)
     infants: int = Field(default=0, ge=0, le=9)
     confirm_low_threshold: bool = False
+    flexibility_days: int = 0
 
 
 class WatchOut(BaseModel):
@@ -82,6 +94,7 @@ class WatchOut(BaseModel):
     adults: int = 1
     children: int = 0
     infants: int = 0
+    flexibility_days: int = 0
     last_price: Optional[float]
     last_origin_airport: Optional[str] = None
     currency: str
@@ -181,6 +194,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         adults: int = Query(default=1, ge=1, le=9),
         children: int = Query(default=0, ge=0, le=9),
         infants: int = Query(default=0, ge=0, le=9),
+        flexibility_days: int = Query(default=0),
         user: dict = Depends(current_user),
     ) -> QuoteOut:
         _ = user
@@ -190,28 +204,29 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(400, "Не удалось распознать город/аэропорт")
         if return_date and depart_date and return_date < depart_date:
             raise HTTPException(400, "Дата возврата раньше вылета")
+        try:
+            flex = validate_flexibility_days(flexibility_days)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
-        quote = await provider.get_trip_quote(
-            origin_place.search_codes,
-            dest_place.search_codes,
+        result = await search_flexible_trip(
+            provider,
+            origins=origin_place.search_codes,
+            destinations=dest_place.search_codes,
             depart_date=depart_date,
             return_date=return_date,
+            flexibility_days=flex,
             adults=adults,
             children=children,
             infants=infants,
             currency=settings.currency,
         )
-        band = await provider.get_trip_band(
-            origin_place.search_codes,
-            dest_place.search_codes,
-            depart_date=depart_date,
-            return_date=return_date,
-            adults=adults,
-            children=children,
-            infants=infants,
-            currency=settings.currency,
-        )
-        band = align_band_to_quote(band, quote)
+        quote = result.quote if result else None
+        band = result.band if result else None
+        found_dep = result.found_depart_date if result else depart_date
+        found_ret = result.found_return_date if result else return_date
+        offset = result.offset_days if result else 0
+
         level = band.classify(quote.price).value if quote and band else None
         note = None
         if origin_place.kind == "city" and len(origin_place.airport_codes) > 1:
@@ -240,21 +255,27 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 origin_place.code,
                 dest_place.code,
                 settings.affiliate_marker,
-                depart_date,
-                return_date=return_date,
+                found_dep if found_dep is not None else depart_date,
+                return_date=found_ret if found_ret is not None else return_date,
                 adults=adults,
                 children=children,
                 infants=infants,
             ),
             airports_note=note,
-            depart_date=depart_date,
-            return_date=return_date,
+            depart_date=found_dep if found_dep is not None else depart_date,
+            return_date=found_ret if found_ret is not None else return_date,
             adults=adults,
             children=children,
             infants=infants,
             trip_type="round" if return_date else "oneway",
             price_for="passengers" if (quote and quote.is_live) else "adult",
             source=quote.source if quote else None,
+            flexibility_days=flex,
+            primary_depart_date=depart_date,
+            primary_return_date=return_date,
+            found_depart_date=found_dep,
+            found_return_date=found_ret,
+            offset_days=offset,
         )
 
     def _watch_out(w) -> WatchOut:
@@ -270,6 +291,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             adults=w.adults or 1,
             children=w.children or 0,
             infants=w.infants or 0,
+            flexibility_days=int(getattr(w, "flexibility_days", 0) or 0),
             last_price=w.last_price,
             last_origin_airport=w.last_origin_airport,
             currency=w.currency,
@@ -310,32 +332,32 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(400, "Младенцев не больше, чем взрослых")
         if not math.isfinite(body.max_price) or body.max_price <= 0:
             raise HTTPException(400, "Порог должен быть положительным числом")
+        try:
+            flex = validate_flexibility_days(body.flexibility_days)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
-        # CS-05: серверный band; клиентский cheap_max не принимается.
+        # CS-05: band через тот же flexible search, что и /api/quote.
         band = None
         try:
-            quote = await provider.get_trip_quote(
-                origin_place.search_codes,
-                dest_place.search_codes,
+            result = await search_flexible_trip(
+                provider,
+                origins=origin_place.search_codes,
+                destinations=dest_place.search_codes,
                 depart_date=body.depart_date,
                 return_date=body.return_date,
+                flexibility_days=flex,
                 adults=body.adults,
                 children=body.children,
                 infants=body.infants,
                 currency=settings.currency,
             )
-            band = await provider.get_trip_band(
-                origin_place.search_codes,
-                dest_place.search_codes,
-                depart_date=body.depart_date,
-                return_date=body.return_date,
-                adults=body.adults,
-                children=body.children,
-                infants=body.infants,
-                currency=settings.currency,
-            )
-            band = align_band_to_quote(band, quote)
+            if result is not None:
+                band = result.band
         except Exception:
+            logger.exception(
+                "Failed to evaluate flexible market band before Watch creation"
+            )
             band = None
 
         decision = evaluate_low_threshold(
@@ -382,6 +404,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 children=body.children,
                 infants=body.infants,
                 currency=settings.currency,
+                flexibility_days=flex,
             )
             return _watch_out(watch)
 

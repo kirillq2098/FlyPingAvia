@@ -260,7 +260,7 @@ async def test_price_checker_alert_includes_market_and_alert_event(
 ) -> None:
     settings = isolated_checker_env
     from flypingavia.db.session import session_scope
-    import flypingavia.services.checker as checker_mod
+    import flypingavia.services.flexible_dates as flex_mod
 
     align_calls: list[tuple] = []
     real_align = align_band_to_quote
@@ -269,7 +269,7 @@ async def test_price_checker_alert_includes_market_and_alert_event(
         align_calls.append((band, quote))
         return real_align(band, quote)
 
-    monkeypatch.setattr(checker_mod, "align_band_to_quote", _tracking_align)
+    monkeypatch.setattr(flex_mod, "align_band_to_quote", _tracking_align)
 
     async with session_scope() as session:
         user = await repo.get_or_create_user(session, telegram_id=9303)

@@ -95,6 +95,16 @@
           <span>Ваш порог, ₽</span>
           <input id="threshold" name="threshold" type="number" min="1" step="1" inputmode="numeric" required />
         </label>
+        <div class="field">
+          <span>Гибкость дат</span>
+          <div class="btn-row" id="flex-row">
+            <button type="button" class="btn ghost flex-btn active" data-flex="0">Только эта дата</button>
+            <button type="button" class="btn ghost flex-btn" data-flex="1">±1</button>
+            <button type="button" class="btn ghost flex-btn" data-flex="3">±3</button>
+            <button type="button" class="btn ghost flex-btn" data-flex="7">±7</button>
+          </div>
+          <p class="meta" id="flex-hint">Ищем только выбранную дату вылета.</p>
+        </div>
         <div class="btn-row">
           <button type="button" class="btn ghost" data-preset="cheap">Дёшево</button>
           <button type="button" class="btn ghost" data-preset="typical">Обычно</button>
