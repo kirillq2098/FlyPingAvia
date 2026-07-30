@@ -15,15 +15,18 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden pb-20 pt-10 sm:pb-28 sm:pt-14 lg:pb-32 lg:pt-16">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <ScrollParallax offset={50}>
-          <div className="absolute left-1/2 top-[-12%] h-[580px] w-[920px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.24),transparent_62%)] blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <ScrollParallax
+          offset={48}
+          className="absolute left-1/2 top-[-12%] h-[580px] w-[920px] -translate-x-1/2"
+        >
+          <div className="h-full w-full rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.24),transparent_62%)] blur-3xl" />
         </ScrollParallax>
-        <ScrollParallax offset={30}>
-          <div className="absolute -left-28 top-28 h-80 w-80 rounded-full bg-brand-400/20 blur-3xl" />
+        <ScrollParallax offset={28} className="absolute -left-28 top-28 h-80 w-80">
+          <div className="h-full w-full rounded-full bg-brand-400/20 blur-3xl" />
         </ScrollParallax>
-        <ScrollParallax offset={45}>
-          <div className="absolute right-[-5%] top-10 h-[26rem] w-[26rem] rounded-full bg-sky-300/25 blur-3xl" />
+        <ScrollParallax offset={40} className="absolute right-[-5%] top-10 h-[26rem] w-[26rem]">
+          <div className="h-full w-full rounded-full bg-sky-300/25 blur-3xl" />
         </ScrollParallax>
         <motion.div
           aria-hidden
