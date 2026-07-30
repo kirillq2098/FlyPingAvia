@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+ARG APP_VERSION=0.3.0
+LABEL org.opencontainers.image.version=$APP_VERSION
+
 WORKDIR /app
 
 # Non-root user for production-safe runtime
@@ -10,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY flypingavia ./flypingavia
 COPY pyproject.toml README.md ./
+# Register distribution metadata so importlib.metadata.version works at runtime.
+RUN pip install --no-cache-dir --no-deps .
 
 RUN mkdir -p /app/data && chown -R appuser:appuser /app
 

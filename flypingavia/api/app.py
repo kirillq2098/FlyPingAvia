@@ -16,6 +16,7 @@ from flypingavia.api.telegram_auth import (
     validate_telegram_init_data,
 )
 from flypingavia.config import Settings, get_settings
+from flypingavia.version import __version__
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
@@ -110,7 +111,7 @@ class WatchOut(BaseModel):
 def create_api(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     provider = build_price_provider(settings)
-    app = FastAPI(title="FlyPingAvia Mini App", version="0.2.0")
+    app = FastAPI(title="FlyPingAvia Mini App", version=__version__)
 
     if STATIC_DIR.exists():
         app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
@@ -200,6 +201,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         return {
             "status": "ok",
             "ok": True,
+            "version": __version__,
             "ready": len(issues) == 0,
             "issues": issues,
             "app_env": settings.app_env,

@@ -33,7 +33,7 @@ Telegram users
 |------|------------|
 | Язык | Python ≥3.11 (Docker: 3.12-slim) |
 | Бот | aiogram 3 |
-| HTTP API / Mini App | FastAPI + uvicorn |
+| HTTP API / Mini App | FastAPI + uvicorn (`version` из `flypingavia.version`) |
 | Планировщик | APScheduler (AsyncIO) |
 | ORM / БД | SQLAlchemy 2 + aiosqlite |
 | HTTP-клиент | httpx |
