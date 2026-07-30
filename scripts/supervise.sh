@@ -182,8 +182,8 @@ extract_tunnel_url() {
 
 start_bot() {
   stop_pid "$BOT_PID_FILE" "bot"
-  log "запускаю python -m flypingavia"
-  nohup python -m flypingavia >>"$BOT_LOG" 2>&1 &
+  log "запускаю python3 -m flypingavia"
+  nohup python3 -m flypingavia >>"$BOT_LOG" 2>&1 &
   echo $! >"$BOT_PID_FILE"
   local _
   for _ in $(seq 1 40); do
