@@ -8,7 +8,7 @@
 
 ### Documentation
 
-- Папка `docs/`: vision, roadmap, competitive analysis, architecture, monetization, marketing, decisions, KPI, changelog.
+- Папка `docs/`: vision, strategy, roadmap, competitive analysis, architecture, monetization, marketing, decisions, KPI, changelog.
 
 ## [0.2.0] — 2026-07
 
