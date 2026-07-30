@@ -557,6 +557,8 @@ async def _confirm_watch_message(
         adults=adults,
         children=children,
         infants=infants,
+        checked_at=None,
+        display_timezone=settings.display_tz,
     )
     await target.answer(
         text,
