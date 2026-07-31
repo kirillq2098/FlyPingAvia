@@ -9,8 +9,8 @@
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
   <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
   <script src="/assets/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-qo01" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-qo01" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-bug02" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-bug02" />
 </head>
 <body>
   <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -26,6 +26,7 @@
       </a>
       <h1 id="auth-title">FlyPing работает внутри Telegram</h1>
       <p id="auth-message" class="meta">Откройте бота и нажмите кнопку «Открыть FlyPing».</p>
+      <button type="button" id="auth-retry" class="btn primary full hidden">Повторить</button>
       <a id="auth-bot-link" class="btn primary hidden" href="#" rel="noopener">Открыть бота</a>
       <a id="auth-site-link" class="site-link" href="https://flyping.ru" rel="noopener">Сайт flyping.ru</a>
     </div>
@@ -174,6 +175,6 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=0.3.0-qo01"></script>
+  <script src="/assets/app.js?v=0.3.0-bug02"></script>
 </body>
 </html>
