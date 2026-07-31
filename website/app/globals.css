@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f8fa;
+  --bg-elevated: #ffffff;
+  --ink: #0a0b0d;
+  --mute: #5c6570;
+  --line: #d7dde5;
+  --line-strong: #b8c0cc;
+  --blue: #0b4db8;
+  --blue-deep: #083a8c;
+  --blue-soft: #e8f0fc;
+  --gain: #0e9f6e;
+  --gain-soft: #e6f7f0;
+  --navy: #07111f;
+  --navy-elevated: #0d1829;
+  --navy-mute: #8b95a7;
+  --navy-line: #243044;
+  --mono-ink: #1b2430;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-blue: var(--blue);
+  --color-blue-deep: var(--blue-deep);
+  --color-blue-soft: var(--blue-soft);
+  --color-gain: var(--gain);
+  --color-gain-soft: var(--gain-soft);
+  --color-navy: var(--navy);
+  --color-navy-elevated: var(--navy-elevated);
+  --color-navy-mute: var(--navy-mute);
+  --color-navy-line: var(--navy-line);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.018em;
+  min-height: 100%;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(11, 77, 184, 0.16);
+}
+
+.font-mono,
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.rule {
+  height: 1px;
+  background: var(--line);
+  width: 100%;
+}
+
+.rule-strong {
+  height: 1px;
+  background: var(--line-strong);
+  width: 100%;
+}
+
+.airport-code {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}

@@ -14,6 +14,7 @@
 - **RL-03:** health-алерты админу — incidents в БД, threshold/cooldown, recovery, checker heartbeat, `/api/ready` summary (`docs/HEALTH_MONITORING.md`).
 - **RL-03 review:** DB outage in-memory fallback, `checker_crashed` via `run_checker_job`, `recovery_pending` до успешной доставки (`006_rl03_recovery_delivery.sql`).
 - **GR-02:** блогер-кит — `docs/BLOGGER_KIT.md` (креативы, deep links TG-03, FAQ, checklist; без кода продукта).
+- **IN-04:** production deploy Timeweb — `docker-compose.prod.yml`, Nginx, scripts, `docs/DEPLOY_TIMEWEB.md` (SQLite).
 
 ### Changed
 
