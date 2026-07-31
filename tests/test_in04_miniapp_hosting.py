@@ -95,8 +95,8 @@ def test_mini_app_index_cache_bust_and_no_redirect_to_bot() -> None:
     assert "t.me/" not in html
     assert "location.href" not in html or "t.me" not in html
     assert "meta http-equiv=\"refresh\"" not in html.lower()
-    assert "app.js?v=0.3.0" in html
-    assert "app.css?v=0.3.0" in html
+    assert "app.js?v=0.3.0-wa04" in html
+    assert "app.css?v=0.3.0-wa04" in html
 
 
 def test_index_route_sends_no_cache_headers() -> None:

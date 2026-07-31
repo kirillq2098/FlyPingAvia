@@ -4,54 +4,77 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
-  <title>FlyPingAvia</title>
+  <meta name="theme-color" content="#F7F8FA" />
+  <title>FlyPing</title>
+  <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
   <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
   <script src="/assets/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-wa04" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-wa04" />
 </head>
 <body>
-  <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite">
+  <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite" aria-labelledby="auth-title">
     <div class="auth-card">
-      <div class="brand">FlyPingAvia</div>
+      <a class="brand-lockup" href="https://flyping.ru" rel="noopener">
+        <svg class="mark" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+          <circle cx="4" cy="18" r="2.2" fill="#0B4DB8"/>
+          <path d="M5.8 16.4 C9 12.2, 13.2 7.4, 18.5 4.2" stroke="#0B4DB8" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+          <circle cx="18.5" cy="4.2" r="2.2" fill="#0B4DB8" opacity="0.9"/>
+          <circle cx="18.5" cy="4.2" r="4.4" stroke="#0B4DB8" stroke-width="1" fill="none" opacity="0.35"/>
+        </svg>
+        <span class="wordmark">Fly<span class="ping">Ping</span></span>
+      </a>
       <h1 id="auth-title">FlyPing работает внутри Telegram</h1>
       <p id="auth-message" class="meta">Откройте бота и нажмите кнопку «Открыть FlyPing».</p>
       <a id="auth-bot-link" class="btn primary hidden" href="#" rel="noopener">Открыть бота</a>
+      <a id="auth-site-link" class="site-link" href="https://flyping.ru" rel="noopener">Сайт flyping.ru</a>
     </div>
   </div>
 
-  <div class="sky" aria-hidden="true">
-    <div class="plane" id="plane">
-      <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor" aria-hidden="true">
-        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-      </svg>
-    </div>
-  </div>
   <main class="app" id="app-main">
     <header class="hero">
-      <div class="brand">FlyPingAvia</div>
-      <p class="tagline">FlyPing следит за ценами ваших поездок</p>
-      <p id="boot" class="boot">Загрузка…</p>
+      <div class="topbar">
+        <div class="brand-lockup" aria-label="FlyPing">
+          <svg class="mark" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <circle cx="4" cy="18" r="2.2" fill="currentColor" class="brand-fill"/>
+            <path d="M5.8 16.4 C9 12.2, 13.2 7.4, 18.5 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none" class="brand-stroke"/>
+            <circle cx="18.5" cy="4.2" r="2.2" fill="currentColor" opacity="0.9" class="brand-fill"/>
+            <circle cx="18.5" cy="4.2" r="4.4" stroke="currentColor" stroke-width="1" fill="none" opacity="0.35" class="brand-stroke"/>
+          </svg>
+          <span class="wordmark">Fly<span class="ping">Ping</span></span>
+        </div>
+        <div id="user-chip" class="user-chip hidden" aria-live="polite">
+          <span class="status-dot" title="Сервис работает" aria-hidden="true"></span>
+          <span class="avatar" id="user-avatar" aria-hidden="true">FP</span>
+          <span class="name" id="user-name"></span>
+        </div>
+      </div>
+      <p class="eyebrow">price monitoring · telegram</p>
+      <p class="tagline">FlyPing следит за ценой вашей поездки и сообщит, когда она станет выгоднее.</p>
+      <p id="boot" class="boot" aria-live="polite">Загрузка…</p>
     </header>
 
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="search" type="button">Поиск</button>
-      <button class="tab" data-tab="watches" type="button">Подписки</button>
+    <nav class="tabs" role="tablist" aria-label="Разделы">
+      <button class="tab active" data-tab="search" type="button" role="tab" aria-selected="true">Поиск</button>
+      <button class="tab" data-tab="watches" type="button" role="tab" aria-selected="false">Подписки</button>
     </nav>
 
-    <section id="panel-search" class="panel active">
-      <form id="search-form" class="stack">
-        <label class="field">
-          <span>Откуда</span>
-          <input id="origin" name="origin" placeholder="Москва / MOW" autocomplete="off" required />
-          <div id="origin-hint" class="hint"></div>
+    <section id="panel-search" class="panel active" role="tabpanel" aria-label="Поиск и создание подписки">
+      <form id="search-form" class="stack" novalidate>
+        <label class="field" for="origin">
+          <span class="field-label">Откуда</span>
+          <input id="origin" name="origin" placeholder="Москва / MOW" autocomplete="off" required aria-describedby="origin-hint origin-error" />
+          <div id="origin-hint" class="hint" aria-live="polite"></div>
+          <div id="origin-error" class="field-error" role="alert"></div>
         </label>
-        <label class="field">
-          <span>Куда</span>
-          <input id="destination" name="destination" placeholder="Анталья / AYT" autocomplete="off" required />
-          <div id="destination-hint" class="hint"></div>
+        <label class="field" for="destination">
+          <span class="field-label">Куда</span>
+          <input id="destination" name="destination" placeholder="Анталья / AYT" autocomplete="off" required aria-describedby="destination-hint destination-error" />
+          <div id="destination-hint" class="hint" aria-live="polite"></div>
+          <div id="destination-error" class="field-error" role="alert"></div>
         </label>
-        <label class="field">
-          <span>Дата вылета (необязательно)</span>
+        <label class="field" for="depart">
+          <span class="field-label">Дата вылета (необязательно)</span>
           <input id="depart" name="depart" type="date" />
         </label>
 
@@ -60,8 +83,8 @@
           <button type="button" class="trip-btn" data-trip="round">Туда и обратно</button>
         </div>
 
-        <label class="field hidden" id="return-field">
-          <span>Дата возврата</span>
+        <label class="field hidden" id="return-field" for="return">
+          <span class="field-label">Дата возврата</span>
           <input id="return" name="return" type="date" />
         </label>
 
@@ -70,25 +93,25 @@
           <div class="pax-row">
             <span>Взрослые</span>
             <div class="stepper">
-              <button type="button" data-pax="adults" data-delta="-1">−</button>
+              <button type="button" data-pax="adults" data-delta="-1" aria-label="Меньше взрослых">−</button>
               <strong id="adults-val">1</strong>
-              <button type="button" data-pax="adults" data-delta="1">+</button>
+              <button type="button" data-pax="adults" data-delta="1" aria-label="Больше взрослых">+</button>
             </div>
           </div>
           <div class="pax-row">
             <span>Дети 2–12</span>
             <div class="stepper">
-              <button type="button" data-pax="children" data-delta="-1">−</button>
+              <button type="button" data-pax="children" data-delta="-1" aria-label="Меньше детей">−</button>
               <strong id="children-val">0</strong>
-              <button type="button" data-pax="children" data-delta="1">+</button>
+              <button type="button" data-pax="children" data-delta="1" aria-label="Больше детей">+</button>
             </div>
           </div>
           <div class="pax-row">
             <span>Младенцы 0–2</span>
             <div class="stepper">
-              <button type="button" data-pax="infants" data-delta="-1">−</button>
+              <button type="button" data-pax="infants" data-delta="-1" aria-label="Меньше младенцев">−</button>
               <strong id="infants-val">0</strong>
-              <button type="button" data-pax="infants" data-delta="1">+</button>
+              <button type="button" data-pax="infants" data-delta="1" aria-label="Больше младенцев">+</button>
             </div>
           </div>
           <p class="meta pax-hint">Пока скрыто: нужен Flight Search API.</p>
@@ -97,16 +120,17 @@
         <button class="btn primary" type="submit" id="search-btn">Показать вилку цен</button>
       </form>
 
-      <div id="quote" class="quote hidden"></div>
+      <div id="quote" class="quote hidden" aria-live="polite"></div>
 
-      <form id="watch-form" class="stack watch-form hidden">
-        <label class="field">
-          <span>Ваш порог, ₽</span>
-          <input id="threshold" name="threshold" type="number" min="1" step="1" inputmode="numeric" required />
+      <form id="watch-form" class="stack watch-form hidden" novalidate>
+        <label class="field" for="threshold">
+          <span class="field-label">Ваш порог, ₽</span>
+          <input id="threshold" name="threshold" type="number" min="1" step="1" inputmode="numeric" required aria-describedby="threshold-error" />
+          <div id="threshold-error" class="field-error" role="alert"></div>
         </label>
         <div class="field">
-          <span>Гибкость дат</span>
-          <div class="btn-row" id="flex-row">
+          <span class="field-label">Гибкость дат</span>
+          <div class="btn-row" id="flex-row" role="group" aria-label="Гибкость дат">
             <button type="button" class="btn ghost flex-btn active" data-flex="0">Только эта дата</button>
             <button type="button" class="btn ghost flex-btn" data-flex="1">±1</button>
             <button type="button" class="btn ghost flex-btn" data-flex="3">±3</button>
@@ -118,8 +142,8 @@
           <button type="button" class="btn ghost" data-preset="cheap">Дёшево</button>
           <button type="button" class="btn ghost" data-preset="typical">Обычно</button>
         </div>
-        <div id="low-threshold-warn" class="low-threshold-warn hidden">
-          <p class="warn-title">⚠️ Порог заметно ниже текущего рынка</p>
+        <div id="low-threshold-warn" class="low-threshold-warn hidden" role="status">
+          <p class="warn-title">Порог заметно ниже текущего рынка</p>
           <p id="low-threshold-text" class="meta"></p>
           <div class="btn-row">
             <button type="button" class="btn primary" id="low-threshold-confirm">Сохранить всё равно</button>
@@ -130,13 +154,13 @@
       </form>
     </section>
 
-    <section id="panel-watches" class="panel">
-      <div id="watches" class="watches"></div>
+    <section id="panel-watches" class="panel" role="tabpanel" aria-label="Мои подписки">
+      <div id="watches" class="watches" aria-live="polite"></div>
       <button class="btn ghost full" type="button" id="refresh-watches">Обновить</button>
     </section>
   </main>
 
-  <div id="toast" class="toast hidden"></div>
-  <script src="/assets/app.js?v=0.3.0"></script>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js?v=0.3.0-wa04"></script>
 </body>
 </html>
