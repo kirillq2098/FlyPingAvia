@@ -457,15 +457,15 @@
 - **Статус:** Todo · **Source:** Compete O6, Monetization, Marketing
 
 ### GR-02 · Блогер-кит (тексты/креативы, не код)
-- **Описание:** 3 хука + ссылка deep-link; без «инструкции BotFather».
+- **Описание:** 3 креатива + короткие форматы + сторис + TG-03 deep links + FAQ/checklist; без новой бизнес-логики.
 - **Проблема:** Нечего отдавать каналам (Marketing gap).
 - **Важность:** Growth stage.
 - **NSM:** Medium–High.
 - **Value 7 · Effort 2 · Время:** 1–2 д контент · **P1**
-- **Зависимости:** TG-03, WA-02
-- **DoD:** файл в docs/ или Notion; 3 креатива согласованы со Strategy
-- **Метрики:** creators onboarded; users from kit links
-- **Статус:** Todo · **Source:** Marketing TODO, Strategy 1k
+- **Зависимости:** TG-03, WA-02, TG-02 copy
+- **DoD:** `docs/BLOGGER_KIT.md`; 3 креатива согласованы со Strategy/COPY_GUIDE; backlog Done
+- **Метрики:** creators onboarded; users from kit links (TG-03 attribution)
+- **Статус:** Done · **GR-02 · Done** · **Source:** Marketing TODO, Strategy 1k · **Артефакт:** [BLOGGER_KIT.md](BLOGGER_KIT.md)
 
 ### GR-03 · SEO-минисайт
 - **Описание:** Лендинг вне Telegram.
@@ -624,7 +624,7 @@
 
 **Цель:** 1k users, атрибуция, шаринг.
 
-- TG-03, TG-04, UA-01, GR-01, GR-02, AN-01  
+- TG-03, TG-04, UA-01, GR-01, AN-01  
 - TR-05  
 
 ## v2.0 — «Экономика и полки»
@@ -696,7 +696,7 @@
 | 3 | NT-02 | Notifications | P0 | 8 | 2 | 4.0 | 0.5–1д | Done |
 | 4 | NT-03 | Notifications | P0 | 8 | 2 | 4.0 | 1д | Done |
 | 5 | TR-04 | Tracking | P0 | 7 | 2 | 3.5 | 0.5–1д | Done |
-| 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Todo |
+| 6 | GR-02 | Growth | P1 | 7 | 2 | 3.5 | 1–2д | Done |
 | 7 | AN-02 | Analytics | P1 | 7 | 2 | 3.5 | 1д | Todo |
 | 8 | NT-04 | Notifications | P0 | 9 | 3 | 3.0 | 1–2д | Done |
 | 9 | AN-03 | Analytics | P0 | 8 | 3 | 2.7 | 1–2д | Done |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-04, TG-05, WA-01, WA-03, RL-01, RL-02, RL-03, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-04, TG-05, WA-01, WA-03, RL-01, RL-02, RL-03, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05, GR-02 — **Done**.
 
 ### Матрица (схема)
 

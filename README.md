@@ -22,6 +22,8 @@ Telegram-бот для мониторинга цен на авиабилеты.
 | [Decisions](docs/DECISIONS.md) | Зафиксированные решения |
 | [Changelog](docs/CHANGELOG.md) | История изменений |
 | [Copy Guide](docs/COPY_GUIDE.md) | Позиционирование «сторож цены», glossary |
+| [Blogger Kit](docs/BLOGGER_KIT.md) | GR-02: тексты и ссылки для каналов/блогеров |
+| [Attribution](docs/ATTRIBUTION.md) | Deep-link `?start=`, first/last touch |
 | [KPI](docs/KPI.md) | Метрики по этапам |
 
 ## Текущая версия: 0.3.0
