@@ -70,12 +70,11 @@ chmod 600 /opt/flyping/.env
 
 `.env` в Git **не** коммитить.
 
-## Deploy
+## Сеть и Telegram
 
-```bash
-cd /opt/flyping
-./deploy/scripts/deploy.sh
-```
+На части VPS Timeweb `api.telegram.org` отвечает только по **IPv6**; IPv4 может таймаутиться.
+В `docker-compose.prod.yml` сервис `flyping` использует `network_mode: host`, чтобы наследовать IPv6 хоста.
+Приложение слушает `127.0.0.1:8080` (не публикует 8080 наружу через UFW).
 
 `init_db()` при старте создаёт/догоняет схему SQLite.
 
