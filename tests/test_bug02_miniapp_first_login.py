@@ -181,6 +181,6 @@ def test_frontend_bug02_hash_fallback_and_retry() -> None:
     assert "auth-retry" in html
     assert "Повторить" in html
     assert "auth-locked" in html
-    assert "Не удалось получить сессию Telegram" in js
+    assert "Не удалось получить данные запуска Telegram" in js
     assert '"tma "' in js
     assert "localStorage.setItem" not in js

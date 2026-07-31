@@ -181,16 +181,12 @@ def open_app_kb(webapp_url: str | None = None) -> InlineKeyboardMarkup | None:
     if not webapp_url:
         return None
     builder = InlineKeyboardBuilder()
+    # Only web_app — a plain url= button opens Telegram in-app browser WITHOUT initData
+    # (BUG-02.2: looks like Mini App via UA, then fails auth).
     builder.row(
         InlineKeyboardButton(
             text="🌐 Открыть FlyPing",
             web_app=WebAppInfo(url=webapp_url),
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="Открыть в браузере",
-            url=webapp_url,
         )
     )
     return builder.as_markup()

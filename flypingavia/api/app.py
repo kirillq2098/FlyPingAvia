@@ -37,6 +37,7 @@ class MiniAppDiagIn(BaseModel):
     """Safe client bootstrap diagnostics — no secrets / initData / Telegram IDs."""
 
     stage: str = "unknown"
+    boot_state: str = ""
     has_init_data: bool = False
     init_data_len: int = 0
     has_cached_init: bool = False
@@ -46,6 +47,27 @@ class MiniAppDiagIn(BaseModel):
     endpoint: str = ""
     http_status: int = 0
     error_code: str = ""
+    # Launch URL / SDK signals (names/flags only)
+    has_telegram: bool = False
+    has_webapp: bool = False
+    platform: str = ""
+    sdk_fallback: bool = False
+    asset: str = ""
+    unsafe_keys: str = ""
+    unsafe_has_user: bool = False
+    hash_present: bool = False
+    hash_len: int = 0
+    hash_params: str = ""
+    search_present: bool = False
+    search_len: int = 0
+    search_params: str = ""
+    storage_present: bool = False
+    href_len: int = 0
+    path: str = ""
+    origin: str = ""
+    referrer_origin: str = ""
+    has_webview_proxy: bool = False
+    nav_type: str = ""
 
 
 class ResolveOut(BaseModel):
@@ -318,9 +340,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         endpoint = (body.endpoint or "")[:64]
         error_code = (body.error_code or "")[:64]
         logger.info(
-            "miniapp_diag stage=%s has_init=%s init_len=%s cached=%s inside=%s "
-            "ui_started=%s elapsed_ms=%s endpoint=%s http_status=%s error_code=%s",
+            "miniapp_diag stage=%s boot=%s has_init=%s init_len=%s cached=%s inside=%s "
+            "ui_started=%s elapsed_ms=%s endpoint=%s http_status=%s error_code=%s "
+            "has_tg=%s has_webapp=%s platform=%s asset=%s sdk_fb=%s "
+            "unsafe_user=%s unsafe_keys=%s hash=%s/%s search=%s/%s storage=%s "
+            "path=%s origin=%s ref=%s proxy=%s nav=%s href_len=%s",
             stage,
+            (body.boot_state or "-")[:32],
             bool(body.has_init_data),
             init_len,
             bool(body.has_cached_init),
@@ -330,6 +356,24 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             endpoint or "-",
             int(body.http_status or 0),
             error_code or "-",
+            bool(body.has_telegram),
+            bool(body.has_webapp),
+            (body.platform or "-")[:32],
+            (body.asset or "-")[:32],
+            bool(body.sdk_fallback),
+            bool(body.unsafe_has_user),
+            (body.unsafe_keys or "-")[:80],
+            bool(body.hash_present),
+            int(body.hash_len or 0),
+            bool(body.search_present),
+            int(body.search_len or 0),
+            bool(body.storage_present),
+            (body.path or "-")[:64],
+            (body.origin or "-")[:64],
+            (body.referrer_origin or "-")[:64],
+            bool(body.has_webview_proxy),
+            (body.nav_type or "-")[:32],
+            int(body.href_len or 0),
         )
         return {"ok": True}
 

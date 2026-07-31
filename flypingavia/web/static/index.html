@@ -7,10 +7,24 @@
   <meta name="theme-color" content="#F7F8FA" />
   <title>FlyPing</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
-  <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
-  <script src="/assets/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-bug021" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-bug021" />
+  <script>
+    /* BUG-02.2: mark asset build + preserve any pre-injected Telegram initData. */
+    window.__FLYPING_BOOT__ = { asset: "0.3.0-bug022", t: Date.now() };
+    window.__FLYPING_PRESERVED_INIT__ = "";
+    try {
+      var tg0 = window.Telegram && window.Telegram.WebApp;
+      if (tg0 && tg0.initData) {
+        window.__FLYPING_PRESERVED_INIT__ = String(tg0.initData);
+      }
+    } catch (e) {}
+  </script>
+  <!-- Official SDK first; local copy only if CDN fails (Android WebView / blocked CDN). -->
+  <script
+    src="https://telegram.org/js/telegram-web-app.js"
+    onerror="window.__FLYPING_SDK_FALLBACK__=true;var s=document.createElement('script');s.src='/assets/telegram-web-app.js';document.head.appendChild(s);"
+  ></script>
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-bug022" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-bug022" />
 </head>
 <body class="auth-locked">
   <div id="auth-gate" class="auth-gate" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -32,7 +46,7 @@
     </div>
   </div>
 
-  <main class="app" id="app-main">
+<main class="app" id="app-main">
     <header class="hero">
       <div class="topbar">
         <div class="brand-lockup" aria-label="FlyPing">
@@ -175,6 +189,6 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=0.3.0-bug021"></script>
+  <script src="/assets/app.js?v=0.3.0-bug022"></script>
 </body>
 </html>

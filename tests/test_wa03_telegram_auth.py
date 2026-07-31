@@ -573,9 +573,10 @@ def test_frontend_wa03_contract() -> None:
     js = (root / "flypingavia/web/static/app.js").read_text(encoding="utf-8")
     css = (root / "flypingavia/web/static/app.css").read_text(encoding="utf-8")
 
-    sdk = 'src="/assets/telegram-web-app.js"'
-    assert sdk in html
-    assert html.index(sdk) < html.index("app.js")
+    assert "https://telegram.org/js/telegram-web-app.js" in html
+    assert "__FLYPING_SDK_FALLBACK__" in html
+    assert "/assets/telegram-web-app.js" in html
+    assert html.index("telegram.org/js/telegram-web-app.js") < html.index("app.js")
     assert (root / "flypingavia/web/static/telegram-web-app.js").is_file()
 
     assert "window.Telegram" in js

@@ -65,29 +65,30 @@ def test_open_app_inline_primary_is_webapp() -> None:
     assert primary.web_app is not None
     assert primary.web_app.url == "https://app.flyping.ru"
     assert primary.url is None
-    # Optional browser row is plain URL to Mini App host — not t.me bot loop.
-    browser = markup.inline_keyboard[1][0]
-    assert browser.url == "https://app.flyping.ru"
-    assert "t.me/" not in (browser.url or "")
+    # BUG-02.2: only web_app — plain url= opens in-app browser without initData.
+    assert len(markup.inline_keyboard) == 1
 
 
-def test_mini_app_index_uses_local_telegram_sdk() -> None:
+def test_mini_app_index_uses_official_telegram_sdk() -> None:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert 'src="/assets/telegram-web-app.js"' in html
-    assert html.index("/assets/telegram-web-app.js") < html.index("app.js")
+    assert "https://telegram.org/js/telegram-web-app.js" in html
+    assert "__FLYPING_SDK_FALLBACK__" in html
+    assert "/assets/telegram-web-app.js" in html  # onerror fallback
+    assert html.index("telegram.org/js/telegram-web-app.js") < html.index("app.js")
     assert (STATIC / "telegram-web-app.js").is_file()
 
 
 def test_mini_app_separates_browser_fallback_from_telegram_mode() -> None:
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     assert "isInsideTelegramWebView" in js
+    assert "isTelegramMiniAppContext" in js
     assert "waitForInitData" in js
     assert "allowBotLink" in js
     # Bot deep-link must not be shown inside Telegram WebView.
     assert "isInsideTelegramWebView()" in js
     assert 'gateBotLink = isInsideTelegramWebView() ? "" : botLink' in js or (
         'insideTelegram ? "" : botLink' in js
-    )
+    ) or ("miniAppCtx ? \"\" : botLink" in js)
 
 
 def test_mini_app_index_cache_bust_and_no_redirect_to_bot() -> None:

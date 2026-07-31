@@ -141,3 +141,8 @@ def test_frontend_bug021_contract() -> None:
     assert "waitForInitData(5000)" not in js
     assert "isRetry" not in js
     assert '"tma "' in js
+    # BUG-02.2: no UA-only "inside Telegram"; distinguish launch-data vs session.
+    assert "isTelegramMiniAppContext" in js
+    assert "/Telegram/i" not in js
+    assert "Не удалось получить данные запуска Telegram" in js
+    assert "0.3.0-bug022" in html

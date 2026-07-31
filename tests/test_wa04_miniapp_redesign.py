@@ -15,7 +15,9 @@ def _read(*parts: str) -> str:
 
 def test_local_telegram_sdk_and_cache_bust() -> None:
     html = _read("index.html")
-    assert 'src="/assets/telegram-web-app.js"' in html
+    assert "https://telegram.org/js/telegram-web-app.js" in html
+    assert "__FLYPING_SDK_FALLBACK__" in html
+    assert "/assets/telegram-web-app.js" in html
     assert "fonts.css?v=0.3.0-" in html
     assert "app.css?v=0.3.0-" in html
     assert "app.js?v=0.3.0-" in html

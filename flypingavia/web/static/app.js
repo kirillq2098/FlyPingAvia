@@ -150,6 +150,7 @@
       bootStartedAt: 0,
       bootstrapInFlight: false,
       lateInitArmed: false,
+      bootState: "SDK_LOADING",
       themeListenerBound: false,
       formListenersBound: false,
       closingConfirmation: false,
@@ -258,18 +259,57 @@
     }
 
     /**
-     * BUG-02 / BUG-02.1:
-     * Local telegram-web-app.js snapshots hash once. Cold Android WebViews may
-     * populate location.hash later; returning owners often succeed via SDK
-     * sessionStorage. We re-read hash + Telegram sessionStorage and cache the
-     * first valid initData in memory so a later hash clear cannot drop the session.
+     * BUG-02.2 launch diagnostics / initData recovery.
+     * Auth remains Authorization: tma <initData> (no JWT/cookie).
+     * initDataUnsafe is diagnostic only — never sent to the API.
      */
+    const BOOT_STATES = {
+      SDK_LOADING: "SDK_LOADING",
+      SDK_READY: "SDK_READY",
+      INIT_DATA_WAITING: "INIT_DATA_WAITING",
+      INIT_DATA_FOUND: "INIT_DATA_FOUND",
+      AUTH_VALIDATING: "AUTH_VALIDATING",
+      AUTH_SUCCESS: "AUTH_SUCCESS",
+      AUTH_FAILED: "AUTH_FAILED",
+      NOT_TELEGRAM: "NOT_TELEGRAM",
+    };
+
+    function setBootState(next) {
+      state.bootState = next;
+      try {
+        window.__FLYPING_BOOT_STATE__ = next;
+      } catch (_) {}
+    }
+
     function rememberInitData(data) {
       if (data && typeof data === "string" && data.indexOf("hash=") >= 0) {
+        // Never overwrite a good cache with empty.
         state.cachedInitData = data;
         return data;
       }
       return data || "";
+    }
+
+    function parseTgWebAppDataFromQuery(query) {
+      if (!query || query.indexOf("tgWebAppData=") < 0) return "";
+      const parts = String(query).replace(/^\?/, "").split("&");
+      for (let i = 0; i < parts.length; i++) {
+        const raw = parts[i];
+        const eq = raw.indexOf("=");
+        if (eq <= 0) continue;
+        let key = raw.slice(0, eq);
+        try {
+          key = decodeURIComponent(key.replace(/\+/g, " "));
+        } catch (_) {}
+        if (key !== "tgWebAppData") continue;
+        const value = raw.slice(eq + 1);
+        try {
+          return decodeURIComponent(value.replace(/\+/g, " "));
+        } catch (_) {
+          return value;
+        }
+      }
+      return "";
     }
 
     function readInitDataFromLocationHash() {
@@ -281,24 +321,14 @@
         let query = hash;
         const q = hash.indexOf("?");
         if (q >= 0) query = hash.slice(q + 1);
-        if (query.indexOf("tgWebAppData=") < 0) return "";
-        const parts = query.split("&");
-        for (let i = 0; i < parts.length; i++) {
-          const raw = parts[i];
-          const eq = raw.indexOf("=");
-          if (eq <= 0) continue;
-          let key = raw.slice(0, eq);
-          try {
-            key = decodeURIComponent(key.replace(/\+/g, " "));
-          } catch (_) {}
-          if (key !== "tgWebAppData") continue;
-          const value = raw.slice(eq + 1);
-          try {
-            return decodeURIComponent(value.replace(/\+/g, " "));
-          } catch (_) {
-            return value;
-          }
-        }
+        return parseTgWebAppDataFromQuery(query);
+      } catch (_) {}
+      return "";
+    }
+
+    function readInitDataFromLocationSearch() {
+      try {
+        return parseTgWebAppDataFromQuery(String(location.search || ""));
       } catch (_) {}
       return "";
     }
@@ -326,43 +356,147 @@
 
     function getInitData() {
       if (state.cachedInitData) return state.cachedInitData;
+      try {
+        if (window.__FLYPING_PRESERVED_INIT__) {
+          return rememberInitData(String(window.__FLYPING_PRESERVED_INIT__));
+        }
+      } catch (_) {}
       const tg = getTelegramWebApp();
       const fromSdk = (tg && tg.initData) || "";
       if (fromSdk) return rememberInitData(fromSdk);
       const fromHash = readInitDataFromLocationHash();
       if (fromHash) return rememberInitData(fromHash);
+      const fromSearch = readInitDataFromLocationSearch();
+      if (fromSearch) return rememberInitData(fromSearch);
       const fromStore = readInitDataFromTelegramStorage();
       if (fromStore) return rememberInitData(fromStore);
       return "";
     }
 
-    /** True when launched inside Telegram WebView (even before initData is ready). */
-    function isInsideTelegramWebView() {
-      const tg = getTelegramWebApp();
-      if (tg) {
-        if (tg.initData || state.cachedInitData) return true;
+    function paramNamesFromQuery(query) {
+      const names = [];
+      const q = String(query || "").replace(/^\?/, "").replace(/^#/, "");
+      if (!q) return names;
+      const parts = q.split("&");
+      for (let i = 0; i < parts.length; i++) {
+        if (!parts[i]) continue;
+        const eq = parts[i].indexOf("=");
+        let key = eq >= 0 ? parts[i].slice(0, eq) : parts[i];
         try {
-          const unsafe = tg.initDataUnsafe;
-          if (unsafe && (unsafe.user || unsafe.query_id || unsafe.hash)) return true;
+          key = decodeURIComponent(key.replace(/\+/g, " "));
         } catch (_) {}
-        // Outside Telegram the SDK still loads; platform stays "unknown".
-        const platform = String(tg.platform || "").toLowerCase();
-        if (platform && platform !== "unknown") return true;
+        if (key && names.indexOf(key) < 0) names.push(key);
       }
+      return names;
+    }
+
+    function collectLaunchSignals() {
+      const tg = getTelegramWebApp();
+      let unsafeKeys = [];
+      let unsafeHasUser = false;
       try {
-        const hash = String(location.hash || "");
-        if (hash.indexOf("tgWebAppData=") >= 0 || hash.indexOf("tgWebAppVersion=") >= 0) {
+        const unsafe = tg && tg.initDataUnsafe;
+        if (unsafe && typeof unsafe === "object") {
+          unsafeKeys = Object.keys(unsafe).slice(0, 20);
+          unsafeHasUser = !!(unsafe.user && (unsafe.user.id || unsafe.user.id === 0));
+        }
+      } catch (_) {}
+      let hash = "";
+      let search = "";
+      try {
+        hash = String(location.hash || "");
+        search = String(location.search || "");
+      } catch (_) {}
+      let hashQuery = hash.charAt(0) === "#" ? hash.slice(1) : hash;
+      const hq = hashQuery.indexOf("?");
+      if (hq >= 0) hashQuery = hashQuery.slice(hq + 1);
+      const platform = tg ? String(tg.platform || "unknown") : "";
+      const hasProxy = typeof window.TelegramWebviewProxy !== "undefined";
+      return {
+        has_telegram: !!(window.Telegram),
+        has_webapp: !!tg,
+        platform: platform.slice(0, 32),
+        sdk_fallback: !!window.__FLYPING_SDK_FALLBACK__,
+        asset: (window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.asset) || "",
+        unsafe_keys: unsafeKeys.join(",").slice(0, 120),
+        unsafe_has_user: unsafeHasUser,
+        hash_present: hash.length > 1,
+        hash_len: Math.min(hash.length, 100000),
+        hash_params: paramNamesFromQuery(hashQuery).join(",").slice(0, 120),
+        search_present: search.length > 1,
+        search_len: Math.min(search.length, 100000),
+        search_params: paramNamesFromQuery(search).join(",").slice(0, 120),
+        storage_present: !!readInitDataFromTelegramStorage(),
+        href_len: Math.min(String(location.href || "").length, 100000),
+        path: String(location.pathname || "").slice(0, 64),
+        origin: String(location.origin || "").slice(0, 64),
+        referrer_origin: (function () {
+          try {
+            if (!document.referrer) return "";
+            return String(new URL(document.referrer).origin).slice(0, 64);
+          } catch (_) {
+            return "";
+          }
+        })(),
+        has_webview_proxy: hasProxy,
+        nav_type: (function () {
+          try {
+            const entries = performance.getEntriesByType && performance.getEntriesByType("navigation");
+            if (entries && entries[0] && entries[0].type) return String(entries[0].type).slice(0, 32);
+          } catch (_) {}
+          return "";
+        })(),
+      };
+    }
+
+    /**
+     * Real Mini App / WebApp context — NOT User-Agent alone.
+     * Telegram UA + empty platform/initData usually means in-app browser via url= button.
+     */
+    function isTelegramMiniAppContext() {
+      if (getInitData()) return true;
+      const tg = getTelegramWebApp();
+      if (!tg) return false;
+      try {
+        const unsafe = tg.initDataUnsafe;
+        if (unsafe && (unsafe.user || unsafe.query_id || unsafe.auth_date || unsafe.hash)) {
           return true;
         }
       } catch (_) {}
+      const platform = String(tg.platform || "").toLowerCase();
+      if (platform && platform !== "unknown") return true;
       try {
-        if (/Telegram/i.test(String(navigator.userAgent || ""))) return true;
+        const hash = String(location.hash || "");
+        const search = String(location.search || "");
+        if (hash.indexOf("tgWebApp") >= 0 || search.indexOf("tgWebApp") >= 0) return true;
       } catch (_) {}
+      if (typeof window.TelegramWebviewProxy !== "undefined") return true;
       return false;
+    }
+
+    // Backward-compatible name used across UI helpers.
+    function isInsideTelegramWebView() {
+      return isTelegramMiniAppContext();
     }
 
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitForTelegramSdk(maxMs) {
+      maxMs = typeof maxMs === "number" ? maxMs : 3000;
+      setBootState(BOOT_STATES.SDK_LOADING);
+      const started = Date.now();
+      while (Date.now() - started < maxMs) {
+        if (getTelegramWebApp()) {
+          setBootState(BOOT_STATES.SDK_READY);
+          return true;
+        }
+        await sleep(50);
+      }
+      const ok = !!getTelegramWebApp();
+      if (ok) setBootState(BOOT_STATES.SDK_READY);
+      return ok;
     }
 
     function signalTelegramReady() {
@@ -380,15 +514,20 @@
     function reportDiag(stage, extra) {
       try {
         const init = getInitData();
-        const payload = {
-          stage: String(stage || "unknown").slice(0, 64),
-          has_init_data: !!init,
-          init_data_len: init ? init.length : 0,
-          has_cached_init: !!state.cachedInitData,
-          inside_telegram: isInsideTelegramWebView(),
-          ui_started: !!state.uiStarted,
-          elapsed_ms: state.bootStartedAt ? Date.now() - state.bootStartedAt : 0,
-        };
+        const signals = collectLaunchSignals();
+        const payload = Object.assign(
+          {
+            stage: String(stage || "unknown").slice(0, 64),
+            boot_state: String(state.bootState || "").slice(0, 32),
+            has_init_data: !!init,
+            init_data_len: init ? init.length : 0,
+            has_cached_init: !!state.cachedInitData,
+            inside_telegram: isTelegramMiniAppContext(),
+            ui_started: !!state.uiStarted,
+            elapsed_ms: state.bootStartedAt ? Date.now() - state.bootStartedAt : 0,
+          },
+          signals
+        );
         if (extra && typeof extra === "object") {
           if (extra.http_status != null) payload.http_status = Number(extra.http_status) || 0;
           if (extra.endpoint) payload.endpoint = String(extra.endpoint).slice(0, 64);
@@ -403,11 +542,14 @@
       } catch (_) {}
     }
 
-    /** Wait for initData from SDK, late hash, or Telegram sessionStorage. */
     async function waitForInitData(maxMs) {
       maxMs = typeof maxMs === "number" ? maxMs : 12000;
+      setBootState(BOOT_STATES.INIT_DATA_WAITING);
       let data = getInitData();
-      if (data) return data;
+      if (data) {
+        setBootState(BOOT_STATES.INIT_DATA_FOUND);
+        return data;
+      }
       return new Promise(function (resolve) {
         var done = false;
         var started = Date.now();
@@ -416,17 +558,21 @@
           done = true;
           try {
             window.removeEventListener("hashchange", onHash);
+            window.removeEventListener("popstate", onHash);
           } catch (_) {}
           try {
             clearInterval(timer);
           } catch (_) {}
-          resolve(value || getInitData() || "");
+          var finalValue = value || getInitData() || "";
+          if (finalValue) setBootState(BOOT_STATES.INIT_DATA_FOUND);
+          resolve(finalValue);
         }
         function onHash() {
           var d = getInitData();
           if (d) finish(d);
         }
         window.addEventListener("hashchange", onHash);
+        window.addEventListener("popstate", onHash);
         var timer = setInterval(function () {
           var d = getInitData();
           if (d) {
@@ -449,6 +595,9 @@
       }
       window.addEventListener("hashchange", function () {
         maybeResume("hashchange");
+      });
+      window.addEventListener("popstate", function () {
+        maybeResume("popstate");
       });
       document.addEventListener("visibilitychange", function () {
         if (!document.hidden) maybeResume("visibility");
@@ -1802,6 +1951,20 @@
       syncFlexUi();
     }
 
+    const JS_ASSET_BUILD = "0.3.0-bug022";
+
+    function detectAssetMismatch() {
+      try {
+        const htmlAsset =
+          (window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.asset) || "";
+        if (htmlAsset && htmlAsset !== JS_ASSET_BUILD) {
+          reportDiag("asset_mismatch");
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
     async function bootstrapTelegramApp(options) {
       options = options || {};
       if (state.uiStarted) return;
@@ -1811,7 +1974,23 @@
       state.bootstrapInFlight = true;
       if (!state.bootStartedAt) state.bootStartedAt = Date.now();
       setBoot("Boot…");
+      detectAssetMismatch();
       reportDiag("bootstrap_start");
+
+      const sdkOk = await waitForTelegramSdk(3000);
+      if (!sdkOk) {
+        setBootState(BOOT_STATES.AUTH_FAILED);
+        state.bootstrapInFlight = false;
+        reportDiag("sdk_missing");
+        showAuthGate(
+          "Не удалось загрузить Telegram SDK",
+          "Проверьте сеть и нажмите «Повторить».",
+          "",
+          { showRetry: true }
+        );
+        setBoot("Нет SDK");
+        return;
+      }
 
       // Signal ready as early as possible (before waiting for late hash / initData).
       const tgEarly = signalTelegramReady();
@@ -1833,30 +2012,32 @@
       }
 
       const appEnv = (health && health.app_env) || "production";
-      const insideTelegram = isInsideTelegramWebView();
-      // Single continuous wait (hashchange-aware). Avoid stacked 5s+5s that looked
-      // like a working session for ~10s then a "lost session" gate.
+      const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
+      // Mini App context — NOT User-Agent. UA-only "Telegram" is often in-app browser (url=).
+      const miniAppCtx = isTelegramMiniAppContext();
+
       let initData = getInitData();
-      if (!initData && insideTelegram) {
+      if (!initData && miniAppCtx) {
         setBoot("Telegram…");
         reportDiag("wait_init_data");
         initData = await waitForInitData(12000);
       }
-      const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
 
       if (!initData && appEnv === "production") {
         state.bootstrapInFlight = false;
-        if (insideTelegram) {
+        if (miniAppCtx) {
+          setBootState(BOOT_STATES.AUTH_FAILED);
           reportDiag("missing_init_data");
           showAuthGate(
-            "Не удалось получить сессию Telegram",
-            "Нажмите «Повторить» или закройте Mini App и откройте снова через кнопку «Открыть FlyPing» или Menu.",
+            "Не удалось получить данные запуска Telegram",
+            "Нажмите «Повторить» или закройте окно и откройте снова через кнопку «Открыть FlyPing» или Menu в боте (не обычную ссылку).",
             "",
             { showRetry: true }
           );
           setBoot("Нет initData");
           return;
         }
+        setBootState(BOOT_STATES.NOT_TELEGRAM);
         reportDiag("need_telegram");
         showAuthGate(
           "FlyPing работает внутри Telegram",
@@ -1867,6 +2048,7 @@
         return;
       }
 
+      setBootState(BOOT_STATES.AUTH_VALIDATING);
       try {
         reportDiag("api_me_start", { endpoint: "/api/me" });
         const me = await apiFetch("/api/me");
@@ -1876,6 +2058,7 @@
         showUserChip(me);
         state.uiStarted = true;
         state.bootstrapInFlight = false;
+        setBootState(BOOT_STATES.AUTH_SUCCESS);
         reportDiag("api_me_ok", { endpoint: "/api/me", http_status: 200 });
         const name = (me && me.first_name) || (me && me.username) || "";
         setBoot(name ? "Привет, " + name : "Готово");
@@ -1883,18 +2066,29 @@
         syncMainButton();
       } catch (err) {
         state.bootstrapInFlight = false;
-        reportDiag("api_me_fail", {
+        setBootState(BOOT_STATES.AUTH_FAILED);
+        const networkFail = !(err && err.status) && !(err && err.auth);
+        reportDiag(networkFail ? "network_fail" : "api_me_fail", {
           endpoint: "/api/me",
           http_status: (err && err.status) || 0,
-          error_code: (err && err.detail && err.detail.code) || (err && err.auth ? "auth" : "error"),
+          error_code:
+            (err && err.detail && err.detail.code) ||
+            (err && err.auth ? "auth" : networkFail ? "network" : "error"),
         });
-        if (!(err && err.auth)) {
+        if (networkFail) {
+          showAuthGate(
+            "Нет связи с сервером",
+            "Проверьте интернет и нажмите «Повторить».",
+            "",
+            { showRetry: true }
+          );
+        } else if (!(err && err.auth)) {
           showAuthGate(
             "Не удалось войти",
             (err && err.message) ||
               "Закройте и снова откройте приложение через Telegram.",
-            insideTelegram ? "" : botLink,
-            { showRetry: !!insideTelegram }
+            miniAppCtx ? "" : botLink,
+            { showRetry: !!miniAppCtx }
           );
         }
         setBoot("Auth");
