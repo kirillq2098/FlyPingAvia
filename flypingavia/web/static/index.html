@@ -9,8 +9,8 @@
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
   <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
   <script src="/assets/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-wa04" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-wa04h" />
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-qo01" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-qo01" />
 </head>
 <body>
   <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -117,8 +117,20 @@
           <p class="meta pax-hint">Пока скрыто: нужен Flight Search API.</p>
         </div>
 
-        <button class="btn primary" type="submit" id="search-btn">Показать вилку цен</button>
+        <button class="btn primary" type="submit" id="search-btn">Показать ориентир по стоимости</button>
       </form>
+
+      <div id="quote-loading" class="quote-loading hidden" aria-live="polite" aria-busy="true">
+        <div class="quote-skeleton" aria-hidden="true">
+          <div class="sk-line w60"></div>
+          <div class="sk-line w40"></div>
+          <div class="sk-price"></div>
+          <div class="sk-line w80"></div>
+          <div class="sk-line w70"></div>
+          <div class="sk-line w75"></div>
+        </div>
+        <p id="quote-loading-text" class="meta">Анализируем стоимость билетов…</p>
+      </div>
 
       <div id="quote" class="quote hidden" aria-live="polite"></div>
 
@@ -162,6 +174,6 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=0.3.0-wa04h"></script>
+  <script src="/assets/app.js?v=0.3.0-qo01"></script>
 </body>
 </html>

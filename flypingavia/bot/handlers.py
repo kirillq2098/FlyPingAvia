@@ -251,7 +251,10 @@ async def _show_route_preview(
         flex = 0
         await state.update_data(flexibility_days=0)
 
-    wait = await message.answer("Ищу по аэропортам и считаю вилку…", reply_markup=kb.cancel_kb())
+    wait = await message.answer(
+        "Ищу по аэропортам и формирую ориентир по стоимости…",
+        reply_markup=kb.cancel_kb(),
+    )
     quote = None
     band = None
     found_depart = depart_date
@@ -355,7 +358,7 @@ async def _show_route_preview(
     if band is None:
         await state.set_state(AddWatch.custom_price)
         await message.answer(
-            "Не удалось посчитать вилку. Введите порог числом, например <code>12000</code>",
+            "Не удалось рассчитать ориентир по стоимости. Введите порог числом, например <code>12000</code>",
             parse_mode="HTML",
             reply_markup=kb.cancel_kb(),
         )
@@ -1115,7 +1118,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         if cheap is None or typical is None:
             await state.set_state(AddWatch.custom_price)
             await callback.message.answer(
-                "Вилка недоступна. Введите порог числом, например <code>15000</code>",
+                "Ориентир недоступен. Введите порог числом, например <code>15000</code>",
                 parse_mode="HTML",
                 reply_markup=kb.cancel_kb(),
             )

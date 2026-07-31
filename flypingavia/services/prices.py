@@ -162,23 +162,30 @@ class PriceProvider:
         destinations: Sequence[str],
         depart_date: Optional[date] = None,
         currency: str = "rub",
+        *,
+        concurrency: int = 4,
     ) -> Optional[PriceQuote]:
         """Ищет по всем парам origin×destination и возвращает самый дешёвый вариант."""
+        import asyncio
+
         best: Optional[PriceQuote] = None
         origin_list = [c.upper() for c in origins if c]
         dest_list = [c.upper() for c in destinations if c]
         if not origin_list or not dest_list:
             return None
 
-        for origin in origin_list:
-            for destination in dest_list:
+        pairs = [(o, d) for o in origin_list for d in dest_list]
+        sem = asyncio.Semaphore(max(1, int(concurrency)))
+
+        async def _one(origin: str, destination: str) -> Optional[PriceQuote]:
+            async with sem:
                 try:
                     quote = await self.get_cheapest(origin, destination, depart_date, currency)
                 except Exception:
-                    continue
+                    return None
                 if quote is None:
-                    continue
-                enriched = PriceQuote(
+                    return None
+                return PriceQuote(
                     price=quote.price,
                     currency=quote.currency,
                     airline=quote.airline,
@@ -189,8 +196,13 @@ class PriceProvider:
                     searched_origins=tuple(origin_list),
                     searched_destinations=tuple(dest_list),
                 )
-                if best is None or enriched.price < best.price:
-                    best = enriched
+
+        results = await asyncio.gather(*[_one(o, d) for o, d in pairs])
+        for enriched in results:
+            if enriched is None:
+                continue
+            if best is None or enriched.price < best.price:
+                best = enriched
         return best
 
     async def get_price_band_across(
@@ -199,16 +211,28 @@ class PriceProvider:
         destinations: Sequence[str],
         depart_date: Optional[date] = None,
         currency: str = "rub",
+        *,
+        concurrency: int = 4,
     ) -> Optional[PriceBand]:
-        bands: list[PriceBand] = []
-        for origin in origins:
-            for destination in destinations:
+        import asyncio
+
+        origin_list = [c.upper() for c in origins if c]
+        dest_list = [c.upper() for c in destinations if c]
+        if not origin_list or not dest_list:
+            return None
+
+        pairs = [(o, d) for o in origin_list for d in dest_list]
+        sem = asyncio.Semaphore(max(1, int(concurrency)))
+
+        async def _one(origin: str, destination: str) -> Optional[PriceBand]:
+            async with sem:
                 try:
-                    band = await self.get_price_band(origin, destination, depart_date, currency)
+                    return await self.get_price_band(origin, destination, depart_date, currency)
                 except Exception:
-                    continue
-                if band is not None:
-                    bands.append(band)
+                    return None
+
+        results = await asyncio.gather(*[_one(o, d) for o, d in pairs])
+        bands = [b for b in results if b is not None]
         if not bands:
             return None
         cheap = min(b.cheap_max for b in bands)
@@ -347,15 +371,22 @@ class TravelpayoutsPriceProvider(PriceProvider):
     def __init__(
         self,
         token: str,
-        timeout: float = 20.0,
+        timeout: float = 12.0,
         *,
         live_client: FlightSearchClient | None = None,
         live_mode: str = "multi",
+        http_cache=None,
     ) -> None:
         self._token = token
+        # Per-request timeout; month-matrix is reused via http_cache across dates.
         self._timeout = timeout
         self._live = live_client
         self._live_mode = (live_mode or "off").strip().lower()
+        if http_cache is None:
+            from flypingavia.services.provider_http_cache import default_provider_http_cache
+
+            http_cache = default_provider_http_cache
+        self._http_cache = http_cache
 
     def _want_live(self, adults: int, children: int, infants: int) -> bool:
         if self._live is None or not self._live.enabled:
@@ -457,10 +488,20 @@ class TravelpayoutsPriceProvider(PriceProvider):
         )
 
     async def _get_json(self, url: str, params: dict[str, str]) -> dict:
+        cache = self._http_cache
+        key = None
+        if cache is not None:
+            key = cache.make_key(url, params)
+            cached = cache.get(key)
+            if cached is not None:
+                return cached
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
-            return response.json()
+            payload = response.json()
+        if cache is not None and key is not None and isinstance(payload, dict):
+            cache.set(key, payload)
+        return payload
 
     def _quote(
         self,

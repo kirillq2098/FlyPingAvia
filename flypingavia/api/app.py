@@ -75,6 +75,17 @@ class QuoteOut(BaseModel):
     found_depart_date: Optional[date] = None
     found_return_date: Optional[date] = None
     offset_days: int = 0
+    # Quote cache / progressive metadata (additive, backward compatible)
+    cached: bool = False
+    stale: bool = False
+    partial: bool = False
+    refreshing: bool = False
+    cache_age_seconds: Optional[int] = None
+    computed_at: Optional[str] = None
+    status: Optional[str] = None  # fresh|stale|live|partial|timeout
+    combinations_count: Optional[int] = None
+    completed_count: Optional[int] = None
+    title: str = "Ориентир по стоимости"
 
 
 class WatchIn(BaseModel):
@@ -314,9 +325,25 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         children: int = Query(default=0, ge=0, le=9),
         infants: int = Query(default=0, ge=0, le=9),
         flexibility_days: int = Query(default=0),
+        refresh: bool = Query(default=False),
         user: TelegramWebAppUser = Depends(current_user),
     ) -> QuoteOut:
+        import time
+
+        from flypingavia.services.quote_cache import (
+            default_quote_cache,
+            make_quote_cache_key,
+        )
+
         _ = user
+        t0 = time.monotonic()
+        logger.info(
+            "quote.request.started origin=%s destination=%s flex=%s refresh=%s",
+            (origin or "").upper()[:16],
+            (destination or "").upper()[:16],
+            flexibility_days,
+            refresh,
+        )
         origin_place, _ = await resolve_place(origin)
         dest_place, _ = await resolve_place(destination)
         if not origin_place or not dest_place:
@@ -328,10 +355,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        result = await search_flexible_trip(
-            provider,
-            origins=origin_place.search_codes,
-            destinations=dest_place.search_codes,
+        trip_type = "round" if return_date else "oneway"
+        provider_name = "demo" if settings.is_demo_prices else "travelpayouts"
+        cache_key = make_quote_cache_key(
+            origin=origin_place.code,
+            destination=dest_place.code,
+            origin_search=",".join(origin_place.search_codes),
+            destination_search=",".join(dest_place.search_codes),
             depart_date=depart_date,
             return_date=return_date,
             flexibility_days=flex,
@@ -339,63 +369,205 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             children=children,
             infants=infants,
             currency=settings.currency,
+            trip_type=trip_type,
+            provider=provider_name,
         )
-        quote = result.quote if result else None
-        band = result.band if result else None
-        found_dep = result.found_depart_date if result else depart_date
-        found_ret = result.found_return_date if result else return_date
-        offset = result.offset_days if result else 0
+        cache = default_quote_cache
+        entry, status = cache.lookup(cache_key)
+        if status == "fresh" and not refresh:
+            cache.metrics.cache_hits += 1
+            cache.metrics.record_latency((time.monotonic() - t0) * 1000)
+            logger.info(
+                "quote.cache.hit key=%s age_s=%s duration_ms=%.0f",
+                cache_key[:12],
+                entry.age_seconds if entry else None,
+                (time.monotonic() - t0) * 1000,
+            )
+            assert entry is not None
+            data = dict(entry.data)
+            data.update(
+                {
+                    "cached": True,
+                    "stale": False,
+                    "refreshing": False,
+                    "cache_age_seconds": entry.age_seconds,
+                    "computed_at": entry.computed_at_iso,
+                    "status": "fresh",
+                }
+            )
+            logger.info("quote.response.completed status=fresh duration_ms=%.0f", (time.monotonic() - t0) * 1000)
+            return QuoteOut.model_validate(data)
 
-        level = band.classify(quote.price).value if quote and band else None
-        note = None
-        if origin_place.kind == "city" and len(origin_place.airport_codes) > 1:
-            note = f"Проверены аэропорты: {', '.join(origin_place.airport_codes)}"
-        if quote and not quote.is_live and (adults > 1 or children or infants):
-            extra = "Живой поиск за состав недоступен — цена за 1 взр."
-            note = f"{note}. {extra}" if note else extra
+        if status == "stale" and not refresh and entry is not None:
+            cache.metrics.cache_hits += 1
+            cache.metrics.stale_serves += 1
+            cache.metrics.record_latency((time.monotonic() - t0) * 1000)
+            logger.info(
+                "quote.cache.hit stale=1 key=%s age_s=%s duration_ms=%.0f",
+                cache_key[:12],
+                entry.age_seconds,
+                (time.monotonic() - t0) * 1000,
+            )
+            data = dict(entry.data)
+            data.update(
+                {
+                    "cached": True,
+                    "stale": True,
+                    "refreshing": True,
+                    "cache_age_seconds": entry.age_seconds,
+                    "computed_at": entry.computed_at_iso,
+                    "status": "stale",
+                }
+            )
+            logger.info("quote.response.completed status=stale duration_ms=%.0f", (time.monotonic() - t0) * 1000)
+            return QuoteOut.model_validate(data)
 
-        return QuoteOut(
-            origin=origin_place.code,
-            destination=dest_place.code,
-            origin_name=origin_place.name,
-            destination_name=dest_place.name,
-            price=quote.price if quote else None,
-            price_per_adult=quote.price_per_adult if quote else None,
-            currency=(quote.currency if quote else settings.currency.upper()),
-            level=level,
-            origin_airport=quote.origin_code if quote else None,
-            destination_airport=quote.destination_code if quote else None,
-            transfers=quote.transfers if quote else None,
-            airline=quote.airline if quote else None,
-            cheap_max=band.cheap_max if band else None,
-            typical=band.typical if band else None,
-            expensive_min=band.expensive_min if band else None,
-            tickets_url=build_affiliate_url(
+        cache.metrics.cache_misses += 1
+        logger.info("quote.cache.miss key=%s", cache_key[:12])
+
+        async def _compute() -> dict:
+            logger.info(
+                "quote.provider.started provider=%s route=%s→%s flex=%s",
+                provider_name,
                 origin_place.code,
                 dest_place.code,
-                settings.affiliate_marker,
-                found_dep if found_dep is not None else depart_date,
+                flex,
+            )
+            prov_t0 = time.monotonic()
+            result = await search_flexible_trip(
+                provider,
+                origins=origin_place.search_codes,
+                destinations=dest_place.search_codes,
+                depart_date=depart_date,
+                return_date=return_date,
+                flexibility_days=flex,
+                adults=adults,
+                children=children,
+                infants=infants,
+                currency=settings.currency,
+            )
+            logger.info(
+                "quote.provider.completed duration_ms=%.0f combinations=%s completed=%s partial=%s",
+                (time.monotonic() - prov_t0) * 1000,
+                getattr(result, "combinations_count", None) if result else 0,
+                getattr(result, "completed_count", None) if result else 0,
+                getattr(result, "partial", False) if result else False,
+            )
+            quote = result.quote if result else None
+            band = result.band if result else None
+            found_dep = result.found_depart_date if result else depart_date
+            found_ret = result.found_return_date if result else return_date
+            offset = result.offset_days if result else 0
+            partial = bool(result.partial) if result else False
+            combinations_count = result.combinations_count if result else 0
+            completed_count = result.completed_count if result else 0
+
+            level = band.classify(quote.price).value if quote and band else None
+            note = None
+            if origin_place.kind == "city" and len(origin_place.airport_codes) > 1:
+                note = f"Проверены аэропорты: {', '.join(origin_place.airport_codes)}"
+            if quote and not quote.is_live and (adults > 1 or children or infants):
+                extra = "Живой поиск за состав недоступен — цена за 1 взр."
+                note = f"{note}. {extra}" if note else extra
+
+            status_label = "partial" if partial else ("timeout" if quote is None else "live")
+            if result is None:
+                cache.metrics.timeouts += 1
+            if partial:
+                cache.metrics.partials += 1
+            if combinations_count:
+                cache.metrics.combinations.append(int(combinations_count))
+
+            out = QuoteOut(
+                origin=origin_place.code,
+                destination=dest_place.code,
+                origin_name=origin_place.name,
+                destination_name=dest_place.name,
+                price=quote.price if quote else None,
+                price_per_adult=quote.price_per_adult if quote else None,
+                currency=(quote.currency if quote else settings.currency.upper()),
+                level=level,
+                origin_airport=quote.origin_code if quote else None,
+                destination_airport=quote.destination_code if quote else None,
+                transfers=quote.transfers if quote else None,
+                airline=quote.airline if quote else None,
+                cheap_max=band.cheap_max if band else None,
+                typical=band.typical if band else None,
+                expensive_min=band.expensive_min if band else None,
+                tickets_url=build_affiliate_url(
+                    origin_place.code,
+                    dest_place.code,
+                    settings.affiliate_marker,
+                    found_dep if found_dep is not None else depart_date,
+                    return_date=found_ret if found_ret is not None else return_date,
+                    adults=adults,
+                    children=children,
+                    infants=infants,
+                ),
+                airports_note=note,
+                depart_date=found_dep if found_dep is not None else depart_date,
                 return_date=found_ret if found_ret is not None else return_date,
                 adults=adults,
                 children=children,
                 infants=infants,
-            ),
-            airports_note=note,
-            depart_date=found_dep if found_dep is not None else depart_date,
-            return_date=found_ret if found_ret is not None else return_date,
-            adults=adults,
-            children=children,
-            infants=infants,
-            trip_type="round" if return_date else "oneway",
-            price_for="passengers" if (quote and quote.is_live) else "adult",
-            source=quote.source if quote else None,
-            flexibility_days=flex,
-            primary_depart_date=depart_date,
-            primary_return_date=return_date,
-            found_depart_date=found_dep,
-            found_return_date=found_ret,
-            offset_days=offset,
+                trip_type=trip_type,
+                price_for="passengers" if (quote and quote.is_live) else "adult",
+                source=quote.source if quote else None,
+                flexibility_days=flex,
+                primary_depart_date=depart_date,
+                primary_return_date=return_date,
+                found_depart_date=found_dep,
+                found_return_date=found_ret,
+                offset_days=offset,
+                cached=False,
+                stale=False,
+                partial=partial,
+                refreshing=False,
+                cache_age_seconds=0,
+                computed_at=datetime.now(timezone.utc).isoformat(),
+                status=status_label,
+                combinations_count=combinations_count,
+                completed_count=completed_count,
+                title="Предварительный ориентир" if partial else "Ориентир по стоимости",
+            )
+            return out.model_dump(mode="json")
+
+        try:
+            raw = await cache.coalesce(cache_key, _compute)
+        except Exception:
+            cache.metrics.provider_errors += 1
+            logger.exception("quote.provider.error")
+            raise
+
+        # Cache successful payloads that have a usable band or price.
+        if raw.get("price") is not None or raw.get("cheap_max") is not None:
+            stored = cache.store(cache_key, raw, provider=provider_name)
+            raw = dict(raw)
+            raw["computed_at"] = stored.computed_at_iso
+            raw["cache_age_seconds"] = 0
+
+        cache.metrics.record_latency((time.monotonic() - t0) * 1000)
+        logger.info(
+            "quote.response.completed status=%s duration_ms=%.0f cached=0",
+            raw.get("status"),
+            (time.monotonic() - t0) * 1000,
         )
+        return QuoteOut.model_validate(raw)
+
+    @app.get("/api/metrics/quote")
+    async def quote_metrics() -> dict:
+        from flypingavia.services.quote_cache import default_quote_cache
+        from flypingavia.services.provider_http_cache import default_provider_http_cache
+
+        snap = default_quote_cache.metrics.snapshot()
+        http = default_provider_http_cache
+        total = http.hits + http.misses
+        snap["provider_http_cache_hits"] = http.hits
+        snap["provider_http_cache_misses"] = http.misses
+        snap["provider_http_cache_hit_rate"] = (
+            round(http.hits / total, 4) if total else 0.0
+        )
+        return {"ok": True, "metrics": snap}
 
     def _watch_out(w) -> WatchOut:
         checked = getattr(w, "last_checked_at", None)

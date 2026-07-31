@@ -152,6 +152,12 @@
       createIdempotencyKey: null,
       _submitT2: null,
       _submitT10: null,
+      _quoteLoadT2: null,
+      _quoteLoadT8: null,
+      quoteSeq: 0,
+      quoteAbort: null,
+      quoteDebounceTimer: null,
+      quoteInFlight: false,
     };
     // WA-04 hotfix: единый submit lock (не debounce).
     let isSubmitting = false;
@@ -460,6 +466,23 @@
           } catch (_) {}
         }, timeoutMs);
       }
+      if (options.signal) {
+        if (options.signal.aborted) {
+          if (timer) clearTimeout(timer);
+          const err = new Error("aborted");
+          err.aborted = true;
+          throw err;
+        }
+        options.signal.addEventListener(
+          "abort",
+          function () {
+            try {
+              controller.abort();
+            } catch (_) {}
+          },
+          { once: true }
+        );
+      }
       let res;
       try {
         res = await fetch(path, {
@@ -473,11 +496,18 @@
         const aborted =
           (fetchErr && fetchErr.name === "AbortError") ||
           (typeof DOMException !== "undefined" && fetchErr instanceof DOMException);
-        if (aborted && timeoutMs > 0) {
-          const err = new Error("Превышено время ожидания ответа сервера");
-          err.timeout = true;
-          err.status = 0;
-          throw err;
+        if (aborted) {
+          if (options.signal && options.signal.aborted) {
+            const err = new Error("aborted");
+            err.aborted = true;
+            throw err;
+          }
+          if (timeoutMs > 0) {
+            const err = new Error("Превышено время ожидания ответа сервера");
+            err.timeout = true;
+            err.status = 0;
+            throw err;
+          }
         }
         throw fetchErr;
       }
@@ -663,10 +693,62 @@
     }
 
     function levelLabel(level) {
-      if (level === "cheap") return ["cheap", "дёшево"];
-      if (level === "expensive") return ["expensive", "дорого"];
-      if (level === "normal") return ["normal", "обычно"];
+      if (level === "cheap") return ["cheap", "выгодная"];
+      if (level === "expensive") return ["expensive", "высокая"];
+      if (level === "normal") return ["normal", "средняя"];
       return ["", "нет оценки"];
+    }
+
+    function hideQuoteLoading() {
+      const box = $("#quote-loading");
+      if (box) box.classList.add("hidden");
+      if (state._quoteLoadT2) {
+        clearTimeout(state._quoteLoadT2);
+        state._quoteLoadT2 = null;
+      }
+      if (state._quoteLoadT8) {
+        clearTimeout(state._quoteLoadT8);
+        state._quoteLoadT8 = null;
+      }
+    }
+
+    function showQuoteLoading() {
+      const box = $("#quote-loading");
+      const text = $("#quote-loading-text");
+      if (!box) return;
+      box.classList.remove("hidden");
+      if (text) text.textContent = "Анализируем стоимость билетов…";
+      if (state._quoteLoadT2) clearTimeout(state._quoteLoadT2);
+      if (state._quoteLoadT8) clearTimeout(state._quoteLoadT8);
+      state._quoteLoadT2 = setTimeout(function () {
+        if (text && !box.classList.contains("hidden")) {
+          text.textContent = "Сравниваем доступные варианты…";
+        }
+      }, 2000);
+      state._quoteLoadT8 = setTimeout(function () {
+        if (text && !box.classList.contains("hidden")) {
+          text.textContent =
+            "Поиск занимает немного больше времени. Можно продолжить заполнение формы.";
+        }
+      }, 8000);
+    }
+
+    function formatComputedAt(iso) {
+      if (!iso) return "";
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return "";
+        return (
+          d.toLocaleString("ru-RU", {
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) || ""
+        );
+      } catch (_) {
+        return "";
+      }
     }
 
     function syncPaxUi() {
@@ -709,14 +791,16 @@
       text.textContent =
         "Вы выбрали: " +
         thr +
-        ". Дешёвая цена по текущим данным: до " +
+        ". Выгодная цена по текущим данным: до " +
         cheap +
         ". С таким порогом уведомление может долго не прийти.";
       box.classList.remove("hidden");
     }
 
-    function renderQuote(q) {
+    function renderQuote(q, opts) {
+      opts = opts || {};
       state.quote = q;
+      hideQuoteLoading();
       const box = $("#quote");
       const lvl = levelLabel(q.level);
       const tripLabel = q.return_date ? "туда-обратно" : "в одну сторону";
@@ -725,8 +809,27 @@
       if (q.return_date) dateBits.push("⇄ " + q.return_date);
       const originCode = escapeHtml(q.origin || "");
       const destCode = escapeHtml(q.destination || "");
+      const title =
+        q.partial
+          ? "Предварительный ориентир"
+          : q.stale || opts.updating
+            ? "Ориентир по стоимости"
+            : q.title || "Ориентир по стоимости";
+      const statusBits = [];
+      if (q.partial) statusBits.push("Предварительный ориентир — уточняем гибкие даты");
+      else if (opts.updating || q.refreshing) statusBits.push("Обновляем данные…");
+      else if (q.stale) statusBits.push("Показаны сохранённые данные");
+      else if (q.cached) statusBits.push("Ориентир обновлён");
+      const computed = formatComputedAt(q.computed_at);
+      if (computed) statusBits.push("расчёт: " + computed);
       box.classList.remove("hidden");
       box.innerHTML =
+        '<h2 class="quote-title">' +
+        escapeHtml(title) +
+        "</h2>" +
+        (statusBits.length
+          ? '<p class="quote-status">' + escapeHtml(statusBits.join(" · ")) + "</p>"
+          : "") +
         '<div class="route-row">' +
         '<div><div class="airport-code code">' +
         originCode +
@@ -762,22 +865,58 @@
         "</div>" +
         (q.airports_note ? '<div class="meta">' + escapeHtml(q.airports_note) + "</div>" : "") +
         '<div class="band">' +
-        '<div class="band-row cheap"><span>дёшево</span><span>≤ ' +
+        '<div class="band-row cheap"><span>Выгодная цена</span><span>≤ ' +
         money(q.cheap_max) +
         "</span></div>" +
-        '<div class="band-row typical"><span>обычно</span><span>~ ' +
+        '<div class="band-row typical"><span>Средняя цена</span><span>~ ' +
         money(q.typical) +
         "</span></div>" +
-        '<div class="band-row expensive"><span>дорого</span><span>≥ ' +
+        '<div class="band-row expensive"><span>Высокая цена</span><span>≥ ' +
         money(q.expensive_min) +
         "</span></div>" +
         "</div>" +
-        '<div style="margin-top:12px"><a class="btn ghost" href="' +
+        '<div style="margin-top:12px" class="btn-row">' +
+        '<a class="btn ghost" href="' +
         escapeHtml(q.tickets_url) +
-        '" target="_blank" rel="noopener">Смотреть билеты</a></div>';
+        '" target="_blank" rel="noopener">Смотреть билеты</a>' +
+        (q.partial || q.status === "timeout" || (!q.price && !q.cheap_max)
+          ? '<button type="button" class="btn ghost" id="quote-retry">Повторить расчёт</button>'
+          : "") +
+        "</div>";
       $("#watch-form").classList.remove("hidden");
-      $("#threshold").value = Math.round(q.cheap_max || q.price || 0);
+      if (!opts.keepThreshold) {
+        $("#threshold").value = Math.round(q.cheap_max || q.price || 0);
+      }
       updateDirtyClosingConfirmation();
+      syncMainButton();
+      const retry = $("#quote-retry");
+      if (retry) {
+        retry.addEventListener("click", function () {
+          requestQuote({ refresh: true, force: true });
+        });
+      }
+    }
+
+    function renderQuoteTimeoutFallback() {
+      hideQuoteLoading();
+      const box = $("#quote");
+      if (!box) return;
+      box.classList.remove("hidden");
+      box.innerHTML =
+        '<h2 class="quote-title">Ориентир по стоимости</h2>' +
+        '<p class="meta">Не удалось быстро рассчитать ориентир. Подписку всё равно можно создать — укажите порог вручную.</p>' +
+        '<div class="btn-row" style="margin-top:12px">' +
+        '<button type="button" class="btn primary" id="quote-retry">Повторить расчёт</button>' +
+        "</div>";
+      $("#watch-form").classList.remove("hidden");
+      const thr = $("#threshold");
+      if (thr && !thr.value) thr.value = "";
+      const retry = $("#quote-retry");
+      if (retry) {
+        retry.addEventListener("click", function () {
+          requestQuote({ refresh: true, force: true });
+        });
+      }
       syncMainButton();
     }
 
@@ -1191,6 +1330,116 @@
     // Экспорт для единообразного вызова (форма / confirm / тесты).
     window.submitWatchForm = submitWatchForm;
 
+    function scheduleQuoteRefresh() {
+      if (state.quoteDebounceTimer) clearTimeout(state.quoteDebounceTimer);
+      state.quoteDebounceTimer = setTimeout(function () {
+        state.quoteDebounceTimer = null;
+        const origin = ($("#origin") && $("#origin").value.trim()) || "";
+        const dest = ($("#destination") && $("#destination").value.trim()) || "";
+        if (!origin || !dest) return;
+        if (state.trip === "round") {
+          const ret = ($("#return") && $("#return").value) || "";
+          if (!ret) return;
+        }
+        // Only auto-refresh if user already has a quote card open.
+        if (!$("#quote") || $("#quote").classList.contains("hidden")) return;
+        requestQuote({ refresh: true });
+      }, 550);
+    }
+
+    async function requestQuote(opts) {
+      opts = opts || {};
+      const btn = $("#search-btn");
+      state.origin = ($("#origin") && $("#origin").value.trim()) || "";
+      state.destination = ($("#destination") && $("#destination").value.trim()) || "";
+      state.depart = ($("#depart") && $("#depart").value) || "";
+      state.returnDate =
+        state.trip === "round" ? (($("#return") && $("#return").value) || "") : "";
+      setFieldError("origin", state.origin ? "" : "Укажите город или код аэропорта");
+      setFieldError(
+        "destination",
+        state.destination ? "" : "Укажите город или код аэропорта"
+      );
+      if (!state.origin || !state.destination) {
+        if (opts.force) haptic("error");
+        return;
+      }
+      if (state.trip === "round" && !state.returnDate) {
+        if (opts.force) toast("Укажите дату возврата");
+        return;
+      }
+
+      if (state.quoteAbort) {
+        try {
+          state.quoteAbort.abort();
+        } catch (_) {}
+      }
+      const seq = ++state.quoteSeq;
+      const controller = new AbortController();
+      state.quoteAbort = controller;
+
+      if (!opts.silent) {
+        showQuoteLoading();
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Формируем ориентир по стоимости…";
+        }
+      }
+
+      try {
+        const params = new URLSearchParams({
+          origin: state.origin,
+          destination: state.destination,
+          adults: String(state.adults),
+          children: String(state.children),
+          infants: String(state.infants),
+        });
+        if (state.depart) params.set("depart_date", state.depart);
+        if (state.returnDate) params.set("return_date", state.returnDate);
+        params.set("flexibility_days", String(state.flexibilityDays || 0));
+        if (opts.refresh) params.set("refresh", "1");
+        const q = await api("/api/quote?" + params.toString(), {
+          timeoutMs: 22000,
+          signal: controller.signal,
+        });
+        if (seq !== state.quoteSeq) return;
+        if (!q || (q.price == null && q.cheap_max == null)) {
+          renderQuoteTimeoutFallback();
+          haptic("error");
+          return;
+        }
+        renderQuote(q, { keepThreshold: !!opts.keepThreshold, updating: false });
+        haptic("success");
+        // Stale-while-revalidate: show cached, then refresh once in background.
+        if (q.stale && q.refreshing && !opts.refresh) {
+          renderQuote(q, { keepThreshold: true, updating: true });
+          requestQuote({ refresh: true, silent: true, keepThreshold: true });
+        }
+      } catch (err) {
+        if (seq !== state.quoteSeq) return;
+        if (err && err.aborted) return;
+        if (err && err.timeout) {
+          renderQuoteTimeoutFallback();
+          haptic("error");
+          return;
+        }
+        if (!(err && err.auth)) {
+          toast(err.message || "Не удалось рассчитать ориентир");
+          haptic("error");
+        }
+      } finally {
+        if (seq === state.quoteSeq) {
+          hideQuoteLoading();
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Показать ориентир по стоимости";
+          }
+        }
+      }
+    }
+
+    window.requestQuote = requestQuote;
+
     function bindUiOnce() {
       if (state.formListenersBound) return;
       state.formListenersBound = true;
@@ -1254,46 +1503,7 @@
 
       $("#search-form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const btn = $("#search-btn");
-        state.origin = $("#origin").value.trim();
-        state.destination = $("#destination").value.trim();
-        state.depart = $("#depart").value || "";
-        state.returnDate = state.trip === "round" ? $("#return").value || "" : "";
-        setFieldError("origin", state.origin ? "" : "Укажите город или код аэропорта");
-        setFieldError("destination", state.destination ? "" : "Укажите город или код аэропорта");
-        if (!state.origin || !state.destination) {
-          haptic("error");
-          return;
-        }
-        if (state.trip === "round" && !state.returnDate) {
-          toast("Укажите дату возврата");
-          return;
-        }
-        btn.disabled = true;
-        btn.textContent = "Считаем…";
-        try {
-          const params = new URLSearchParams({
-            origin: state.origin,
-            destination: state.destination,
-            adults: String(state.adults),
-            children: String(state.children),
-            infants: String(state.infants),
-          });
-          if (state.depart) params.set("depart_date", state.depart);
-          if (state.returnDate) params.set("return_date", state.returnDate);
-          params.set("flexibility_days", String(state.flexibilityDays || 0));
-          const q = await api("/api/quote?" + params.toString());
-          renderQuote(q);
-          haptic("success");
-        } catch (err) {
-          if (!(err && err.auth)) {
-            toast(err.message);
-            haptic("error");
-          }
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "Показать вилку цен";
-        }
+        await requestQuote({ force: true });
       });
 
       $$("[data-preset]").forEach((btn) => {
@@ -1313,6 +1523,8 @@
           state.flexibilityDays = Number(btn.getAttribute("data-flex")) || 0;
           syncFlexUi();
           hideLowThresholdWarn();
+          // Debounced re-quote when route already filled and quote was shown.
+          scheduleQuoteRefresh();
         });
       });
 
