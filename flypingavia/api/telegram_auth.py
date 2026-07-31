@@ -256,9 +256,10 @@ def validate_webapp_init_data(
 def build_test_init_data(
     bot_token: str,
     user_id: int,
-    username: str = "dev",
+    username: str | None = "dev",
     *,
     first_name: str = "Dev",
+    last_name: str | None = None,
     auth_date: int | None = None,
     extra: Optional[dict[str, str]] = None,
     include_query_id: bool = True,
@@ -266,8 +267,16 @@ def build_test_init_data(
     """Собрать валидный initData для unit-тестов (без URL-encoding значений как Telegram)."""
     if auth_date is None:
         auth_date = int(datetime.now(timezone.utc).timestamp())
+    user_obj: dict[str, Any] = {
+        "id": user_id,
+        "first_name": first_name,
+    }
+    if username is not None:
+        user_obj["username"] = username
+    if last_name is not None:
+        user_obj["last_name"] = last_name
     user = json.dumps(
-        {"id": user_id, "username": username, "first_name": first_name},
+        user_obj,
         separators=(",", ":"),
         ensure_ascii=False,
     )

@@ -253,9 +253,46 @@
       }
     }
 
+    /**
+     * BUG-02: local telegram-web-app.js snapshots hash once at parse time.
+     * On a cold Android WebView the hash (tgWebAppData) can appear slightly later,
+     * while Telegram.WebApp.initData stays "". Returning owners often succeed via
+     * SDK sessionStorage of a previous open; first-time users have an empty store.
+     * Re-read location.hash ourselves so wait/bootstrap can recover.
+     */
+    function readInitDataFromLocationHash() {
+      try {
+        let hash = String(location.hash || "");
+        if (!hash) return "";
+        if (hash.charAt(0) === "#") hash = hash.slice(1);
+        if (!hash) return "";
+        let query = hash;
+        const q = hash.indexOf("?");
+        if (q >= 0) query = hash.slice(q + 1);
+        if (query.indexOf("tgWebAppData=") < 0) return "";
+        const parts = query.split("&");
+        for (let i = 0; i < parts.length; i++) {
+          const raw = parts[i];
+          const eq = raw.indexOf("=");
+          if (eq <= 0) continue;
+          const key = decodeURIComponent(raw.slice(0, eq).replace(/\+/g, " "));
+          if (key !== "tgWebAppData") continue;
+          const value = raw.slice(eq + 1);
+          try {
+            return decodeURIComponent(value.replace(/\+/g, " "));
+          } catch (_) {
+            return value;
+          }
+        }
+      } catch (_) {}
+      return "";
+    }
+
     function getInitData() {
       const tg = getTelegramWebApp();
-      return (tg && tg.initData) || "";
+      const fromSdk = (tg && tg.initData) || "";
+      if (fromSdk) return fromSdk;
+      return readInitDataFromLocationHash() || "";
     }
 
     /** True when launched inside Telegram WebView (even before initData is ready). */
@@ -287,9 +324,21 @@
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    /** Wait briefly for Telegram SDK to populate initData (CDN race / WebView). */
+    function signalTelegramReady() {
+      const tg = getTelegramWebApp();
+      if (!tg) return null;
+      try {
+        if (typeof tg.ready === "function") tg.ready();
+      } catch (_) {}
+      try {
+        if (typeof tg.expand === "function") tg.expand();
+      } catch (_) {}
+      return tg;
+    }
+
+    /** Wait for initData from SDK and/or late location.hash (Android cold start). */
     async function waitForInitData(maxMs) {
-      maxMs = typeof maxMs === "number" ? maxMs : 2500;
+      maxMs = typeof maxMs === "number" ? maxMs : 5000;
       const started = Date.now();
       let data = getInitData();
       if (data) return data;
@@ -320,7 +369,8 @@
       clearMainButton();
     }
 
-    function showAuthGate(title, message, botLink) {
+    function showAuthGate(title, message, botLink, options) {
+      options = options || {};
       const gate = $("#auth-gate");
       document.body.classList.add("auth-locked");
       if (!gate) {
@@ -331,6 +381,7 @@
       const msgEl = $("#auth-message");
       const botBtn = $("#auth-bot-link");
       const siteLink = $("#auth-site-link");
+      const retryBtn = $("#auth-retry");
       if (titleEl) titleEl.textContent = title || "FlyPing работает внутри Telegram";
       if (msgEl) {
         msgEl.textContent =
@@ -347,6 +398,24 @@
           botBtn.removeAttribute("href");
         }
       }
+      if (retryBtn) {
+        if (options.showRetry) {
+          retryBtn.classList.remove("hidden");
+          if (!retryBtn.dataset.bound) {
+            retryBtn.dataset.bound = "1";
+            retryBtn.addEventListener("click", function () {
+              retryBtn.disabled = true;
+              hideAuthGate();
+              setBoot("Повтор…");
+              bootstrapTelegramApp({ manualRetry: true }).finally(function () {
+                retryBtn.disabled = false;
+              });
+            });
+          }
+        } else {
+          retryBtn.classList.add("hidden");
+        }
+      }
       if (siteLink) {
         // Site link is browser-fallback helper; hide inside Telegram.
         if (isInsideTelegramWebView()) siteLink.classList.add("hidden");
@@ -361,6 +430,8 @@
       const gate = $("#auth-gate");
       if (gate) gate.classList.add("hidden");
       document.body.classList.remove("auth-locked");
+      const retryBtn = $("#auth-retry");
+      if (retryBtn) retryBtn.classList.add("hidden");
     }
 
     function applyTelegramTheme(tg) {
@@ -1623,9 +1694,17 @@
       syncFlexUi();
     }
 
-    async function bootstrapTelegramApp() {
+    async function bootstrapTelegramApp(options) {
+      options = options || {};
       if (state.uiStarted) return;
       setBoot("Boot…");
+
+      // Signal ready as early as possible (before waiting for late hash / initData).
+      const tgEarly = signalTelegramReady();
+      if (tgEarly) {
+        applyTelegramTheme(tgEarly);
+        bindThemeListener(tgEarly);
+      }
 
       let health = null;
       try {
@@ -1639,32 +1718,29 @@
       }
 
       const appEnv = (health && health.app_env) || "production";
-      const tg = getTelegramWebApp();
       const insideTelegram = isInsideTelegramWebView();
-      // Give Telegram WebView time to populate initData before browser fallback.
+      // Give Telegram WebView time to populate initData / late location.hash.
       let initData = getInitData();
       if (!initData && insideTelegram) {
         setBoot("Telegram…");
-        initData = await waitForInitData(2500);
+        initData = await waitForInitData(5000);
       }
       const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
 
-      if (tg) {
-        try {
-          if (typeof tg.ready === "function") tg.ready();
-          if (typeof tg.expand === "function") tg.expand();
-        } catch (_) {}
-        applyTelegramTheme(tg);
-        bindThemeListener(tg);
-      }
-
       if (!initData && appEnv === "production") {
         if (insideTelegram) {
+          // One controlled automatic retry (cold Android WebView / late hash).
+          if (!options.isRetry && !options.manualRetry) {
+            setBoot("Повтор…");
+            await sleep(400);
+            return bootstrapTelegramApp({ isRetry: true });
+          }
           // Already in Telegram but no initData — do not redirect to bot.
           showAuthGate(
             "Не удалось получить сессию Telegram",
-            "Закройте Mini App и откройте снова через кнопку «Открыть FlyPing» или Menu.",
-            ""
+            "Нажмите «Повторить» или закройте Mini App и откройте снова через кнопку «Открыть FlyPing» или Menu.",
+            "",
+            { showRetry: true }
           );
           setBoot("Нет initData");
           return;
@@ -1696,7 +1772,8 @@
             "Не удалось войти",
             (err && err.message) ||
               "Закройте и снова откройте приложение через Telegram.",
-            insideTelegram ? "" : botLink
+            insideTelegram ? "" : botLink,
+            { showRetry: !!insideTelegram }
           );
         }
         setBoot("Auth");

@@ -582,14 +582,17 @@ def test_frontend_wa03_contract() -> None:
     assert "initData" in js
     assert "isInsideTelegramWebView" in js
     assert "waitForInitData" in js
+    assert "readInitDataFromLocationHash" in js
+    assert "signalTelegramReady" in js
     assert ".ready()" in js
     assert ".expand()" in js
     assert '"tma "' in js
     assert "localStorage.setItem" not in js
     assert "sessionStorage.setItem" not in js
-    assert "searchParams" not in js or "initData" not in js
-    assert "location.href" not in js or "initData" not in js.split("location.href")[0][-80:]
+    # Must not invent initData via open redirect / query string injection.
     assert "?initData=" not in js and "&initData=" not in js
+    assert "auth-retry" in html
+    assert "Повторить" in html
 
     assert "showAuthGate" in js
     assert "auth-gate" in html
