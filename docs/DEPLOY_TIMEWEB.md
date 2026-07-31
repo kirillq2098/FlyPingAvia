@@ -99,8 +99,9 @@ Landing: `/var/www/flyping-landing` из `deploy/landing/` (deployment stub).
 
 | Host | Каталог | Что это |
 |------|---------|---------|
-| `flyping.ru` / `www` | `deploy/landing/` | Stub (отдельного marketing site в repo нет) |
+| `flyping.ru` / `www` | `website/` (Next.js → container `:3000`) | Marketing site (airport redesign) |
 | `app.flyping.ru` | `flypingavia/web/static/` | Telegram Mini App |
+| stub backup | `/var/backups/flyping/landing-stub-*` | Rollback via `deploy/scripts/rollback-landing.sh` |
 
 Startup menu button: стабильный `WEBAPP_URL` → `MenuButtonWebApp` («FlyPing»); temporary tunnel → `MenuButtonCommands` (TG-05).
 

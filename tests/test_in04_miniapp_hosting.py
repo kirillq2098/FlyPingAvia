@@ -119,16 +119,19 @@ def test_landing_is_stub_not_mini_app_and_uses_production_bot() -> None:
 
 
 def test_frontend_dirs_inventory() -> None:
-    """Only two HTML frontends exist in this repo (no separate marketing site)."""
+    """Marketing Next.js lives in website/; Mini App + stub remain as HTML entrypoints."""
     html_files = sorted(
         p.relative_to(ROOT).as_posix()
         for p in ROOT.rglob("index.html")
-        if ".git" not in p.parts and "__pycache__" not in p.parts
+        if ".git" not in p.parts
+        and "__pycache__" not in p.parts
+        and "node_modules" not in p.parts
+        and ".next" not in p.parts
     )
-    assert html_files == [
-        "deploy/landing/index.html",
-        "flypingavia/web/static/index.html",
-    ]
+    assert "deploy/landing/index.html" in html_files
+    assert "flypingavia/web/static/index.html" in html_files
+    assert (ROOT / "website" / "app" / "page.tsx").is_file()
+    assert (ROOT / "website" / "package.json").is_file()
 
 
 def test_no_secrets_in_tracked_files() -> None:

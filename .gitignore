@@ -227,3 +227,8 @@ data/*.sqlite3
 **/credentials.json
 deploy/cloudflared/*.json
 !deploy/cloudflared/config.yml.example
+
+# Marketing Next.js site
+website/node_modules/
+website/.next/
+website/.env.local

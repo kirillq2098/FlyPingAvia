@@ -2,9 +2,10 @@
 # Usage from /opt/flyping:
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 #
-# Architecture (v0.3.0): ONE container runs bot (polling) + FastAPI Mini App +
-# APScheduler checker + RL-03 HealthMonitor. SQLite in named volume.
-# PostgreSQL is NOT used — current code has no asyncpg/Postgres support.
+# Architecture (v0.3.0):
+#   flyping       — bot (polling) + FastAPI Mini App + checker + RL-03 (8080)
+#   flyping-site  — marketing Next.js site for flyping.ru / www (3000)
+# SQLite in named volume. PostgreSQL is NOT used.
 
 services:
   flyping:
@@ -41,6 +42,42 @@ services:
       timeout: 5s
       retries: 5
       start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  flyping-site:
+    build:
+      context: ./website
+      args:
+        NEXT_PUBLIC_SITE_URL: "https://flyping.ru"
+        NEXT_PUBLIC_TELEGRAM_BOT_URL: "https://t.me/FlyPingAvia_Bot"
+        NEXT_PUBLIC_TELEGRAM_USERNAME: "FlyPingAvia_Bot"
+        NEXT_PUBLIC_SUPPORT_EMAIL: "support@flyping.ru"
+        NEXT_PUBLIC_GA_ID: ""
+        NEXT_PUBLIC_YANDEX_METRICA_ID: ""
+    image: flyping-site:0.3.0
+    container_name: flyping-site
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "127.0.0.1"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     logging:
       driver: json-file
       options:
