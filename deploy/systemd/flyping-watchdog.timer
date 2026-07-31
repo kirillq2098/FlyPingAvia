@@ -1,0 +1,11 @@
+[Unit]
+Description=Run FlyPing health watchdog every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Unit=flyping-watchdog.service
+
+[Install]
+WantedBy=timers.target

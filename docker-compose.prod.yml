@@ -1,11 +1,15 @@
-# Production Compose for Timeweb VPS (IN-04).
+# Production Compose for Timeweb VPS (IN-04 / OPS-01).
 # Usage from /opt/flyping:
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+#   systemctl start flyping.service
 #
 # Architecture (v0.3.0):
 #   flyping       — bot (polling) + FastAPI Mini App + checker + RL-03 (8080)
 #   flyping-site  — marketing Next.js site for flyping.ru / www (3000)
 # SQLite in named volume. PostgreSQL is NOT used.
+#
+# VPS baseline (OPS-01): ~4 GiB RAM, 2 CPU, no swap.
+# Limits leave headroom for Docker daemon, nginx, OS, SSH, backups.
 
 services:
   flyping:
@@ -16,6 +20,8 @@ services:
     image: flypingavia:0.3.0
     container_name: flyping-app
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     # Timeweb VPS: api.telegram.org reachable via IPv6 only from this host.
     # Bridge networking without IPv6 breaks polling; host network inherits IPv6.
     network_mode: host
@@ -30,6 +36,9 @@ services:
       DB_PATH: /app/data/flypingavia.db
     volumes:
       - flyping-data:/app/data
+    # Standalone Compose (non-swarm): mem_limit / cpus are applied.
+    mem_limit: 2500m
+    cpus: 1.6
     healthcheck:
       test:
         [
@@ -61,11 +70,15 @@ services:
     image: flyping-site:0.3.0
     container_name: flyping-site
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     network_mode: host
     environment:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "127.0.0.1"
+    mem_limit: 900m
+    cpus: 1.0
     healthcheck:
       test:
         [

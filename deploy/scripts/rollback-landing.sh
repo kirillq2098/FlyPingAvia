@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Rollback flyping.ru / www to the stub backup without touching SSL or Mini App/API.
+# OPS-01: never leave flyping-site in an explicitly stopped state across reboot.
 set -euo pipefail
 
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/flyping}"
 STUB_ROOT="${STUB_ROOT:-/var/www/flyping-landing}"
 COMPOSE_FILE="${COMPOSE_FILE:-/opt/flyping/docker-compose.prod.yml}"
+ENV_FILE="${ENV_FILE:-/opt/flyping/.env}"
+HEALTH_TIMEOUT_SEC="${HEALTH_TIMEOUT_SEC:-90}"
 
 latest="$(ls -1dt "$BACKUP_ROOT"/landing-stub-* 2>/dev/null | head -1 || true)"
 if [[ -z "$latest" ]]; then
@@ -93,9 +96,37 @@ PY
 nginx -t
 systemctl reload nginx
 
+# OPS-01: keep flyping-site running (do not `compose stop`) so unless-stopped
+# still recovers after reboot; nginx stub simply does not proxy to it.
 if [[ -f "$COMPOSE_FILE" ]]; then
-  docker compose -f "$COMPOSE_FILE" stop flyping-site 2>/dev/null || true
+  echo "rollback: ensuring flyping-site is up (no volume delete, app untouched)"
+  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d flyping-site
+
+  ok=0
+  for i in $(seq 1 "$HEALTH_TIMEOUT_SEC"); do
+    health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' flyping-site 2>/dev/null || echo missing)
+    if [[ "$health" == "healthy" || "$health" == "none" ]]; then
+      # none = no healthcheck (unexpected); treat running as ok
+      if docker ps --filter name=^/flyping-site$ --filter status=running -q | grep -q .; then
+        if [[ "$health" == "healthy" ]]; then
+          ok=1
+          break
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  if [[ "$ok" != "1" ]]; then
+    echo "rollback: flyping-site healthcheck failed" >&2
+    docker ps -a --filter name=flyping-site --format '{{.Names}} {{.Status}}' >&2 || true
+    exit 1
+  fi
 fi
 
 echo "rollback: stub live on flyping.ru / www (SSL + app/api unchanged)"
-curl -sI https://flyping.ru | head -5 || true
+code=$(curl -sf -o /dev/null -w '%{http_code}' --max-time 10 https://flyping.ru/ || echo 000)
+echo "rollback: https://flyping.ru -> HTTP $code"
+if [[ "$code" != "200" ]]; then
+  echo "rollback: website HTTP check failed" >&2
+  exit 1
+fi

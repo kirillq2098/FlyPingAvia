@@ -1,0 +1,9 @@
+[Unit]
+Description=FlyPing health watchdog (oneshot)
+After=docker.service flyping.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/flyping/scripts/health-watchdog.sh
+Nice=10
