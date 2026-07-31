@@ -1,0 +1,40 @@
+# Production-oriented example (WA-02). Copy and adapt — do not commit secrets.
+# Usage:
+#   cp deploy/docker-compose.production.example.yml docker-compose.yml
+#   cp .env.example .env   # fill BOT_TOKEN, TRAVELPAYOUTS_TOKEN, WEBAPP_URL
+#   docker compose up -d
+#
+# Reverse proxy (Caddy/Nginx) usually runs on the host or as another service
+# terminating TLS for WEBAPP_URL → http://127.0.0.1:8080.
+
+services:
+  flypingavia:
+    build:
+      context: ..
+      args:
+        APP_VERSION: "0.3.0"
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      APP_ENV: production
+      WEBAPP_HOST: 0.0.0.0
+      WEBAPP_PORT: "8080"
+      FORWARDED_ALLOW_IPS: "127.0.0.1"
+      # WEBAPP_URL must be set in .env to https://app.example.com
+      WEBAPP_DEV_USER_ID: "0"
+    ports:
+      # Prefer binding only on loopback when a host reverse proxy terminates TLS:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - flypingavia-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # No database port published — SQLite is a file in the volume.
+
+volumes:
+  flypingavia-data:

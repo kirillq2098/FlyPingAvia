@@ -1,0 +1,8 @@
+[Unit]
+Description=FlyPing SQLite backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/flyping/deploy/scripts/backup-db.sh
+Nice=10

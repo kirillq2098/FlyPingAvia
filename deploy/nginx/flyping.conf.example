@@ -1,0 +1,62 @@
+# Example Nginx reverse proxy for FlyPingAvia Mini App + API (WA-02).
+#
+# Upstream app listens on 127.0.0.1:8080 (WEBAPP_HOST/WEBAPP_PORT).
+# TLS certificates: use certbot, or terminate TLS elsewhere.
+# Replace app.example.com with your hostname matching WEBAPP_URL.
+
+upstream flypingavia_app {
+    server 127.0.0.1:8080;
+    keepalive 16;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name app.example.com;
+
+    # ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
+
+    client_max_body_size 1m;
+
+    # Basic security headers (Telegram WebApp loads this origin).
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    # Do not expose VCS / env / credentials if ever placed under docroot.
+    location ~ /\.(git|env|ht) {
+        deny all;
+        return 404;
+    }
+
+    location / {
+        proxy_pass http://flypingavia_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        # WebSocket не используется приложением — не включаем Upgrade по умолчанию.
+    }
+
+    location = /api/ready {
+        proxy_pass http://flypingavia_app;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 5s;
+    }
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name app.example.com;
+    return 301 https://$host$request_uri;
+}
