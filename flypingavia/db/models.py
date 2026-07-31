@@ -219,6 +219,7 @@ class SystemHealthIncident(Base):
     last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     recovered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    recovery_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     last_error_summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)

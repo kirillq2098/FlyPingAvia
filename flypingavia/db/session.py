@@ -57,9 +57,15 @@ async def _migrate_sqlite_table(conn, table: str, columns: dict[str, str]) -> No
             await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
 
 
+_SQLITE_INCIDENT_EXTRA_COLUMNS = {
+    "recovery_notified_at": "DATETIME",
+}
+
+
 async def _migrate_sqlite(conn) -> None:
     await _migrate_sqlite_table(conn, "watches", _SQLITE_WATCH_EXTRA_COLUMNS)
     await _migrate_sqlite_table(conn, "users", _SQLITE_USER_EXTRA_COLUMNS)
+    await _migrate_sqlite_table(conn, "system_health_incidents", _SQLITE_INCIDENT_EXTRA_COLUMNS)
 
 
 async def init_db() -> None:
@@ -71,6 +77,7 @@ async def init_db() -> None:
     - scripts/migrations/003_tg03_user_start_attribution.sql
     - scripts/migrations/004_tg04_watch_sharing.sql
     - scripts/migrations/005_rl03_health_incidents.sql
+    - scripts/migrations/006_rl03_recovery_delivery.sql
     """
     engine = get_engine()
     async with engine.begin() as conn:

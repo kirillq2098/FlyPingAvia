@@ -102,14 +102,17 @@ async def _async_main() -> None:
     dp, checker = create_dispatcher(settings, bot)
 
     interval = settings.poll_interval_seconds
+    from flypingavia.monitoring.checker_job import run_checker_job
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        checker.run_once,
+        run_checker_job,
         trigger="interval",
         seconds=interval,
         id="price_check",
         max_instances=1,
         coalesce=True,
+        kwargs={"checker": checker, "bot": bot, "settings": settings},
     )
     scheduler.start()
 

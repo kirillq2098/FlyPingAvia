@@ -68,16 +68,19 @@ async def notify_recovery(
     incident_key: str,
     recovered_at: datetime | None = None,
 ) -> None:
+    """Detect recovery → pending; finalize только после успешной доставки."""
     now = recovered_at or datetime.now(timezone.utc)
     async with session_scope() as session:
-        decision = await incidents.report_recovery(
+        decision = await incidents.detect_recovery(
             session,
             incident_key=incident_key,
             recovered_at=now,
         )
         if not decision.should_notify or decision.incident is None:
             return
+        incident_id = decision.incident.id
         first_failed = decision.incident.first_failed_at
+        recovered_ts = decision.incident.recovered_at or now
         count = decision.failure_count
 
     if bot is None:
@@ -86,8 +89,48 @@ async def notify_recovery(
     text = format_admin_recovery_alert(
         incident_key=incident_key,
         first_failed_at=first_failed,
-        recovered_at=now,
+        recovered_at=recovered_ts,
         failure_count=count,
         display_timezone=settings.display_tz,
     )
-    await maybe_send_admin_alert(bot, settings, text=text)
+    ok = await maybe_send_admin_alert(bot, settings, text=text)
+    if ok:
+        async with session_scope() as session:
+            await incidents.mark_recovery_notified(
+                session, incident_id=incident_id, notified_at=now
+            )
+
+
+async def retry_pending_recoveries(bot: Bot | None, settings: Settings) -> None:
+    """Повторить недоставленные recovery после restart / Telegram glitch."""
+    if bot is None:
+        return
+    async with session_scope() as session:
+        pending = await incidents.list_pending_recoveries(session)
+        snapshots = [
+            (
+                row.id,
+                row.incident_key,
+                row.first_failed_at,
+                row.recovered_at,
+                int(row.failure_count or 0),
+            )
+            for row in pending
+            if row.recovery_notified_at is None and row.last_notified_at is not None
+        ]
+
+    now = datetime.now(timezone.utc)
+    for incident_id, key, first_failed, recovered_ts, count in snapshots:
+        text = format_admin_recovery_alert(
+            incident_key=key,
+            first_failed_at=first_failed,
+            recovered_at=recovered_ts or now,
+            failure_count=count,
+            display_timezone=settings.display_tz,
+        )
+        ok = await maybe_send_admin_alert(bot, settings, text=text)
+        if ok:
+            async with session_scope() as session:
+                await incidents.mark_recovery_notified(
+                    session, incident_id=incident_id, notified_at=now
+                )

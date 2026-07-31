@@ -131,15 +131,22 @@ async def test_incident_threshold_cooldown_recovery(rl03_db) -> None:
         assert d5.should_notify
 
     async with session_scope() as session:
-        rec = await incidents.report_recovery(
+        rec = await incidents.detect_recovery(
             session, incident_key=INCIDENT_PROVIDER, recovered_at=NOW + timedelta(hours=3)
         )
         assert rec.should_notify and rec.kind == "recovery"
         assert rec.incident is not None
-        assert rec.incident.status == "recovered"
+        assert rec.incident.status == "recovery_pending"
         assert rec.incident.recovered_at is not None
+        await incidents.mark_recovery_notified(
+            session,
+            incident_id=rec.incident.id,
+            notified_at=NOW + timedelta(hours=3, seconds=1),
+        )
+        assert rec.incident.status == "recovered"
+        assert rec.incident.recovery_notified_at is not None
 
-        again = await incidents.report_recovery(
+        again = await incidents.detect_recovery(
             session, incident_key=INCIDENT_PROVIDER, recovered_at=NOW + timedelta(hours=4)
         )
         assert not again.should_notify
@@ -380,6 +387,7 @@ def test_docs_and_env() -> None:
     assert "ADMIN_TELEGRAM_CHAT_ID" in env
     assert "ADMIN_ALERT_FAILURE_THRESHOLD" in env
     assert (ROOT / "scripts/migrations/005_rl03_health_incidents.sql").is_file()
+    assert (ROOT / "scripts/migrations/006_rl03_recovery_delivery.sql").is_file()
     assert (ROOT / "docs/HEALTH_MONITORING.md").is_file()
     backlog = (ROOT / "docs/FEATURE_BACKLOG.md").read_text(encoding="utf-8")
     section = backlog.split("### RL-03")[1].split("###")[0]

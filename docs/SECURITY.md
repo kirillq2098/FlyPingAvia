@@ -30,9 +30,11 @@ Payload **не секрет** (виден в URL) и **не исполняетс
 Служебные алерты в `ADMIN_TELEGRAM_CHAT_ID` (не пользовательские price alerts).
 
 - Состояние инцидентов в БД; без admin chat id в логах info и в `/api/health`/`/api/ready`.
-- `/api/ready` показывает только `{status, open_incidents}`.
+- `/api/ready` показывает только `{status, open_incidents}` (`open` + `recovery_pending`).
 - Пользовательские Telegram-ошибки (blocked/chat not found) не открывают system incident.
 - Ошибка доставки admin alert не создаёт рекурсивный incident.
+- Recovery закрывается только после успешной доставки (`recovery_pending` → `recovered`); pending переживает restart.
+- `database_unavailable` при полной недоступности БД: process-local fallback (без записи секретов/URL); полный restart во время outage сбрасывает счётчик.
 - Подробности: [HEALTH_MONITORING.md](HEALTH_MONITORING.md).
 
 ## Mini App Auth (WA-03)
