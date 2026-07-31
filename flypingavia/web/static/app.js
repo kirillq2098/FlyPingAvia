@@ -160,6 +160,95 @@
       el.classList.remove("hidden");
       clearTimeout(toast._t);
       toast._t = setTimeout(() => el.classList.add("hidden"), 2800);
+      haptic("light");
+    }
+
+    function haptic(type) {
+      try {
+        const tg = getTelegramWebApp();
+        const hf = tg && tg.HapticFeedback;
+        if (!hf) return;
+        if (type === "success" && typeof hf.notificationOccurred === "function") {
+          hf.notificationOccurred("success");
+        } else if (type === "error" && typeof hf.notificationOccurred === "function") {
+          hf.notificationOccurred("error");
+        } else if (typeof hf.impactOccurred === "function") {
+          hf.impactOccurred(type === "medium" ? "medium" : "light");
+        }
+      } catch (_) {}
+    }
+
+    function clearMainButton() {
+      try {
+        const tg = getTelegramWebApp();
+        const mb = tg && tg.MainButton;
+        if (!mb) return;
+        if (state._mainBtnHandler && typeof mb.offClick === "function") {
+          mb.offClick(state._mainBtnHandler);
+        }
+        state._mainBtnHandler = null;
+        if (typeof mb.hide === "function") mb.hide();
+      } catch (_) {}
+    }
+
+    function syncMainButton() {
+      const tg = getTelegramWebApp();
+      const mb = tg && tg.MainButton;
+      if (!mb) return;
+      const watchForm = $("#watch-form");
+      const searchPanel = $("#panel-search");
+      const show =
+        searchPanel &&
+        searchPanel.classList.contains("active") &&
+        watchForm &&
+        !watchForm.classList.contains("hidden");
+      clearMainButton();
+      if (!show) return;
+      try {
+        if (typeof mb.setText === "function") mb.setText("Создать подписку");
+        if (typeof mb.show === "function") mb.show();
+        state._mainBtnHandler = function () {
+          const submit = $("#watch-submit");
+          if (submit) submit.click();
+        };
+        if (typeof mb.onClick === "function") mb.onClick(state._mainBtnHandler);
+      } catch (_) {}
+    }
+
+    function showUserChip(me) {
+      const chip = $("#user-chip");
+      if (!chip || !me) return;
+      const name = me.first_name || me.username || "";
+      const nameEl = $("#user-name");
+      const av = $("#user-avatar");
+      if (nameEl) nameEl.textContent = name || "FlyPing";
+      if (av) {
+        const initials = name
+          ? String(name)
+              .split(/\s+/)
+              .map((p) => p[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()
+          : "FP";
+        av.textContent = initials || "FP";
+      }
+      chip.classList.remove("hidden");
+    }
+
+    function setFieldError(id, message) {
+      const err = $("#" + id + "-error");
+      const field = err && err.closest ? err.closest(".field") : null;
+      if (err) err.textContent = message || "";
+      if (field) field.classList.toggle("invalid", !!message);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
 
     function getTelegramWebApp() {
@@ -230,8 +319,11 @@
       }
       const watchForm = $("#watch-form");
       if (watchForm) watchForm.classList.add("hidden");
+      const chip = $("#user-chip");
+      if (chip) chip.classList.add("hidden");
       hideLowThresholdWarn();
       setClosingConfirmation(false);
+      clearMainButton();
     }
 
     function showAuthGate(title, message, botLink) {
@@ -244,6 +336,7 @@
       const titleEl = $("#auth-title");
       const msgEl = $("#auth-message");
       const botBtn = $("#auth-bot-link");
+      const siteLink = $("#auth-site-link");
       if (titleEl) titleEl.textContent = title || "FlyPing работает внутри Telegram";
       if (msgEl) {
         msgEl.textContent =
@@ -260,8 +353,14 @@
           botBtn.removeAttribute("href");
         }
       }
+      if (siteLink) {
+        // Site link is browser-fallback helper; hide inside Telegram.
+        if (isInsideTelegramWebView()) siteLink.classList.add("hidden");
+        else siteLink.classList.remove("hidden");
+      }
       gate.classList.remove("hidden");
       clearUserDataUi();
+      clearMainButton();
     }
 
     function hideAuthGate() {
@@ -271,22 +370,49 @@
     }
 
     function applyTelegramTheme(tg) {
-      if (!tg || !tg.themeParams) return;
-      const tp = tg.themeParams;
+      if (!tg) return;
       const root = document.documentElement;
+      const scheme =
+        (tg.colorScheme ||
+          (tg.themeParams && tg.themeParams.bg_color && isDarkHex(tg.themeParams.bg_color)
+            ? "dark"
+            : "light")) === "dark"
+          ? "dark"
+          : "light";
+      root.setAttribute("data-tg-color-scheme", scheme);
+      root.classList.toggle("theme-dark", scheme === "dark");
+      try {
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", scheme === "dark" ? "#07111F" : "#F7F8FA");
+      } catch (_) {}
+      // Keep Telegram CSS vars for compatibility; brand tokens stay primary.
+      const tp = tg.themeParams || {};
       const map = [
-        ["--tg-bg-color", tp.bg_color, "#0b1220"],
-        ["--tg-text-color", tp.text_color, "#e8eefc"],
-        ["--tg-hint-color", tp.hint_color, "#9aa8c7"],
-        ["--tg-link-color", tp.link_color, "#6ea8ff"],
-        ["--tg-button-color", tp.button_color, "#2a6df4"],
+        ["--tg-bg-color", tp.bg_color, scheme === "dark" ? "#07111f" : "#f7f8fa"],
+        ["--tg-text-color", tp.text_color, scheme === "dark" ? "#f4f7fb" : "#0a0b0d"],
+        ["--tg-hint-color", tp.hint_color, scheme === "dark" ? "#8b95a7" : "#5c6570"],
+        ["--tg-link-color", tp.link_color, "#0b4db8"],
+        ["--tg-button-color", tp.button_color, "#0b4db8"],
         ["--tg-button-text-color", tp.button_text_color, "#ffffff"],
-        ["--tg-secondary-bg-color", tp.secondary_bg_color, "#121a2b"],
-        ["--tg-destructive-text-color", tp.destructive_text_color, "#ff6b6b"],
+        ["--tg-secondary-bg-color", tp.secondary_bg_color, scheme === "dark" ? "#0d1829" : "#ffffff"],
+        ["--tg-destructive-text-color", tp.destructive_text_color, "#c53030"],
       ];
       map.forEach((row) => {
         root.style.setProperty(row[0], row[1] || row[2]);
       });
+    }
+
+    function isDarkHex(hex) {
+      try {
+        const h = String(hex || "").replace("#", "");
+        if (h.length < 6) return false;
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+      } catch (_) {
+        return false;
+      }
     }
 
     function bindThemeListener(tg) {
@@ -582,16 +708,26 @@
       const dateBits = [];
       if (q.depart_date) dateBits.push(q.depart_date);
       if (q.return_date) dateBits.push("⇄ " + q.return_date);
+      const originCode = escapeHtml(q.origin || "");
+      const destCode = escapeHtml(q.destination || "");
       box.classList.remove("hidden");
       box.innerHTML =
-        "<h2>" +
-        q.origin_name +
-        " → " +
-        q.destination_name +
-        "</h2>" +
-        '<div class="meta">' +
+        '<div class="route-row">' +
+        '<div><div class="airport-code code">' +
+        originCode +
+        '</div><div class="city">' +
+        escapeHtml(q.origin_name || q.origin) +
+        "</div></div>" +
+        '<div class="route-line" aria-hidden="true"></div>' +
+        '<div style="text-align:right"><div class="airport-code code">' +
+        destCode +
+        '</div><div class="city">' +
+        escapeHtml(q.destination_name || q.destination) +
+        "</div></div>" +
+        "</div>" +
+        '<div class="meta mono">' +
         tripLabel +
-        (dateBits.length ? " · " + dateBits.join(" ") : "") +
+        (dateBits.length ? " · " + escapeHtml(dateBits.join(" ")) : "") +
         "</div>" +
         '<div class="price-now">' +
         (q.price != null ? money(q.price) : "—") +
@@ -600,33 +736,34 @@
           ? '<div class="level ' + lvl[0] + '">относительно рынка · ' + lvl[1] + "</div>"
           : "") +
         '<div class="meta">' +
-        (q.origin_airport ? "вылет " + q.origin_airport : "") +
-        (q.destination_airport ? " · прилёт " + q.destination_airport : "") +
+        (q.origin_airport ? "вылет " + escapeHtml(q.origin_airport) : "") +
+        (q.destination_airport ? " · прилёт " + escapeHtml(q.destination_airport) : "") +
         (q.transfers === 0
           ? " · прямой"
           : q.transfers != null
             ? " · пересадок: " + q.transfers
             : "") +
-        (q.airline ? " · " + q.airline : "") +
+        (q.airline ? " · " + escapeHtml(q.airline) : "") +
         "</div>" +
-        (q.airports_note ? '<div class="meta">' + q.airports_note + "</div>" : "") +
+        (q.airports_note ? '<div class="meta">' + escapeHtml(q.airports_note) + "</div>" : "") +
         '<div class="band">' +
-        '<div class="band-row cheap"><span>🟢 дёшево</span><span>≤ ' +
+        '<div class="band-row cheap"><span>дёшево</span><span>≤ ' +
         money(q.cheap_max) +
         "</span></div>" +
-        '<div class="band-row typical"><span>🟡 обычно</span><span>~ ' +
+        '<div class="band-row typical"><span>обычно</span><span>~ ' +
         money(q.typical) +
         "</span></div>" +
-        '<div class="band-row expensive"><span>🔴 дорого</span><span>≥ ' +
+        '<div class="band-row expensive"><span>дорого</span><span>≥ ' +
         money(q.expensive_min) +
         "</span></div>" +
         "</div>" +
         '<div style="margin-top:12px"><a class="btn ghost" href="' +
-        q.tickets_url +
+        escapeHtml(q.tickets_url) +
         '" target="_blank" rel="noopener">Смотреть билеты</a></div>';
       $("#watch-form").classList.remove("hidden");
       $("#threshold").value = Math.round(q.cheap_max || q.price || 0);
       updateDirtyClosingConfirmation();
+      syncMainButton();
     }
 
     async function resolveHint(inputId, hintId) {
@@ -653,24 +790,46 @@
     }
 
     function switchTab(name) {
-      $$(".tab").forEach((b) =>
-        b.classList.toggle("active", b.getAttribute("data-tab") === name)
-      );
+      $$(".tab").forEach((b) => {
+        const on = b.getAttribute("data-tab") === name;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
       $$(".panel").forEach((p) =>
         p.classList.toggle("active", p.id === "panel-" + name)
       );
-      if (name === "watches") loadWatches();
+      if (name === "watches") {
+        clearMainButton();
+        loadWatches();
+      } else {
+        syncMainButton();
+      }
+    }
+
+    function logoSvgTiny() {
+      return (
+        '<svg class="deco" viewBox="0 0 22 22" fill="none" aria-hidden="true">' +
+        '<circle cx="4" cy="18" r="2.2" fill="#0B4DB8"/>' +
+        '<path d="M5.8 16.4 C9 12.2, 13.2 7.4, 18.5 4.2" stroke="#0B4DB8" stroke-width="1.6" stroke-linecap="round" fill="none"/>' +
+        '<circle cx="18.5" cy="4.2" r="2.2" fill="#0B4DB8" opacity="0.9"/>' +
+        '<circle cx="18.5" cy="4.2" r="4.4" stroke="#0B4DB8" stroke-width="1" fill="none" opacity="0.35"/>' +
+        "</svg>"
+      );
     }
 
     async function loadWatches() {
       const box = $("#watches");
       if (!box) return;
-      box.innerHTML = '<div class="meta">Загрузка…</div>';
+      box.innerHTML =
+        '<div class="skeleton" aria-busy="true" aria-label="Загрузка подписок">' +
+        '<div class="skeleton-card"></div><div class="skeleton-card"></div>' +
+        "</div>";
       try {
         const items = await api("/api/watches");
         if (!items.length) {
           box.innerHTML =
-            '<div class="quote empty-onboarding">' +
+            '<div class="empty-state empty-onboarding">' +
+            logoSvgTiny() +
             "<h2>Пока нет подписок</h2>" +
             '<p class="meta">Настройте поездку один раз — FlyPing будет проверять цену за вас.</p>' +
             '<button class="btn primary" type="button" data-empty-create="1">Создать подписку</button>' +
@@ -682,43 +841,56 @@
             const trip = w.return_date ? "туда-обратно" : "в одну сторону";
             const flex = Number(w.flexibility_days || 0);
             const flexLabel = flex > 0 ? " · гибкость ±" + flex + " дн." : "";
-            const priceLine = w.last_price != null ? money(w.last_price) : "—";
+            const priceLine = w.last_price != null ? money(w.last_price) : null;
             const checkedLine = formatLastChecked(w.last_checked_at);
+            const originCode = escapeHtml(w.origin || "");
+            const destCode = escapeHtml(w.destination || "");
             return (
               '<article class="watch-card" data-id="' +
               w.id +
               '">' +
-              "<h3>" +
-              (w.origin_name || w.origin) +
-              " → " +
-              (w.destination_name || w.destination) +
-              "</h3>" +
-              '<div class="meta">' +
+              '<div class="route-row">' +
+              '<div><div class="airport-code code">' +
+              originCode +
+              '</div><div class="city">' +
+              escapeHtml(w.origin_name || w.origin) +
+              "</div></div>" +
+              '<div class="route-line" aria-hidden="true"></div>' +
+              '<div style="text-align:right"><div class="airport-code code">' +
+              destCode +
+              '</div><div class="city">' +
+              escapeHtml(w.destination_name || w.destination) +
+              "</div></div>" +
+              "</div>" +
+              '<div class="meta mono">' +
               trip +
               flexLabel +
               "</div>" +
-              '<div class="meta mono">#' +
-              w.id +
-              " · порог " +
+              '<div class="threshold">порог ' +
               money(w.max_price) +
               "</div>" +
-              '<div class="meta">сейчас: ' +
-              priceLine +
-              (w.last_origin_airport ? " · вылет " + w.last_origin_airport : "") +
-              "</div>" +
+              (priceLine != null
+                ? '<div class="price-line">сейчас: <span class="mono">' +
+                  priceLine +
+                  "</span>" +
+                  (w.last_origin_airport
+                    ? " · вылет " + escapeHtml(w.last_origin_airport)
+                    : "") +
+                  "</div>"
+                : "") +
               '<div class="meta">' +
-              checkedLine +
+              escapeHtml(checkedLine) +
               "</div>" +
               '<div class="actions">' +
               '<a class="btn ghost" href="' +
-              w.tickets_url +
+              escapeHtml(w.tickets_url) +
               '" target="_blank" rel="noopener">Билеты</a>' +
               '<button class="btn ghost" data-share="' +
               w.id +
               '" type="button">Поделиться</button>' +
               '<button class="btn ghost" data-del="' +
               w.id +
-              '" type="button">Удалить</button>' +
+              '" type="button" aria-label="Удалить подписку">Удалить</button>' +
               "</div>" +
               "</article>"
             );
@@ -727,9 +899,13 @@
       } catch (err) {
         if (err && err.auth) return;
         box.innerHTML =
-          '<div class="quote"><h2>Не удалось загрузить</h2><p class="meta">' +
-          err.message +
-          "</p></div>";
+          '<div class="error-state">' +
+          "<h2>Не удалось загрузить</h2>" +
+          '<p class="meta">' +
+          escapeHtml(err.message || "Попробуйте ещё раз") +
+          "</p>" +
+          '<button class="btn primary" type="button" data-retry-watches="1">Повторить</button>' +
+          "</div>";
       }
     }
 
@@ -841,6 +1017,12 @@
         state.destination = $("#destination").value.trim();
         state.depart = $("#depart").value || "";
         state.returnDate = state.trip === "round" ? $("#return").value || "" : "";
+        setFieldError("origin", state.origin ? "" : "Укажите город или код аэропорта");
+        setFieldError("destination", state.destination ? "" : "Укажите город или код аэропорта");
+        if (!state.origin || !state.destination) {
+          haptic("error");
+          return;
+        }
         if (state.trip === "round" && !state.returnDate) {
           toast("Укажите дату возврата");
           return;
@@ -860,10 +1042,12 @@
           params.set("flexibility_days", String(state.flexibilityDays || 0));
           const q = await api("/api/quote?" + params.toString());
           renderQuote(q);
-          const tg = getTelegramWebApp();
-          if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+          haptic("success");
         } catch (err) {
-          if (!(err && err.auth)) toast(err.message);
+          if (!(err && err.auth)) {
+            toast(err.message);
+            haptic("error");
+          }
         } finally {
           btn.disabled = false;
           btn.textContent = "Показать вилку цен";
@@ -895,27 +1079,29 @@
         if (!state.quote) return;
         const threshold = Math.round(Number($("#threshold").value));
         if (!Number.isFinite(threshold) || threshold < 1) {
+          setFieldError("threshold", "Введите порог числом, например 12000");
           toast("Введите порог числом, например 12000");
+          haptic("error");
           return;
         }
+        setFieldError("threshold", "");
         hideLowThresholdWarn();
         try {
           await createWatch(threshold, false);
           toast("Подписка создана");
           setClosingConfirmation(false);
-          const tg = getTelegramWebApp();
-          if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+          haptic("success");
+          clearMainButton();
           switchTab("watches");
         } catch (err) {
-          if (
-            err.status === 409 &&
-            err.detail &&
-            err.detail.code === "LOW_THRESHOLD_CONFIRMATION_REQUIRED"
-          ) {
+          if (err && err.detail && err.detail.code === "LOW_THRESHOLD_CONFIRMATION_REQUIRED") {
             showLowThresholdWarn(err.detail);
             return;
           }
-          if (!(err && err.auth)) toast(err.message);
+          if (!(err && err.auth)) {
+            toast(err.message);
+            haptic("error");
+          }
         }
       });
 
@@ -929,8 +1115,8 @@
             hideLowThresholdWarn();
             toast("Подписка создана");
             setClosingConfirmation(false);
-            const tg = getTelegramWebApp();
-            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+            haptic("success");
+            clearMainButton();
             switchTab("watches");
           } catch (err) {
             if (!(err && err.auth)) toast(err.message);
@@ -951,6 +1137,12 @@
       }
 
       $("#watches").addEventListener("click", async (e) => {
+        const retry =
+          e.target && e.target.closest && e.target.closest("[data-retry-watches]");
+        if (retry) {
+          loadWatches();
+          return;
+        }
         const createBtn = e.target && e.target.closest && e.target.closest("[data-empty-create]");
         if (createBtn) {
           switchTab("search");
@@ -1075,10 +1267,12 @@
         state.me = me;
         hideAuthGate();
         bindUiOnce();
+        showUserChip(me);
         state.uiStarted = true;
         const name = (me && me.first_name) || (me && me.username) || "";
         setBoot(name ? "Привет, " + name : "Готово");
         setTimeout(() => setBoot(""), 1500);
+        syncMainButton();
       } catch (err) {
         if (!(err && err.auth)) {
           showAuthGate(
