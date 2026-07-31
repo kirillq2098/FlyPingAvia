@@ -8,7 +8,7 @@ cd "$ROOT"
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
-BRANCH="${DEPLOY_BRANCH:-cursor/gr-02-blogger-kit-3bd9}"
+BRANCH="${DEPLOY_BRANCH:-cursor/in-04-production-deployment-3bd9}"
 
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "Missing $COMPOSE_FILE" >&2

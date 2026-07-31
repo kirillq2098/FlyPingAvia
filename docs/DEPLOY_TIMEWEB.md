@@ -93,7 +93,16 @@ cd /opt/flyping
 4. `nginx -t && systemctl reload nginx`  
 5. `certbot renew --dry-run`
 
-Landing: `/var/www/flyping-landing` из `deploy/landing/`.
+Landing: `/var/www/flyping-landing` из `deploy/landing/` (deployment stub).
+
+Фронтенды в репозитории (v0.3.0):
+
+| Host | Каталог | Что это |
+|------|---------|---------|
+| `flyping.ru` / `www` | `deploy/landing/` | Stub (отдельного marketing site в repo нет) |
+| `app.flyping.ru` | `flypingavia/web/static/` | Telegram Mini App |
+
+Startup menu button: стабильный `WEBAPP_URL` → `MenuButtonWebApp` («FlyPing»); temporary tunnel → `MenuButtonCommands` (TG-05).
 
 ## Polling
 
