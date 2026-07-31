@@ -18,10 +18,19 @@ async def get_or_create_user(
     result = await session.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
     if user is None:
+        from sqlalchemy.exc import IntegrityError
+
         user = User(telegram_id=telegram_id, username=username)
-        session.add(user)
-        await session.flush()
-    elif username and user.username != username:
+        try:
+            async with session.begin_nested():
+                session.add(user)
+                await session.flush()
+        except IntegrityError:
+            result = await session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            user = result.scalar_one()
+    if username and user.username != username:
         user.username = username
     return user
 
@@ -533,3 +542,88 @@ async def revoke_all_watch_shares(
         row.revoked_at = now_utc
     await session.flush()
     return len(rows)
+
+
+async def get_watch_by_idempotency_key(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    key: str,
+) -> Watch | None:
+    from flypingavia.db.models import WatchCreateIdempotency
+
+    key = (key or "").strip()
+    if not key or len(key) > 128:
+        return None
+    result = await session.execute(
+        select(WatchCreateIdempotency).where(
+            WatchCreateIdempotency.user_id == user_id,
+            WatchCreateIdempotency.key == key,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return None
+    return await session.get(Watch, row.watch_id)
+
+
+async def save_watch_idempotency(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    key: str,
+    watch_id: int,
+) -> None:
+    from flypingavia.db.models import WatchCreateIdempotency
+
+    key = (key or "").strip()
+    if not key or len(key) > 128:
+        raise ValueError("Invalid idempotency key")
+    session.add(
+        WatchCreateIdempotency(user_id=user_id, key=key, watch_id=watch_id)
+    )
+    await session.flush()
+
+
+async def find_recent_similar_watch(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    origin: str,
+    destination: str,
+    max_price: float,
+    depart_date: Optional[date],
+    return_date: Optional[date],
+    flexibility_days: int,
+    adults: int,
+    children: int,
+    infants: int,
+    currency: str,
+    within_seconds: int = 60,
+    now: datetime | None = None,
+) -> Watch | None:
+    """Короткое окно против дублей без Idempotency-Key (race / timeout)."""
+    now_utc = _aware_utc(now or datetime.now(timezone.utc))
+    since = now_utc - timedelta(seconds=max(1, within_seconds))
+    result = await session.execute(
+        select(Watch)
+        .where(
+            Watch.user_id == user_id,
+            Watch.is_active.is_(True),
+            Watch.origin == origin.upper(),
+            Watch.destination == destination.upper(),
+            Watch.max_price == float(max_price),
+            Watch.flexibility_days == int(flexibility_days),
+            Watch.adults == int(adults),
+            Watch.children == int(children),
+            Watch.infants == int(infants),
+            Watch.currency == (currency or "RUB").upper(),
+            Watch.created_at >= since,
+        )
+        .order_by(Watch.id.desc())
+        .limit(20)
+    )
+    for watch in result.scalars().all():
+        if watch.depart_date == depart_date and watch.return_date == return_date:
+            return watch
+    return None

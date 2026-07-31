@@ -10,7 +10,7 @@
   <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
   <script src="/assets/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-wa04" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-wa04" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-wa04h" />
 </head>
 <body>
   <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -150,6 +150,7 @@
             <button type="button" class="btn ghost" id="low-threshold-edit">Изменить порог</button>
           </div>
         </div>
+        <p id="watch-submit-progress" class="meta watch-submit-progress hidden" aria-live="polite"></p>
         <button class="btn primary" type="submit" id="watch-submit">Создать подписку</button>
       </form>
     </section>
@@ -161,6 +162,6 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=0.3.0-wa04"></script>
+  <script src="/assets/app.js?v=0.3.0-wa04h"></script>
 </body>
 </html>

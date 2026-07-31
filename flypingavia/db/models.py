@@ -250,3 +250,28 @@ class SystemRuntimeState(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class WatchCreateIdempotency(Base):
+    """Идемпотентность POST /api/watches (WA-04 hotfix): один key → один Watch."""
+
+    __tablename__ = "watch_create_idempotency"
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_watch_create_idempotency_user_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    key: Mapped[str] = mapped_column(String(128))
+    watch_id: Mapped[int] = mapped_column(
+        ForeignKey("watches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
+    )

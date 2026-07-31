@@ -22,7 +22,10 @@ from flypingavia.db.session import session_scope
 from flypingavia.services.locations import resolve_place
 from flypingavia.services.prices import build_affiliate_url, build_price_provider
 from flypingavia.services.flexible_dates import search_flexible_trip, validate_flexibility_days
-from flypingavia.services.threshold_policy import evaluate_low_threshold
+from flypingavia.services.threshold_policy import (
+    band_from_snapshot,
+    evaluate_low_threshold,
+)
 from flypingavia.bot.formatters import money as format_money
 
 logger = logging.getLogger(__name__)
@@ -85,6 +88,10 @@ class WatchIn(BaseModel):
     infants: int = Field(default=0, ge=0, le=9)
     confirm_low_threshold: bool = False
     flexibility_days: int = 0
+    # Optional market snapshot from prior /api/quote — avoids re-search on create.
+    market_cheap_max: Optional[float] = None
+    market_typical: Optional[float] = None
+    market_expensive_min: Optional[float] = None
 
 
 class WatchOut(BaseModel):
@@ -442,8 +449,11 @@ def create_api(settings: Settings | None = None) -> FastAPI:
     async def api_create_watch(
         body: WatchIn,
         user: TelegramWebAppUser = Depends(current_user),
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> WatchOut:
         import math
+
+        from sqlalchemy.exc import IntegrityError
 
         origin_place, _ = await resolve_place(body.origin)
         dest_place, _ = await resolve_place(body.destination)
@@ -460,28 +470,43 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        # CS-05: band через тот же flexible search, что и /api/quote.
+        idem_key = (idempotency_key or "").strip() or None
+        if idem_key is not None and len(idem_key) > 128:
+            raise HTTPException(400, "Idempotency-Key слишком длинный")
+
+        # CS-05: prefer quote snapshot from client; skip live re-search when
+        # confirmed or snapshot present (create latency hotspot was search_flexible_trip).
         band = None
-        try:
-            result = await search_flexible_trip(
-                provider,
-                origins=origin_place.search_codes,
-                destinations=dest_place.search_codes,
-                depart_date=body.depart_date,
-                return_date=body.return_date,
-                flexibility_days=flex,
-                adults=body.adults,
-                children=body.children,
-                infants=body.infants,
+        if body.market_cheap_max is not None and body.market_typical is not None:
+            band = band_from_snapshot(
+                cheap_max=body.market_cheap_max,
+                typical=body.market_typical,
+                expensive_min=body.market_expensive_min,
                 currency=settings.currency,
             )
-            if result is not None:
-                band = result.band
-        except Exception:
-            logger.exception(
-                "Failed to evaluate flexible market band before Watch creation"
-            )
+        elif body.confirm_low_threshold:
             band = None
+        else:
+            try:
+                result = await search_flexible_trip(
+                    provider,
+                    origins=origin_place.search_codes,
+                    destinations=dest_place.search_codes,
+                    depart_date=body.depart_date,
+                    return_date=body.return_date,
+                    flexibility_days=flex,
+                    adults=body.adults,
+                    children=body.children,
+                    infants=body.infants,
+                    currency=settings.currency,
+                )
+                if result is not None:
+                    band = result.band
+            except Exception:
+                logger.exception(
+                    "Failed to evaluate flexible market band before Watch creation"
+                )
+                band = None
 
         decision = evaluate_low_threshold(
             body.max_price,
@@ -511,6 +536,46 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             db_user = await repo.get_or_create_user(
                 session, telegram_id=user.id, username=user.username
             )
+            if idem_key:
+                existing = await repo.get_watch_by_idempotency_key(
+                    session, user_id=db_user.id, key=idem_key
+                )
+                if existing is not None:
+                    return _watch_out(existing)
+
+            recent = await repo.find_recent_similar_watch(
+                session,
+                user_id=db_user.id,
+                origin=origin_place.code,
+                destination=dest_place.code,
+                max_price=body.max_price,
+                depart_date=body.depart_date,
+                return_date=body.return_date,
+                flexibility_days=flex,
+                adults=body.adults,
+                children=body.children,
+                infants=body.infants,
+                currency=settings.currency,
+                within_seconds=60,
+            )
+            if recent is not None:
+                if idem_key:
+                    try:
+                        async with session.begin_nested():
+                            await repo.save_watch_idempotency(
+                                session,
+                                user_id=db_user.id,
+                                key=idem_key,
+                                watch_id=recent.id,
+                            )
+                    except IntegrityError:
+                        existing = await repo.get_watch_by_idempotency_key(
+                            session, user_id=db_user.id, key=idem_key
+                        )
+                        if existing is not None:
+                            return _watch_out(existing)
+                return _watch_out(recent)
+
             watch = await repo.add_watch(
                 session,
                 user=db_user,
@@ -529,6 +594,26 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 currency=settings.currency,
                 flexibility_days=flex,
             )
+            if idem_key:
+                try:
+                    async with session.begin_nested():
+                        await repo.save_watch_idempotency(
+                            session,
+                            user_id=db_user.id,
+                            key=idem_key,
+                            watch_id=watch.id,
+                        )
+                except IntegrityError:
+                    # Параллельный запрос с тем же ключом уже сохранил mapping —
+                    # удаляем наш дубль и возвращаем победителя.
+                    await session.delete(watch)
+                    await session.flush()
+                    existing = await repo.get_watch_by_idempotency_key(
+                        session, user_id=db_user.id, key=idem_key
+                    )
+                    if existing is not None:
+                        return _watch_out(existing)
+                    raise
             return _watch_out(watch)
 
     @app.delete("/api/watches/{watch_id}")

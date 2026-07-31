@@ -553,6 +553,45 @@ button {
   font-weight: 700;
 }
 
+.watch-submit-progress {
+  margin: 0;
+  min-height: 1.2em;
+}
+
+.btn.is-loading {
+  position: relative;
+  opacity: 0.85;
+  cursor: wait;
+  pointer-events: none;
+}
+
+.btn.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 0.55em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: fp-spin 0.7s linear infinite;
+}
+
+@keyframes fp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-loading::after {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.5;
+  }
+}
+
 /* --- cards --- */
 .quote,
 .watch-card,

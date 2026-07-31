@@ -149,7 +149,13 @@
       themeListenerBound: false,
       formListenersBound: false,
       closingConfirmation: false,
+      createIdempotencyKey: null,
+      _submitT2: null,
+      _submitT10: null,
     };
+    // WA-04 hotfix: единый submit lock (не debounce).
+    let isSubmitting = false;
+    const CREATE_WATCH_TIMEOUT_MS = 25000;
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
 
@@ -192,27 +198,9 @@
     }
 
     function syncMainButton() {
-      const tg = getTelegramWebApp();
-      const mb = tg && tg.MainButton;
-      if (!mb) return;
-      const watchForm = $("#watch-form");
-      const searchPanel = $("#panel-search");
-      const show =
-        searchPanel &&
-        searchPanel.classList.contains("active") &&
-        watchForm &&
-        !watchForm.classList.contains("hidden");
+      // WA-04 hotfix: только внутренняя кнопка формы — MainButton скрыт
+      // (стабильнее в Telegram Web / Desktop / Android / iOS).
       clearMainButton();
-      if (!show) return;
-      try {
-        if (typeof mb.setText === "function") mb.setText("Создать подписку");
-        if (typeof mb.show === "function") mb.show();
-        state._mainBtnHandler = function () {
-          const submit = $("#watch-submit");
-          if (submit) submit.click();
-        };
-        if (typeof mb.onClick === "function") mb.onClick(state._mainBtnHandler);
-      } catch (_) {}
     }
 
     function showUserChip(me) {
@@ -462,11 +450,38 @@
       if (initData) {
         headers["Authorization"] = "tma " + initData;
       }
-      const res = await fetch(path, {
-        method: options.method || "GET",
-        headers: headers,
-        body: options.body,
-      });
+      const controller = new AbortController();
+      const timeoutMs = Number(options.timeoutMs) || 0;
+      let timer = null;
+      if (timeoutMs > 0) {
+        timer = setTimeout(function () {
+          try {
+            controller.abort();
+          } catch (_) {}
+        }, timeoutMs);
+      }
+      let res;
+      try {
+        res = await fetch(path, {
+          method: options.method || "GET",
+          headers: headers,
+          body: options.body,
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        if (timer) clearTimeout(timer);
+        const aborted =
+          (fetchErr && fetchErr.name === "AbortError") ||
+          (typeof DOMException !== "undefined" && fetchErr instanceof DOMException);
+        if (aborted && timeoutMs > 0) {
+          const err = new Error("Превышено время ожидания ответа сервера");
+          err.timeout = true;
+          err.status = 0;
+          throw err;
+        }
+        throw fetchErr;
+      }
+      if (timer) clearTimeout(timer);
       let data = {};
       try {
         data = await res.json();
@@ -931,23 +946,250 @@
       }
     }
 
-    async function createWatch(threshold, confirmLow) {
+    async function createWatch(threshold, confirmLow, idempotencyKey) {
+      const q = state.quote || {};
+      const headers = {};
+      if (idempotencyKey) {
+        headers["Idempotency-Key"] = String(idempotencyKey);
+      }
+      const body = {
+        origin: q.origin,
+        destination: q.destination,
+        max_price: threshold,
+        depart_date: state.depart || null,
+        return_date: state.returnDate || null,
+        adults: state.adults,
+        children: state.children,
+        infants: state.infants,
+        confirm_low_threshold: !!confirmLow,
+        flexibility_days: state.flexibilityDays || 0,
+      };
+      // Снимок рынка с уже показанного quote — без повторного search на сервере.
+      if (q.cheap_max != null && q.typical != null) {
+        body.market_cheap_max = Number(q.cheap_max);
+        body.market_typical = Number(q.typical);
+        if (q.expensive_min != null) {
+          body.market_expensive_min = Number(q.expensive_min);
+        }
+      }
       return api("/api/watches", {
         method: "POST",
-        body: JSON.stringify({
-          origin: state.quote.origin,
-          destination: state.quote.destination,
-          max_price: threshold,
-          depart_date: state.depart || null,
-          return_date: state.returnDate || null,
-          adults: state.adults,
-          children: state.children,
-          infants: state.infants,
-          confirm_low_threshold: !!confirmLow,
-          flexibility_days: state.flexibilityDays || 0,
-        }),
+        headers: headers,
+        body: JSON.stringify(body),
+        timeoutMs: CREATE_WATCH_TIMEOUT_MS,
       });
     }
+
+    function newIdempotencyKey() {
+      try {
+        if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+          return crypto.randomUUID();
+        }
+      } catch (_) {}
+      return (
+        "w-" +
+        Date.now().toString(36) +
+        "-" +
+        Math.random().toString(36).slice(2, 10)
+      );
+    }
+
+    function ensureCreateIdempotencyKey() {
+      if (!state.createIdempotencyKey) {
+        state.createIdempotencyKey = newIdempotencyKey();
+      }
+      return state.createIdempotencyKey;
+    }
+
+    function clearCreateIdempotencyKey() {
+      state.createIdempotencyKey = null;
+    }
+
+    function clearSubmitProgressTimers() {
+      if (state._submitT2) {
+        clearTimeout(state._submitT2);
+        state._submitT2 = null;
+      }
+      if (state._submitT10) {
+        clearTimeout(state._submitT10);
+        state._submitT10 = null;
+      }
+    }
+
+    function setSubmitUi(busy) {
+      const btn = $("#watch-submit");
+      const confirmBtn = $("#low-threshold-confirm");
+      const editBtn = $("#low-threshold-edit");
+      const progress = $("#watch-submit-progress");
+      clearSubmitProgressTimers();
+      if (btn) {
+        btn.disabled = !!busy;
+        btn.classList.toggle("is-loading", !!busy);
+        btn.setAttribute("aria-busy", busy ? "true" : "false");
+        btn.textContent = busy ? "Создаём подписку…" : "Создать подписку";
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = !!busy;
+        confirmBtn.classList.toggle("is-loading", !!busy);
+        if (busy) {
+          confirmBtn.textContent = "Создаём подписку…";
+        } else {
+          confirmBtn.textContent = "Сохранить всё равно";
+        }
+      }
+      if (editBtn) editBtn.disabled = !!busy;
+      if (progress) {
+        if (!busy) {
+          progress.classList.add("hidden");
+          progress.textContent = "";
+        } else {
+          progress.classList.add("hidden");
+          progress.textContent = "";
+          state._submitT2 = setTimeout(function () {
+            if (!isSubmitting || !progress) return;
+            progress.classList.remove("hidden");
+            progress.textContent =
+              "Сохраняем и подключаем отслеживание. Это может занять несколько секунд.";
+          }, 2000);
+          state._submitT10 = setTimeout(function () {
+            if (!isSubmitting || !progress) return;
+            progress.classList.remove("hidden");
+            progress.textContent =
+              "Подписка всё ещё создаётся. Не закрывайте окно.";
+          }, 10000);
+        }
+      }
+      clearMainButton();
+    }
+
+    function shouldWarnLowThresholdLocal(threshold) {
+      const q = state.quote;
+      if (!q) return false;
+      const cheap = Number(q.cheap_max);
+      if (!Number.isFinite(threshold) || threshold <= 0) return false;
+      if (!Number.isFinite(cheap) || cheap <= 0) return false;
+      return threshold < cheap;
+    }
+
+    function resetWatchFormAfterSuccess() {
+      hideLowThresholdWarn();
+      state.quote = null;
+      const quote = $("#quote");
+      if (quote) {
+        quote.classList.add("hidden");
+        quote.innerHTML = "";
+      }
+      const form = $("#watch-form");
+      if (form) form.classList.add("hidden");
+      const thr = $("#threshold");
+      if (thr) thr.value = "";
+      clearCreateIdempotencyKey();
+      clearMainButton();
+    }
+
+    function watchMatchesPendingCreate(w, threshold) {
+      if (!w || !state.quote) return false;
+      const origin = String(state.quote.origin || "").toUpperCase();
+      const dest = String(state.quote.destination || "").toUpperCase();
+      if (String(w.origin || "").toUpperCase() !== origin) return false;
+      if (String(w.destination || "").toUpperCase() !== dest) return false;
+      if (Math.round(Number(w.max_price)) !== Math.round(Number(threshold))) return false;
+      if (Number(w.flexibility_days || 0) !== Number(state.flexibilityDays || 0)) return false;
+      const dep = state.depart || null;
+      const ret = state.returnDate || null;
+      const wDep = w.depart_date || null;
+      const wRet = w.return_date || null;
+      if (dep !== wDep) return false;
+      if (ret !== wRet) return false;
+      return true;
+    }
+
+    async function recoverAfterCreateTimeout(threshold) {
+      try {
+        const items = await api("/api/watches");
+        if (!Array.isArray(items)) return null;
+        for (let i = 0; i < items.length; i++) {
+          if (watchMatchesPendingCreate(items[i], threshold)) {
+            return items[i];
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    async function finishCreateSuccess() {
+      hideLowThresholdWarn();
+      toast("Подписка создана");
+      setClosingConfirmation(false);
+      haptic("success");
+      resetWatchFormAfterSuccess();
+      switchTab("watches");
+      // Разблокируем только после навигации на список.
+      isSubmitting = false;
+      setSubmitUi(false);
+    }
+
+    async function submitWatchForm(confirmLow) {
+      if (isSubmitting) return;
+      if (!state.quote) return;
+      const threshold = Math.round(Number($("#threshold").value));
+      if (!Number.isFinite(threshold) || threshold < 1) {
+        setFieldError("threshold", "Введите порог числом, например 12000");
+        toast("Введите порог числом, например 12000");
+        haptic("error");
+        return;
+      }
+      setFieldError("threshold", "");
+
+      // Мгновенная локальная проверка низкого порога по уже загруженному quote.
+      if (!confirmLow && shouldWarnLowThresholdLocal(threshold)) {
+        showLowThresholdWarn({
+          threshold: threshold,
+          cheap_max: state.quote.cheap_max,
+          typical: state.quote.typical,
+        });
+        return;
+      }
+
+      isSubmitting = true;
+      setSubmitUi(true);
+      const key = ensureCreateIdempotencyKey();
+      try {
+        await createWatch(threshold, !!confirmLow, key);
+        await finishCreateSuccess();
+      } catch (err) {
+        if (err && err.timeout) {
+          const found = await recoverAfterCreateTimeout(threshold);
+          if (found) {
+            await finishCreateSuccess();
+            return;
+          }
+          toast(
+            "Не удалось подтвердить создание. Откройте «Мои подписки» — не нажимайте повторно сразу."
+          );
+          haptic("error");
+          // Ключ сохраняем: повтор использует тот же Idempotency-Key.
+          isSubmitting = false;
+          setSubmitUi(false);
+          return;
+        }
+        if (err && err.detail && err.detail.code === "LOW_THRESHOLD_CONFIRMATION_REQUIRED") {
+          showLowThresholdWarn(err.detail);
+          isSubmitting = false;
+          setSubmitUi(false);
+          return;
+        }
+        if (!(err && err.auth)) {
+          toast(err.message || "Не удалось создать подписку");
+          haptic("error");
+        }
+        isSubmitting = false;
+        setSubmitUi(false);
+      }
+    }
+
+    // Экспорт для единообразного вызова (форма / confirm / тесты).
+    window.submitWatchForm = submitWatchForm;
 
     function bindUiOnce() {
       if (state.formListenersBound) return;
@@ -1076,57 +1318,20 @@
 
       $("#watch-form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        if (!state.quote) return;
-        const threshold = Math.round(Number($("#threshold").value));
-        if (!Number.isFinite(threshold) || threshold < 1) {
-          setFieldError("threshold", "Введите порог числом, например 12000");
-          toast("Введите порог числом, например 12000");
-          haptic("error");
-          return;
-        }
-        setFieldError("threshold", "");
-        hideLowThresholdWarn();
-        try {
-          await createWatch(threshold, false);
-          toast("Подписка создана");
-          setClosingConfirmation(false);
-          haptic("success");
-          clearMainButton();
-          switchTab("watches");
-        } catch (err) {
-          if (err && err.detail && err.detail.code === "LOW_THRESHOLD_CONFIRMATION_REQUIRED") {
-            showLowThresholdWarn(err.detail);
-            return;
-          }
-          if (!(err && err.auth)) {
-            toast(err.message);
-            haptic("error");
-          }
-        }
+        await submitWatchForm(false);
       });
 
       const confirmBtn = $("#low-threshold-confirm");
       if (confirmBtn) {
         confirmBtn.addEventListener("click", async () => {
-          if (!state.quote) return;
-          const threshold = Math.round(Number($("#threshold").value));
-          try {
-            await createWatch(threshold, true);
-            hideLowThresholdWarn();
-            toast("Подписка создана");
-            setClosingConfirmation(false);
-            haptic("success");
-            clearMainButton();
-            switchTab("watches");
-          } catch (err) {
-            if (!(err && err.auth)) toast(err.message);
-          }
+          await submitWatchForm(true);
         });
       }
 
       const editBtn = $("#low-threshold-edit");
       if (editBtn) {
         editBtn.addEventListener("click", () => {
+          if (isSubmitting) return;
           hideLowThresholdWarn();
           const input = $("#threshold");
           if (input) {

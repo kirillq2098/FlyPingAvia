@@ -428,7 +428,7 @@ async def test_api_low_threshold_with_confirm_creates(api_client, monkeypatch) -
         assert body["max_price"] == 10_000
         watch_id = body["id"]
 
-        # Повтор с confirm создаёт ещё один Watch (идемпотентности нет — фиксируем).
+        # Повтор без Idempotency-Key в коротком окне → тот же Watch (fingerprint).
         res2 = await c.post(
             "/api/watches",
             json={
@@ -439,11 +439,11 @@ async def test_api_low_threshold_with_confirm_creates(api_client, monkeypatch) -
             },
         )
         assert res2.status_code == 200
-        assert res2.json()["id"] != watch_id
+        assert res2.json()["id"] == watch_id
 
     async with session_scope() as session:
         watches = (await session.execute(select(Watch))).scalars().all()
-        assert len(watches) == 2
+        assert len(watches) == 1
 
 
 @pytest.mark.asyncio
@@ -837,5 +837,7 @@ def test_frontend_confirm_preserves_flexibility_days() -> None:
     )
     assert "confirm_low_threshold: !!confirmLow" in src
     assert "flexibility_days: state.flexibilityDays || 0" in src
-    # createWatch(threshold, true) не перезаписывает flex
-    assert "await createWatch(threshold, true)" in src
+    # Единый submitWatchForm(true) — flex не перезаписывается.
+    assert "async function submitWatchForm(confirmLow)" in src
+    assert "await submitWatchForm(true)" in src
+    assert "await submitWatchForm(false)" in src
