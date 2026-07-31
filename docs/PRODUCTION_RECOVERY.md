@@ -133,6 +133,11 @@ sudo /opt/flyping/deploy/scripts/rollback-landing.sh
 Включён в `/etc/docker/daemon.json` (`"live-restore": true`), если применено на хосте.  
 Проверка: `docker info | grep -i 'Live Restore'`
 
+## Graceful shutdown
+
+В `docker-compose.prod.yml` для обоих сервисов: `init: true`, `stop_grace_period: 30s`  
+(на Docker 29: `Config.StopTimeout=30`). При `docker stop` / compose stop процесс получает SIGTERM и до 30s на завершение, затем SIGKILL.
+
 ## Restart policy
 
 Контейнеры: **`unless-stopped`**.  
