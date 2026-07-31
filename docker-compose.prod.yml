@@ -15,18 +15,18 @@ services:
     image: flypingavia:0.3.0
     container_name: flyping-app
     restart: unless-stopped
+    # Timeweb VPS: api.telegram.org reachable via IPv6 only from this host.
+    # Bridge networking without IPv6 breaks polling; host network inherits IPv6.
+    network_mode: host
     env_file:
       - .env
     environment:
       APP_ENV: production
-      WEBAPP_HOST: "0.0.0.0"
+      WEBAPP_HOST: "127.0.0.1"
       WEBAPP_PORT: "8080"
       WEBAPP_DEV_USER_ID: "0"
       FORWARDED_ALLOW_IPS: "127.0.0.1"
-      # Prefer volume path; override DATABASE_URL in .env if needed.
       DB_PATH: /app/data/flypingavia.db
-    ports:
-      - "127.0.0.1:8080:8080"
     volumes:
       - flyping-data:/app/data
     healthcheck:
@@ -46,7 +46,6 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
-    # No DB port published. App only on loopback for host Nginx.
 
 volumes:
   flyping-data:
