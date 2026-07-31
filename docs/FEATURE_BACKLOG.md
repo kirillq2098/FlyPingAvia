@@ -505,15 +505,15 @@
 - **Статус:** Done · **Source:** Roadmap, Decisions open, Arch
 
 ### RL-03 · Health-алерты админу при падении
-- **Описание:** Если public/local health fail N раз — сообщение владельцу в Telegram.
-- **Проблема:** Supervise чинит, но человек не знает о деградации DNS/API.
+- **Описание:** Incidents в БД; threshold/cooldown; recovery; checker heartbeat; DB/provider/TG/webapp/readiness. Без Sentry/Grafana.
+- **Проблема:** Supervise чинит, но человек не знает о деградации.
 - **Важность:** До 100 внешних users.
 - **NSM:** Medium (uptime).
 - **Value 7 · Effort 3 · Время:** 1–2 д · **P1**
-- **Зависимости:** RL-01; ADMIN_CHAT_ID
-- **DoD:** алерт админу; без спама (cooldown)
+- **Зависимости:** RL-01
+- **DoD:** admin alert после threshold; cooldown; recovery; миграция 005; docs/HEALTH_MONITORING.md
 - **Метрики:** время до обнаружения инцидента
-- **Статус:** Todo · **Source:** Strategy risks, Arch
+- **Статус:** Done · **Source:** Strategy risks, Arch
 
 ---
 
@@ -703,7 +703,7 @@
 | 10 | WA-03 | Web App | P1 | 8 | 3 | 2.7 | 1–2д | Done |
 | 11 | RL-02 | Reliability | P0 | 3 | 1 | 3.0 | 0.5ч | Done |
 | 12 | CS-08 | Search | P0 | 9 | 1 | 9.0 | 0.5д ops | Partial |
-| 13 | RL-03 | Reliability | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
+| 13 | RL-03 | Reliability | P1 | 7 | 3 | 2.3 | 1–2д | Done |
 | 14 | TR-05 | Tracking | P1 | 7 | 3 | 2.3 | 1–2д | Todo |
 | 15 | TR-06 | Tracking | P1 | 5 | 3 | 1.7 | 1д | Todo |
 | 16 | UA-01 | Account | P1 | 6 | 3 | 2.0 | 1–2д | Todo |
@@ -728,7 +728,7 @@
 
 ### Уже сделано (не в очереди)
 
-CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-04, TG-05, WA-01, WA-03, RL-01, RL-02, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
+CS-01, CS-02, CS-03, CS-04, TR-01, TR-02, TR-03, NT-01, TG-01, TG-02, TG-03, TG-04, TG-05, WA-01, WA-03, RL-01, RL-02, RL-03, IN-01, IT-01, AN-03, NT-04, NT-02, NT-03, CS-05 — **Done**.
 
 ### Матрица (схема)
 

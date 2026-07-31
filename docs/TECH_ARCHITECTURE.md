@@ -100,6 +100,8 @@ Auth (WA-03):
 
 **watch_share_tokens / redemptions:** TG-04 opaque share (token_hash, TTL, max_uses, revoke, idempotent clone); confirm через HMAC `sc:…` proof; attribution source = `share`
 
+**system_health_incidents / system_runtime_state:** RL-03 admin health alerts (threshold/cooldown, checker heartbeat, `recovery_pending` + `recovery_notified_at`; DB outage — process-local fallback)
+
 Удаление подписки — soft (`is_active=False`).
 
 ## Источники цен
@@ -112,8 +114,9 @@ Auth (WA-03):
 
 ## Фоновые задачи
 
-- Job id `price_check`, interval = `poll_interval_seconds` (минимум 30 сек, если из минут).  
-- `PriceChecker.run_once`: все активные watches → quote → update last_* → алерт если цена ≤ порога.
+- Job id `price_check`, interval = `poll_interval_seconds` (минимум 30 сек, если из минут); `max_instances=1`, `coalesce=True`.  
+- Scheduler вызывает `run_checker_job` (unexpected crash → `checker_crashed`); внутри — `PriceChecker.run_once`: все активные watches → quote → update last_* → алерт если цена ≤ порога.
+- `HealthMonitor`: изолированные checks (`_run_check_safely`); DB outage — `DatabaseOutageTracker`.
 
 ## Деплой и эксплуатация
 

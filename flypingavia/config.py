@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from flypingavia.webapp_url import (
@@ -188,12 +188,106 @@ class Settings(BaseSettings):
         ),
         description="TTL HMAC callback proof для share confirm (секунды)",
     )
+    # RL-03: admin health alerts
+    admin_telegram_chat_id: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "ADMIN_TELEGRAM_CHAT_ID",
+            "admin_telegram_chat_id",
+        ),
+        description="Telegram chat/user id для служебных алертов (пусто = выкл)",
+    )
+    admin_alerts_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "ADMIN_ALERTS_ENABLED",
+            "admin_alerts_enabled",
+        ),
+        description="Включить отправку admin health alerts (нужен chat id)",
+    )
+    admin_alert_failure_threshold: int = Field(
+        default=3,
+        ge=1,
+        le=100,
+        validation_alias=AliasChoices(
+            "ADMIN_ALERT_FAILURE_THRESHOLD",
+            "admin_alert_failure_threshold",
+        ),
+        description="Сколько подряд ошибок до первого admin alert",
+    )
+    admin_alert_cooldown_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        validation_alias=AliasChoices(
+            "ADMIN_ALERT_COOLDOWN_SECONDS",
+            "admin_alert_cooldown_seconds",
+        ),
+        description="Cooldownoldown повторных failure-алертов по одному инциденту",
+    )
+    health_monitor_interval_seconds: int = Field(
+        default=60,
+        ge=30,
+        le=3600,
+        validation_alias=AliasChoices(
+            "HEALTH_MONITOR_INTERVAL_SECONDS",
+            "health_monitor_interval_seconds",
+        ),
+        description="Интервал health monitor loop",
+    )
+    health_startup_grace_seconds: int = Field(
+        default=300,
+        ge=0,
+        le=3600,
+        validation_alias=AliasChoices(
+            "HEALTH_STARTUP_GRACE_SECONDS",
+            "health_startup_grace_seconds",
+        ),
+        description="Grace period без checker_stalled после старта",
+    )
+    checker_stale_after_seconds: int | None = Field(
+        default=None,
+        ge=60,
+        le=86400,
+        validation_alias=AliasChoices(
+            "CHECKER_STALE_AFTER_SECONDS",
+            "checker_stale_after_seconds",
+        ),
+        description="Возраст heartbeat для checker_stalled (default max(interval*3, 900))",
+    )
+    webapp_healthcheck_timeout_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        validation_alias=AliasChoices(
+            "WEBAPP_HEALTHCHECK_TIMEOUT_SECONDS",
+            "webapp_healthcheck_timeout_seconds",
+        ),
+        description="Timeout локальной проверки Mini App health",
+    )
+    admin_telegram_user_ids: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "ADMIN_TELEGRAM_USER_IDS",
+            "admin_telegram_user_ids",
+        ),
+        description="CSV Telegram user id для /admin_health (если chat — группа)",
+    )
     # TR-04: единая бизнес-таймзона для отображения last_checked_at (БД хранит UTC)
     display_timezone: str = Field(
         default="Europe/Moscow",
         validation_alias=AliasChoices("DISPLAY_TIMEZONE", "display_timezone"),
         description="IANA timezone для показа времени проверки (default Europe/Moscow)",
     )
+
+    @field_validator("admin_telegram_chat_id", mode="before")
+    @classmethod
+    def _parse_admin_chat_id(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def _normalize_and_validate(self) -> Settings:
@@ -260,6 +354,33 @@ class Settings(BaseSettings):
             self.watch_share_callback_secret = secret or DEV_SHARE_CALLBACK_SECRET
 
         return self
+
+    @property
+    def admin_alerts_active(self) -> bool:
+        return bool(self.admin_alerts_enabled and self.admin_telegram_chat_id is not None)
+
+    @property
+    def effective_checker_stale_after_seconds(self) -> int:
+        if self.checker_stale_after_seconds is not None and self.checker_stale_after_seconds > 0:
+            return int(self.checker_stale_after_seconds)
+        return max(int(self.poll_interval_seconds) * 3, 900)
+
+    @property
+    def admin_user_id_set(self) -> set[int]:
+        out: set[int] = set()
+        raw = (self.admin_telegram_user_ids or "").strip()
+        if raw:
+            for part in raw.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    out.add(int(part))
+                except ValueError:
+                    continue
+        if self.admin_telegram_chat_id is not None and self.admin_telegram_chat_id > 0:
+            out.add(int(self.admin_telegram_chat_id))
+        return out
 
     @property
     def display_tz(self) -> ZoneInfo:

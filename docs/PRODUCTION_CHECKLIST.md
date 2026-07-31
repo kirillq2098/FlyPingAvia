@@ -23,6 +23,10 @@
 - [ ] SQLite volume / `data/` персистентен
 - [ ] Локально: `curl -sf http://127.0.0.1:8080/api/health`
 - [ ] Публично: `curl -sf https://app.example.com/api/ready` → `{"ready":true,…}`
+- [ ] (RL-03) `.env`: `ADMIN_TELEGRAM_CHAT_ID=…` для служебных алертов (опционально; пусто = disabled)
+- [ ] (RL-03) Startup log: `Admin health alerts: enabled|disabled`
+- [ ] (RL-03) Миграция/таблицы: `system_health_incidents` (+ `recovery_notified_at`), `system_runtime_state`
+- [ ] (RL-03) После recovery недоставленный alert повторяется (статус `recovery_pending` в БД)
 
 ## C. Supervise / tunnel
 

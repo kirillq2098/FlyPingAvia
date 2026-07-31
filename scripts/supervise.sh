@@ -160,9 +160,12 @@ kill_strays() {
 }
 
 tunnel_metrics_port() {
-  # cloudflared --metrics 127.0.0.1:PORT
-  awk '/metrics/ {for(i=1;i<=NF;i++) if($i ~ /127\.0\.0\.1:[0-9]+/) {split($i,a,":"); print a[2]; exit}}' \
-    "$TUNNEL_LOG" 2>/dev/null || true
+  # cloudflared: "Starting metrics server on 127.0.0.1:PORT/metrics"
+  # Portable parse (mawk/gawk): не брать "35183/metrics" целиком.
+  grep -Eo '127\.0\.0\.1:[0-9]+' "$TUNNEL_LOG" 2>/dev/null \
+    | tail -n1 \
+    | cut -d: -f2 \
+    || true
 }
 
 tunnel_ha_ok() {
@@ -176,14 +179,22 @@ tunnel_ha_ok() {
   [[ -n "$ha" && "$ha" != "0" && "$ha" != "0.0" ]]
 }
 
+tunnel_public_ok() {
+  local url="$1"
+  [[ -n "$url" ]] || return 1
+  local code
+  code="$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "${url}/api/health" 2>/dev/null || echo 000)"
+  [[ "$code" == "200" ]]
+}
+
 extract_tunnel_url() {
   grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | tail -n1 || true
 }
 
 start_bot() {
   stop_pid "$BOT_PID_FILE" "bot"
-  log "запускаю python -m flypingavia"
-  nohup python -m flypingavia >>"$BOT_LOG" 2>&1 &
+  log "запускаю python3 -m flypingavia"
+  nohup python3 -m flypingavia >>"$BOT_LOG" 2>&1 &
   echo $! >"$BOT_PID_FILE"
   local _
   for _ in $(seq 1 40); do
@@ -216,14 +227,26 @@ start_tunnel() {
       return 1
     fi
     url="$(extract_tunnel_url)"
-    if [[ -n "$url" ]] && tunnel_ha_ok; then
+    if [[ -n "$url" ]] && { tunnel_ha_ok || tunnel_public_ok "$url"; }; then
+      # Дать DNS/edge догнать, затем подтвердить публичный health (иначе Telegram Error 1033).
       sleep "$DNS_WAIT_BEFORE_PROBE"
-      echo "$url"
-      return 0
+      if tunnel_public_ok "$url" || tunnel_ha_ok; then
+        echo "$url" >"$URL_FILE"
+        echo "$url"
+        return 0
+      fi
     fi
     sleep 1
   done
   log "ERROR: tunnel ready timeout"
+  # Fallback: если URL уже есть в логе — вернуть его (лучше, чем пустой стек).
+  url="$(extract_tunnel_url)"
+  if [[ -n "$url" ]]; then
+    log "WARN: используем URL без подтверждённого public health: $url"
+    echo "$url" >"$URL_FILE"
+    echo "$url"
+    return 0
+  fi
   return 1
 }
 
@@ -350,15 +373,23 @@ while true; do
   if ! pid_alive "$tunnel_pid"; then
     log "cloudflared не жив"
     need_tunnel_restart=1
-  elif ! tunnel_ha_ok; then
+  elif [[ -n "$url" ]] && tunnel_public_ok "$url"; then
+    public_fails=0
+  elif tunnel_ha_ok; then
+    # HA есть, но public пока 530 — не крутим рестарт сразу
     public_fails=$((public_fails + 1))
-    log "tunnel HA fail ($public_fails/$PUBLIC_FAILS_MAX)"
+    log "tunnel public fail ($public_fails/$PUBLIC_FAILS_MAX) url=$url"
     if (( public_fails >= PUBLIC_FAILS_MAX )); then
       need_tunnel_restart=1
       public_fails=0
     fi
   else
-    public_fails=0
+    public_fails=$((public_fails + 1))
+    log "tunnel HA/public fail ($public_fails/$PUBLIC_FAILS_MAX)"
+    if (( public_fails >= PUBLIC_FAILS_MAX )); then
+      need_tunnel_restart=1
+      public_fails=0
+    fi
   fi
 
   if (( need_tunnel_restart == 1 )); then

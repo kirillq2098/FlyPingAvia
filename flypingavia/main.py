@@ -62,6 +62,10 @@ def _log_startup_summary(settings) -> None:
             settings.app_env,
             ", ".join(issues),
         )
+    logger.info(
+        "Admin health alerts: %s",
+        "enabled" if settings.admin_alerts_active else "disabled",
+    )
 
 
 async def _async_main() -> None:
@@ -98,14 +102,17 @@ async def _async_main() -> None:
     dp, checker = create_dispatcher(settings, bot)
 
     interval = settings.poll_interval_seconds
+    from flypingavia.monitoring.checker_job import run_checker_job
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        checker.run_once,
+        run_checker_job,
         trigger="interval",
         seconds=interval,
         id="price_check",
         max_instances=1,
         coalesce=True,
+        kwargs={"checker": checker, "bot": bot, "settings": settings},
     )
     scheduler.start()
 
@@ -127,6 +134,11 @@ async def _async_main() -> None:
     _log_startup_summary(settings)
     logger.info("Price check interval=%ss", interval)
 
+    from flypingavia.monitoring.loop import HealthMonitor
+
+    health_monitor = HealthMonitor(settings, bot)
+    health_monitor.start()
+
     if settings.telegram_webapp_url:
         # Menu button в Telegram часто кэширует старый tunnel URL (Error 1033).
         # Надёжнее обновлять WebApp через reply/inline-кнопки после /start.
@@ -144,6 +156,7 @@ async def _async_main() -> None:
             server.serve(),
         )
     finally:
+        await health_monitor.stop()
         scheduler.shutdown(wait=False)
         await bot.session.close()
 

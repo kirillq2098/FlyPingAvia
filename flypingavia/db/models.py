@@ -205,3 +205,48 @@ class WatchShareRedemption(Base):
     share_token: Mapped[WatchShareToken] = relationship(back_populates="redemptions")
     recipient: Mapped[User] = relationship()
     created_watch: Mapped[Watch] = relationship()
+
+
+class SystemHealthIncident(Base):
+    """RL-03: служебный инцидент (не пользовательский AlertEvent)."""
+
+    __tablename__ = "system_health_incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    incident_key: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)
+    first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    recovered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    recovery_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    last_error_summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class SystemRuntimeState(Base):
+    """RL-03: persistent heartbeat компонентов (например price_checker)."""
+
+    __tablename__ = "system_runtime_state"
+
+    component_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_success_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
