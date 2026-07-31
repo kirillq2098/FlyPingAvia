@@ -170,10 +170,12 @@ def test_validate_user_without_username_still_signed() -> None:
 def test_frontend_bug02_hash_fallback_and_retry() -> None:
     root = Path(__file__).resolve().parents[1]
     js = (root / "flypingavia/web/static/app.js").read_text(encoding="utf-8")
+    lp = (root / "flypingavia/web/static/launch-params.js").read_text(encoding="utf-8")
     html = (root / "flypingavia/web/static/index.html").read_text(encoding="utf-8")
 
     assert "readInitDataFromLocationHash" in js
-    assert "tgWebAppData=" in js
+    assert "tgWebAppData" in lp
+    assert "FlyPingLaunchParams" in lp
     assert "signalTelegramReady" in js
     assert "waitForInitData(12000)" in js
     assert "manualRetry" in js
@@ -184,3 +186,4 @@ def test_frontend_bug02_hash_fallback_and_retry() -> None:
     assert "Не удалось получить данные запуска Telegram" in js
     assert '"tma "' in js
     assert "localStorage.setItem" not in js
+    assert "launch-params.js" in html

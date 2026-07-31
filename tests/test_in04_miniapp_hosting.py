@@ -71,11 +71,13 @@ def test_open_app_inline_primary_is_webapp() -> None:
 
 def test_mini_app_index_uses_official_telegram_sdk() -> None:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "https://telegram.org/js/telegram-web-app.js" in html
-    assert "__FLYPING_SDK_FALLBACK__" in html
-    assert "/assets/telegram-web-app.js" in html  # onerror fallback
-    assert html.index("telegram.org/js/telegram-web-app.js") < html.index("app.js")
+    # Local vendored official SDK (CDN is non-critical on Huawei/EMUI).
+    assert 'src="/assets/telegram-web-app.js"' in html
+    assert "launch-params.js" in html
+    assert "telegram.org/js/telegram-web-app.js" not in html
+    assert html.index("/assets/telegram-web-app.js") < html.index("app.js")
     assert (STATIC / "telegram-web-app.js").is_file()
+    assert (STATIC / "launch-params.js").is_file()
 
 
 def test_mini_app_separates_browser_fallback_from_telegram_mode() -> None:

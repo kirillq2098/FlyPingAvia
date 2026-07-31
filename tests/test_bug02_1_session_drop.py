@@ -145,4 +145,9 @@ def test_frontend_bug021_contract() -> None:
     assert "isTelegramMiniAppContext" in js
     assert "/Telegram/i" not in js
     assert "Не удалось получить данные запуска Telegram" in js
-    assert "0.3.0-bug022" in html
+    assert "/Telegram/i" not in js
+    assert "0.3.0-bug023" in html
+    assert "launch-params.js" in html
+    assert "FlyPingLaunchParams" in (root / "flypingavia/web/static/launch-params.js").read_text(
+        encoding="utf-8"
+    )

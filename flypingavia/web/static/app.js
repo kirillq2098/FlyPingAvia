@@ -282,58 +282,37 @@
     }
 
     function rememberInitData(data) {
-      if (data && typeof data === "string" && data.indexOf("hash=") >= 0) {
+      const LP = window.FlyPingLaunchParams;
+      const ok =
+        data &&
+        typeof data === "string" &&
+        ((LP && LP.looksLikeInitData(data)) || data.indexOf("hash=") >= 0);
+      if (ok) {
         // Never overwrite a good cache with empty.
         state.cachedInitData = data;
+        try {
+          sessionStorage.setItem("__flyping__initData", data);
+        } catch (_) {}
         return data;
       }
-      return data || "";
+      return state.cachedInitData || "";
     }
 
-    function parseTgWebAppDataFromQuery(query) {
-      if (!query || query.indexOf("tgWebAppData=") < 0) return "";
-      const parts = String(query).replace(/^\?/, "").split("&");
-      for (let i = 0; i < parts.length; i++) {
-        const raw = parts[i];
-        const eq = raw.indexOf("=");
-        if (eq <= 0) continue;
-        let key = raw.slice(0, eq);
-        try {
-          key = decodeURIComponent(key.replace(/\+/g, " "));
-        } catch (_) {}
-        if (key !== "tgWebAppData") continue;
-        const value = raw.slice(eq + 1);
-        try {
-          return decodeURIComponent(value.replace(/\+/g, " "));
-        } catch (_) {
-          return value;
-        }
-      }
-      return "";
-    }
-
-    function readInitDataFromLocationHash() {
+    function readInitDataFromUrlFallback() {
       try {
-        let hash = String(location.hash || "");
-        if (!hash) return "";
-        if (hash.charAt(0) === "#") hash = hash.slice(1);
-        if (!hash) return "";
-        let query = hash;
-        const q = hash.indexOf("?");
-        if (q >= 0) query = hash.slice(q + 1);
-        return parseTgWebAppDataFromQuery(query);
-      } catch (_) {}
-      return "";
-    }
-
-    function readInitDataFromLocationSearch() {
-      try {
-        return parseTgWebAppDataFromQuery(String(location.search || ""));
+        const LP = window.FlyPingLaunchParams;
+        if (!LP || typeof LP.extractInitDataFromUrl !== "function") return "";
+        const result = LP.extractInitDataFromUrl(location.hash || "", location.search || "");
+        return (result && result.initData) || "";
       } catch (_) {}
       return "";
     }
 
     function readInitDataFromTelegramStorage() {
+      try {
+        const ours = sessionStorage.getItem("__flyping__initData");
+        if (ours && ours.indexOf("hash=") >= 0) return ours;
+      } catch (_) {}
       try {
         const raw = sessionStorage.getItem("__telegram__initParams");
         if (!raw) return "";
@@ -358,36 +337,43 @@
       if (state.cachedInitData) return state.cachedInitData;
       try {
         if (window.__FLYPING_PRESERVED_INIT__) {
-          return rememberInitData(String(window.__FLYPING_PRESERVED_INIT__));
+          const preserved = rememberInitData(String(window.__FLYPING_PRESERVED_INIT__));
+          if (preserved) return preserved;
         }
       } catch (_) {}
       const tg = getTelegramWebApp();
       const fromSdk = (tg && tg.initData) || "";
-      if (fromSdk) return rememberInitData(fromSdk);
-      const fromHash = readInitDataFromLocationHash();
-      if (fromHash) return rememberInitData(fromHash);
-      const fromSearch = readInitDataFromLocationSearch();
-      if (fromSearch) return rememberInitData(fromSearch);
+      if (fromSdk) {
+        const kept = rememberInitData(fromSdk);
+        if (kept) return kept;
+      }
+      // BUG-02.3: do not depend on SDK for launch params (Huawei: SDK sees hash, initData empty).
+      const fromUrl = readInitDataFromUrlFallback();
+      if (fromUrl) return rememberInitData(fromUrl);
       const fromStore = readInitDataFromTelegramStorage();
       if (fromStore) return rememberInitData(fromStore);
       return "";
     }
 
-    function paramNamesFromQuery(query) {
-      const names = [];
-      const q = String(query || "").replace(/^\?/, "").replace(/^#/, "");
-      if (!q) return names;
-      const parts = q.split("&");
-      for (let i = 0; i < parts.length; i++) {
-        if (!parts[i]) continue;
-        const eq = parts[i].indexOf("=");
-        let key = eq >= 0 ? parts[i].slice(0, eq) : parts[i];
-        try {
-          key = decodeURIComponent(key.replace(/\+/g, " "));
-        } catch (_) {}
-        if (key && names.indexOf(key) < 0) names.push(key);
-      }
-      return names;
+    // Backward-compatible aliases used by older contract tests.
+    function readInitDataFromLocationHash() {
+      try {
+        const LP = window.FlyPingLaunchParams;
+        if (!LP) return "";
+        const r = LP.extractInitDataFromUrl(location.hash || "", "");
+        return (r && r.initData) || "";
+      } catch (_) {}
+      return "";
+    }
+
+    function readInitDataFromLocationSearch() {
+      try {
+        const LP = window.FlyPingLaunchParams;
+        if (!LP) return "";
+        const r = LP.extractInitDataFromUrl("", location.search || "");
+        return (r && r.initData) || "";
+      } catch (_) {}
+      return "";
     }
 
     function collectLaunchSignals() {
@@ -407,25 +393,45 @@
         hash = String(location.hash || "");
         search = String(location.search || "");
       } catch (_) {}
-      let hashQuery = hash.charAt(0) === "#" ? hash.slice(1) : hash;
-      const hq = hashQuery.indexOf("?");
-      if (hq >= 0) hashQuery = hashQuery.slice(hq + 1);
+      let launchDiag = {};
+      try {
+        const LP = window.FlyPingLaunchParams;
+        if (LP && typeof LP.diagnoseLaunchUrl === "function") {
+          launchDiag = LP.diagnoseLaunchUrl(hash, search) || {};
+        }
+      } catch (_) {}
       const platform = tg ? String(tg.platform || "unknown") : "";
       const hasProxy = typeof window.TelegramWebviewProxy !== "undefined";
+      const sdkInitLen = tg && tg.initData ? String(tg.initData).length : 0;
       return {
         has_telegram: !!(window.Telegram),
         has_webapp: !!tg,
         platform: platform.slice(0, 32),
-        sdk_fallback: !!window.__FLYPING_SDK_FALLBACK__,
+        // Local SDK is primary; true only if we had to recover without CDN (compat field).
+        sdk_fallback: !!window.__FLYPING_SDK_FALLBACK__ || !!(window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.localSdk),
         asset: (window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.asset) || "",
         unsafe_keys: unsafeKeys.join(",").slice(0, 120),
         unsafe_has_user: unsafeHasUser,
         hash_present: hash.length > 1,
         hash_len: Math.min(hash.length, 100000),
-        hash_params: paramNamesFromQuery(hashQuery).join(",").slice(0, 120),
+        hash_params: String(launchDiag.hash_params || "").slice(0, 120),
+        hash_param_lens: String(launchDiag.hash_param_lens || "").slice(0, 200),
         search_present: search.length > 1,
         search_len: Math.min(search.length, 100000),
-        search_params: paramNamesFromQuery(search).join(",").slice(0, 120),
+        search_params: String(launchDiag.search_params || "").slice(0, 120),
+        search_param_lens: String(launchDiag.search_param_lens || "").slice(0, 200),
+        has_tgwebappdata: !!launchDiag.has_tgwebappdata,
+        tgwebappdata_len: Number(launchDiag.tgwebappdata_len) || 0,
+        has_tgwebappversion: !!launchDiag.has_tgwebappversion,
+        has_tgwebappplatform: !!launchDiag.has_tgwebappplatform,
+        has_tgwebapptheme: !!launchDiag.has_tgwebapptheme,
+        decode_ok: launchDiag.decode_ok !== false,
+        decode_passes: Number(launchDiag.decode_passes) || 0,
+        extract_ok: !!launchDiag.extract_ok,
+        extract_source: String(launchDiag.extract_source || "").slice(0, 32),
+        extract_len: Number(launchDiag.extract_len) || 0,
+        spa_path: !!launchDiag.spa_path,
+        sdk_init_len: Math.min(sdkInitLen, 100000),
         storage_present: !!readInitDataFromTelegramStorage(),
         href_len: Math.min(String(location.href || "").length, 100000),
         path: String(location.pathname || "").slice(0, 64),
@@ -456,7 +462,19 @@
     function isTelegramMiniAppContext() {
       if (getInitData()) return true;
       const tg = getTelegramWebApp();
-      if (!tg) return false;
+      if (!tg) {
+        // Hash/search may still carry launch params before SDK is ready.
+        try {
+          const LP = window.FlyPingLaunchParams;
+          if (LP) {
+            const d = LP.diagnoseLaunchUrl(location.hash || "", location.search || "");
+            if (d && (d.has_tgwebappdata || d.has_tgwebappplatform || d.has_tgwebappversion)) {
+              return true;
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
       try {
         const unsafe = tg.initDataUnsafe;
         if (unsafe && (unsafe.user || unsafe.query_id || unsafe.auth_date || unsafe.hash)) {
@@ -469,6 +487,15 @@
         const hash = String(location.hash || "");
         const search = String(location.search || "");
         if (hash.indexOf("tgWebApp") >= 0 || search.indexOf("tgWebApp") >= 0) return true;
+        if (hash.indexOf("tgWebApp") < 0 && (hash.indexOf("%") >= 0 || search.indexOf("%") >= 0)) {
+          const LP = window.FlyPingLaunchParams;
+          if (LP) {
+            const d = LP.diagnoseLaunchUrl(hash, search);
+            if (d && (d.has_tgwebappdata || d.has_tgwebappplatform || d.has_tgwebapptheme)) {
+              return true;
+            }
+          }
+        }
       } catch (_) {}
       if (typeof window.TelegramWebviewProxy !== "undefined") return true;
       return false;
@@ -852,21 +879,24 @@
             ? detail.message
             : typeof detail === "string"
               ? detail
-              : "Сессия Telegram недоступна. Закройте и снова откройте приложение.";
+              : "Данные запуска Telegram отклонены сервером.";
         const botLink =
           state.health && state.health.telegram_bot_link
             ? state.health.telegram_bot_link
             : "";
-        // Browser-only fallback: never show t.me loop when already in Telegram.
         const gateBotLink = isInsideTelegramWebView() ? "" : botLink;
+        const missing = code === "MISSING_INIT_DATA";
         showAuthGate(
-          code === "MISSING_INIT_DATA"
-            ? "FlyPing работает внутри Telegram"
-            : "Нужно открыть приложение заново",
+          missing
+            ? "Не удалось получить данные запуска Telegram"
+            : "Данные запуска Telegram отклонены",
           isInsideTelegramWebView()
-            ? "Сессия Telegram недоступна. Закройте Mini App и откройте снова через кнопку бота."
+            ? missing
+              ? "Закройте окно и откройте снова через кнопку «Открыть FlyPing» или Menu в боте."
+              : "Подпись initData не прошла проверку. Закройте Mini App и откройте снова через кнопку бота."
             : message,
-          gateBotLink
+          gateBotLink,
+          { showRetry: isInsideTelegramWebView() }
         );
         const err = new Error(message);
         err.status = 401;
@@ -1951,7 +1981,7 @@
       syncFlexUi();
     }
 
-    const JS_ASSET_BUILD = "0.3.0-bug022";
+    const JS_ASSET_BUILD = "0.3.0-bug023";
 
     function detectAssetMismatch() {
       try {
@@ -1975,21 +2005,30 @@
       if (!state.bootStartedAt) state.bootStartedAt = Date.now();
       setBoot("Boot…");
       detectAssetMismatch();
+      // Prefer URL launch params even before SDK (Huawei: SDK initData empty).
+      try {
+        const early = readInitDataFromUrlFallback();
+        if (early) rememberInitData(early);
+      } catch (_) {}
       reportDiag("bootstrap_start");
 
       const sdkOk = await waitForTelegramSdk(3000);
       if (!sdkOk) {
-        setBootState(BOOT_STATES.AUTH_FAILED);
-        state.bootstrapInFlight = false;
-        reportDiag("sdk_missing");
-        showAuthGate(
-          "Не удалось загрузить Telegram SDK",
-          "Проверьте сеть и нажмите «Повторить».",
-          "",
-          { showRetry: true }
-        );
-        setBoot("Нет SDK");
-        return;
+        // SDK missing is non-fatal if URL already has initData.
+        if (!getInitData()) {
+          setBootState(BOOT_STATES.AUTH_FAILED);
+          state.bootstrapInFlight = false;
+          reportDiag("sdk_missing");
+          showAuthGate(
+            "Не удалось загрузить Telegram SDK",
+            "Проверьте сеть и нажмите «Повторить».",
+            "",
+            { showRetry: true }
+          );
+          setBoot("Нет SDK");
+          return;
+        }
+        reportDiag("sdk_missing_but_url_init");
       }
 
       // Signal ready as early as possible (before waiting for late hash / initData).
@@ -2013,7 +2052,6 @@
 
       const appEnv = (health && health.app_env) || "production";
       const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
-      // Mini App context — NOT User-Agent. UA-only "Telegram" is often in-app browser (url=).
       const miniAppCtx = isTelegramMiniAppContext();
 
       let initData = getInitData();

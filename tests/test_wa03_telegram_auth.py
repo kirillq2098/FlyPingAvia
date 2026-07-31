@@ -573,11 +573,12 @@ def test_frontend_wa03_contract() -> None:
     js = (root / "flypingavia/web/static/app.js").read_text(encoding="utf-8")
     css = (root / "flypingavia/web/static/app.css").read_text(encoding="utf-8")
 
-    assert "https://telegram.org/js/telegram-web-app.js" in html
-    assert "__FLYPING_SDK_FALLBACK__" in html
-    assert "/assets/telegram-web-app.js" in html
-    assert html.index("telegram.org/js/telegram-web-app.js") < html.index("app.js")
+    assert 'src="/assets/telegram-web-app.js"' in html
+    assert "launch-params.js" in html
+    assert "telegram.org/js/telegram-web-app.js" not in html
+    assert html.index("/assets/telegram-web-app.js") < html.index("app.js")
     assert (root / "flypingavia/web/static/telegram-web-app.js").is_file()
+    assert (root / "flypingavia/web/static/launch-params.js").is_file()
 
     assert "window.Telegram" in js
     assert "initData" in js
@@ -590,8 +591,8 @@ def test_frontend_wa03_contract() -> None:
     assert ".expand()" in js
     assert '"tma "' in js
     assert "localStorage.setItem" not in js
-    assert "sessionStorage.setItem" not in js
-    # Must not invent initData via open redirect / query string injection.
+    # BUG-02.3: sessionStorage may cache recovered initData; must not invent via query injection.
+    assert "__flyping__initData" in js
     assert "?initData=" not in js and "&initData=" not in js
     assert "auth-retry" in html
     assert "Повторить" in html

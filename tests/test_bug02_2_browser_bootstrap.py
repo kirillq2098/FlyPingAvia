@@ -32,13 +32,9 @@ def _hash_for(init_data: str) -> str:
 
 def _serve(page, *, delay_sdk_ms: int = 0, html_override: str | None = None):
     html = html_override or (STATIC / "index.html").read_text(encoding="utf-8")
-    # Tests must not depend on telegram.org CDN.
-    html = html.replace(
-        'src="https://telegram.org/js/telegram-web-app.js"',
-        'src="/assets/telegram-web-app.js"',
-    )
     app_js = (STATIC / "app.js").read_text(encoding="utf-8")
     sdk = (STATIC / "telegram-web-app.js").read_text(encoding="utf-8")
+    lp = (STATIC / "launch-params.js").read_text(encoding="utf-8")
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     me_calls: list[str] = []
 
@@ -47,8 +43,10 @@ def _serve(page, *, delay_sdk_ms: int = 0, html_override: str | None = None):
         if url.rstrip("/").endswith("app.flyping.ru") or url.endswith("/index.html") or (
             "app.flyping.ru/" in url and "/assets/" not in url and "/api/" not in url
         ):
-            # Strip hash/query for static HTML fulfill.
             route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        if "/assets/launch-params.js" in url:
+            route.fulfill(status=200, content_type="application/javascript", body=lp)
             return
         if "/assets/app.js" in url:
             route.fulfill(status=200, content_type="application/javascript", body=app_js)
@@ -279,7 +277,7 @@ def test_13_html_js_asset_mismatch_reported(chromium_page):
     page = chromium_page
     init = _build_init_data(13)
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('asset: "0.3.0-bug022"', 'asset: "0.3.0-OLD"')
+    html = html.replace('asset: "0.3.0-bug023"', 'asset: "0.3.0-OLD"')
     me_calls = _serve(page, html_override=html)
     diags: list[dict] = []
 
@@ -324,13 +322,15 @@ def test_15_ui_stays_after_me_200(chromium_page):
 def test_frontend_bug022_contract():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "0.3.0-bug022" in html
-    assert "https://telegram.org/js/telegram-web-app.js" in html
-    assert "__FLYPING_SDK_FALLBACK__" in html
+    assert "0.3.0-bug023" in html
+    assert "/assets/telegram-web-app.js" in html
+    assert "launch-params.js" in html
     assert "isTelegramMiniAppContext" in js
     assert "BOOT_STATES" in js
     assert "waitForTelegramSdk" in js
-    assert "readInitDataFromLocationSearch" in js
+    assert "readInitDataFromUrlFallback" in js or "FlyPingLaunchParams" in js
     assert "Не удалось получить данные запуска Telegram" in js
-    assert "/Telegram/i" not in js  # UA-only detection removed
+    assert "/Telegram/i" not in js
     assert "JS_ASSET_BUILD" in js
+    # CDN must not be a critical path (Huawei blocks telegram.org).
+    assert "telegram.org/js/telegram-web-app.js" not in html

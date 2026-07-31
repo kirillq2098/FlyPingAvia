@@ -58,9 +58,23 @@ class MiniAppDiagIn(BaseModel):
     hash_present: bool = False
     hash_len: int = 0
     hash_params: str = ""
+    hash_param_lens: str = ""
     search_present: bool = False
     search_len: int = 0
     search_params: str = ""
+    search_param_lens: str = ""
+    has_tgwebappdata: bool = False
+    tgwebappdata_len: int = 0
+    has_tgwebappversion: bool = False
+    has_tgwebappplatform: bool = False
+    has_tgwebapptheme: bool = False
+    decode_ok: bool = True
+    decode_passes: int = 0
+    extract_ok: bool = False
+    extract_source: str = ""
+    extract_len: int = 0
+    spa_path: bool = False
+    sdk_init_len: int = 0
     storage_present: bool = False
     href_len: int = 0
     path: str = ""
@@ -344,7 +358,11 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             "ui_started=%s elapsed_ms=%s endpoint=%s http_status=%s error_code=%s "
             "has_tg=%s has_webapp=%s platform=%s asset=%s sdk_fb=%s "
             "unsafe_user=%s unsafe_keys=%s hash=%s/%s search=%s/%s storage=%s "
-            "path=%s origin=%s ref=%s proxy=%s nav=%s href_len=%s",
+            "path=%s origin=%s ref=%s proxy=%s nav=%s href_len=%s "
+            "h_params=%s h_lens=%s s_params=%s s_lens=%s "
+            "tgdata=%s/%s ver=%s plat=%s theme=%s "
+            "decode_ok=%s decode_n=%s extract_ok=%s extract_src=%s extract_len=%s "
+            "spa=%s sdk_init_len=%s",
             stage,
             (body.boot_state or "-")[:32],
             bool(body.has_init_data),
@@ -374,6 +392,22 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             bool(body.has_webview_proxy),
             (body.nav_type or "-")[:32],
             int(body.href_len or 0),
+            (body.hash_params or "-")[:120],
+            (body.hash_param_lens or "-")[:200],
+            (body.search_params or "-")[:120],
+            (body.search_param_lens or "-")[:200],
+            bool(body.has_tgwebappdata),
+            int(body.tgwebappdata_len or 0),
+            bool(body.has_tgwebappversion),
+            bool(body.has_tgwebappplatform),
+            bool(body.has_tgwebapptheme),
+            bool(body.decode_ok),
+            int(body.decode_passes or 0),
+            bool(body.extract_ok),
+            (body.extract_source or "-")[:32],
+            int(body.extract_len or 0),
+            bool(body.spa_path),
+            int(body.sdk_init_len or 0),
         )
         return {"ok": True}
 

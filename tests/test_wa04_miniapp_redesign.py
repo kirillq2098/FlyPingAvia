@@ -15,13 +15,14 @@ def _read(*parts: str) -> str:
 
 def test_local_telegram_sdk_and_cache_bust() -> None:
     html = _read("index.html")
-    assert "https://telegram.org/js/telegram-web-app.js" in html
-    assert "__FLYPING_SDK_FALLBACK__" in html
-    assert "/assets/telegram-web-app.js" in html
+    assert 'src="/assets/telegram-web-app.js"' in html
+    assert "launch-params.js" in html
+    assert "telegram.org/js/telegram-web-app.js" not in html
     assert "fonts.css?v=0.3.0-" in html
     assert "app.css?v=0.3.0-" in html
     assert "app.js?v=0.3.0-" in html
     assert (STATIC / "telegram-web-app.js").is_file()
+    assert (STATIC / "launch-params.js").is_file()
 
 
 def test_brand_tokens_from_website() -> None:
