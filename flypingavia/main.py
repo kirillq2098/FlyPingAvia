@@ -139,16 +139,23 @@ async def _async_main() -> None:
     health_monitor = HealthMonitor(settings, bot)
     health_monitor.start()
 
-    if settings.telegram_webapp_url:
+    async def _reset_menu_button() -> None:
+        if not settings.telegram_webapp_url:
+            return
         # Menu button в Telegram часто кэширует старый tunnel URL (Error 1033).
-        # Надёжнее обновлять WebApp через reply/inline-кнопки после /start.
+        # Не блокируем bind uvicorn/polling — иначе Docker healthcheck падает.
         try:
             from aiogram.types import MenuButtonCommands
 
-            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            await asyncio.wait_for(
+                bot.set_chat_menu_button(menu_button=MenuButtonCommands()),
+                timeout=15,
+            )
             logger.info("Chat menu button сброшен в commands (WebApp — через /start)")
         except Exception:
             logger.exception("Не удалось сбросить menu button")
+
+    menu_task = asyncio.create_task(_reset_menu_button(), name="reset-menu-button")
 
     try:
         await asyncio.gather(
@@ -156,6 +163,11 @@ async def _async_main() -> None:
             server.serve(),
         )
     finally:
+        menu_task.cancel()
+        try:
+            await menu_task
+        except asyncio.CancelledError:
+            pass
         await health_monitor.stop()
         scheduler.shutdown(wait=False)
         await bot.session.close()
