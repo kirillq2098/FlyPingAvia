@@ -340,6 +340,17 @@
 - **Метрики:** доля успешных `/api/me`; 401 rate
 - **Статус:** Done · **Source:** Telegram Mini Apps validating data, Strategy reliability
 
+### WA-04 · Редизайн Mini App в стиле сайта FlyPing
+- **Описание:** Привести `flypingavia/web/static` к визуальной системе `website/` (цвета, логотип, типографика Manrope/Plex Mono, радиусы, карточки, кнопки, empty/loading/error), адаптировав под Telegram WebView без смены API/auth/логики Watch.
+- **Проблема:** Mini App выглядел как отдельный продукт (тёмный mint UI) относительно маркетингового сайта.
+- **Важность:** Единый бренд на onboarding.
+- **NSM:** Medium (доверие / completion).
+- **Value 7 · Effort 3 · Время:** 1–2 д · **P1**
+- **Зависимости:** WA-01, WA-03, сайт `website/`
+- **DoD:** brand tokens с сайта; safe-area; light/dark; browser fallback без bot-loop; pytest; production static deploy
+- **Метрики:** доля opens Mini App → create watch
+- **Статус:** Done · **Source:** Product, website airport redesign
+
 ---
 
 ## User Account
