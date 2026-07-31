@@ -27,6 +27,7 @@
 | [ATTRIBUTION.md](ATTRIBUTION.md) | Deep-link start payload, first/last touch |
 | [WATCH_SHARING.md](WATCH_SHARING.md) | Share подписки через `share_<token>` |
 | [HEALTH_MONITORING.md](HEALTH_MONITORING.md) | RL-03 admin health alerts |
+| [DEPLOY_TIMEWEB.md](DEPLOY_TIMEWEB.md) | Production deploy на Timeweb VPS |
 | [KPI.md](KPI.md) | Какие метрики уже можно считать; чего не хватает |
 
 ## Быстрый ориентир «что есть / чего нет»

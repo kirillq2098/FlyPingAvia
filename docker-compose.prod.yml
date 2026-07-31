@@ -1,0 +1,53 @@
+# Production Compose for Timeweb VPS (IN-04).
+# Usage from /opt/flyping:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+#
+# Architecture (v0.3.0): ONE container runs bot (polling) + FastAPI Mini App +
+# APScheduler checker + RL-03 HealthMonitor. SQLite in named volume.
+# PostgreSQL is NOT used — current code has no asyncpg/Postgres support.
+
+services:
+  flyping:
+    build:
+      context: .
+      args:
+        APP_VERSION: "0.3.0"
+    image: flypingavia:0.3.0
+    container_name: flyping-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      WEBAPP_HOST: "0.0.0.0"
+      WEBAPP_PORT: "8080"
+      WEBAPP_DEV_USER_ID: "0"
+      FORWARDED_ALLOW_IPS: "127.0.0.1"
+      # Prefer volume path; override DATABASE_URL in .env if needed.
+      DB_PATH: /app/data/flypingavia.db
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - flyping-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/ready', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # No DB port published. App only on loopback for host Nginx.
+
+volumes:
+  flyping-data:
+    name: flyping-data
