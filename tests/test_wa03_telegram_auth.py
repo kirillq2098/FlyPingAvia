@@ -584,6 +584,7 @@ def test_frontend_wa03_contract() -> None:
     assert "waitForInitData" in js
     assert "readInitDataFromLocationHash" in js
     assert "signalTelegramReady" in js
+    assert "cachedInitData" in js
     assert ".ready()" in js
     assert ".expand()" in js
     assert '"tma "' in js
@@ -593,10 +594,12 @@ def test_frontend_wa03_contract() -> None:
     assert "?initData=" not in js and "&initData=" not in js
     assert "auth-retry" in html
     assert "Повторить" in html
+    assert "auth-locked" in html
 
     assert "showAuthGate" in js
     assert "auth-gate" in html
-    assert "FlyPing работает внутри Telegram" in html
+    assert "Загрузка FlyPing" in html
+    assert "FlyPing работает внутри Telegram" in js
     assert "themeChanged" in js
     assert "enableClosingConfirmation" in js
     assert "disableClosingConfirmation" in js

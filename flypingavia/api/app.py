@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -31,6 +31,21 @@ from flypingavia.bot.formatters import money as format_money
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
+
+
+class MiniAppDiagIn(BaseModel):
+    """Safe client bootstrap diagnostics — no secrets / initData / Telegram IDs."""
+
+    stage: str = "unknown"
+    has_init_data: bool = False
+    init_data_len: int = 0
+    has_cached_init: bool = False
+    inside_telegram: bool = False
+    ui_started: bool = False
+    elapsed_ms: int = 0
+    endpoint: str = ""
+    http_status: int = 0
+    error_code: str = ""
 
 
 class ResolveOut(BaseModel):
@@ -293,6 +308,30 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             "first_name": user.first_name,
             "username": user.username,
         }
+
+    @app.post("/api/diag/miniapp-bootstrap")
+    async def diag_miniapp_bootstrap(body: MiniAppDiagIn = Body(default_factory=MiniAppDiagIn)) -> dict:
+        """BUG-02.1: безопасная диагностика bootstrap без секретов и PII."""
+        stage = (body.stage or "unknown")[:64]
+        init_len = body.init_data_len if 0 <= body.init_data_len <= 100000 else 0
+        elapsed = body.elapsed_ms if 0 <= body.elapsed_ms <= 600000 else 0
+        endpoint = (body.endpoint or "")[:64]
+        error_code = (body.error_code or "")[:64]
+        logger.info(
+            "miniapp_diag stage=%s has_init=%s init_len=%s cached=%s inside=%s "
+            "ui_started=%s elapsed_ms=%s endpoint=%s http_status=%s error_code=%s",
+            stage,
+            bool(body.has_init_data),
+            init_len,
+            bool(body.has_cached_init),
+            bool(body.inside_telegram),
+            bool(body.ui_started),
+            elapsed,
+            endpoint or "-",
+            int(body.http_status or 0),
+            error_code or "-",
+        )
+        return {"ok": True}
 
     @app.get("/api/resolve", response_model=list[ResolveOut])
     async def api_resolve(

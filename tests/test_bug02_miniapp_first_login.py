@@ -175,11 +175,12 @@ def test_frontend_bug02_hash_fallback_and_retry() -> None:
     assert "readInitDataFromLocationHash" in js
     assert "tgWebAppData=" in js
     assert "signalTelegramReady" in js
-    assert "waitForInitData(5000)" in js
+    assert "waitForInitData(12000)" in js
     assert "manualRetry" in js
-    assert "isRetry" in js
+    assert "cachedInitData" in js
     assert "auth-retry" in html
     assert "Повторить" in html
+    assert "auth-locked" in html
     assert "Не удалось получить сессию Telegram" in js
     assert '"tma "' in js
     assert "localStorage.setItem" not in js
