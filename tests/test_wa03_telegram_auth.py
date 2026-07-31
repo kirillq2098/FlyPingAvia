@@ -575,10 +575,12 @@ def test_frontend_wa03_contract() -> None:
 
     assert 'src="/assets/telegram-web-app.js"' in html
     assert "launch-params.js" in html
+    assert "diag-session.js" in html
     assert "telegram.org/js/telegram-web-app.js" not in html
     assert html.index("/assets/telegram-web-app.js") < html.index("app.js")
     assert (root / "flypingavia/web/static/telegram-web-app.js").is_file()
     assert (root / "flypingavia/web/static/launch-params.js").is_file()
+    assert (root / "flypingavia/web/static/diag-session.js").is_file()
 
     assert "window.Telegram" in js
     assert "initData" in js

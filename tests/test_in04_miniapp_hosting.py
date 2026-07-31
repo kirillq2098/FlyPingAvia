@@ -74,10 +74,12 @@ def test_mini_app_index_uses_official_telegram_sdk() -> None:
     # Local vendored official SDK (CDN is non-critical on Huawei/EMUI).
     assert 'src="/assets/telegram-web-app.js"' in html
     assert "launch-params.js" in html
+    assert "diag-session.js" in html
     assert "telegram.org/js/telegram-web-app.js" not in html
     assert html.index("/assets/telegram-web-app.js") < html.index("app.js")
     assert (STATIC / "telegram-web-app.js").is_file()
     assert (STATIC / "launch-params.js").is_file()
+    assert (STATIC / "diag-session.js").is_file()
 
 
 def test_mini_app_separates_browser_fallback_from_telegram_mode() -> None:

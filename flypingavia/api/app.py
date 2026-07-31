@@ -5,8 +5,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated, Optional
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,12 @@ from flypingavia.api.telegram_auth import (
     validate_telegram_init_data,
 )
 from flypingavia.config import Settings, get_settings
+from flypingavia.diagnostics.miniapp_session import (
+    mask_ip,
+    sanitize_ua,
+    utc_now_iso,
+    write_diag_event,
+)
 from flypingavia.version import __version__
 from flypingavia.db import repository as repo
 from flypingavia.db.session import session_scope
@@ -36,6 +42,8 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 class MiniAppDiagIn(BaseModel):
     """Safe client bootstrap diagnostics — no secrets / initData / Telegram IDs."""
 
+    session_id: str = ""
+    event: str = ""
     stage: str = "unknown"
     boot_state: str = ""
     has_init_data: bool = False
@@ -52,7 +60,9 @@ class MiniAppDiagIn(BaseModel):
     has_webapp: bool = False
     platform: str = ""
     sdk_fallback: bool = False
+    sdk_source: str = ""
     asset: str = ""
+    launch_mode: str = ""
     unsafe_keys: str = ""
     unsafe_has_user: bool = False
     hash_present: bool = False
@@ -80,8 +90,38 @@ class MiniAppDiagIn(BaseModel):
     path: str = ""
     origin: str = ""
     referrer_origin: str = ""
+    referrer_path: str = ""
     has_webview_proxy: bool = False
+    has_telegram_webview: bool = False
     nav_type: str = ""
+    visibility: str = ""
+    ready_state: str = ""
+    online: bool = True
+    url_changed: bool = False
+    ready_called: bool = False
+    expand_called: bool = False
+    webapp_version: str = ""
+    color_scheme: str = ""
+    is_expanded: bool = False
+    viewport_height: int = 0
+    viewport_stable_height: int = 0
+    # Browser / device (safe)
+    ua: str = ""
+    nav_platform: str = ""
+    nav_vendor: str = ""
+    language: str = ""
+    languages: str = ""
+    ua_data_present: bool = False
+    ua_brands: str = ""
+    ua_platform: str = ""
+    screen_w: int = 0
+    screen_h: int = 0
+    dpr: float = 0
+    timezone: str = ""
+    cookie_enabled: bool = False
+    local_storage_ok: bool = False
+    session_storage_ok: bool = False
+    detail: str = ""
 
 
 class ResolveOut(BaseModel):
@@ -186,10 +226,33 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
     async def get_current_telegram_user(
+        request: Request,
         authorization: Annotated[str | None, Header()] = None,
         x_telegram_init_data: Annotated[str | None, Header()] = None,
+        x_diag_session: Annotated[str | None, Header()] = None,
     ) -> TelegramWebAppUser:
         """Единая dependency: только проверенный initData (или dev user вне production)."""
+        session_id = (x_diag_session or "").strip()[:64]
+        client_ip = request.client.host if request.client else ""
+
+        def _auth_fail(code: str, status: int = 401) -> None:
+            write_diag_event(
+                {
+                    "kind": "backend",
+                    "event": "api_me_error",
+                    "stage": "api_me_error",
+                    "session_id": session_id,
+                    "endpoint": str(request.url.path)[:64],
+                    "path": str(request.url.path)[:64],
+                    "http_status": status,
+                    "status": status,
+                    "error_code": code[:64],
+                    "client_ip_masked": mask_ip(client_ip),
+                    "ua_sanitized": sanitize_ua(request.headers.get("user-agent")),
+                    "ts": utc_now_iso(),
+                }
+            )
+
         init_data = None
         if authorization and authorization.lower().startswith("tma "):
             init_data = authorization[4:].strip()
@@ -206,12 +269,14 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 )
             except TelegramAuthError as exc:
                 logger.info("Telegram Mini App auth rejected: %s", exc.code)
+                _auth_fail(exc.code)
                 raise HTTPException(status_code=401, detail=exc.as_detail()) from exc
             logger.debug("Telegram Mini App auth ok user_id=%s", user.id)
             return user
 
         # Без initData: только development/test + WEBAPP_DEV_USER_ID > 0
         if settings.is_production:
+            _auth_fail("MISSING_INIT_DATA")
             raise HTTPException(
                 status_code=401,
                 detail={
@@ -333,12 +398,63 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(status_code=200, content=payload)
 
     @app.get("/api/me")
-    async def me(user: TelegramWebAppUser = Depends(current_user)) -> dict:
+    async def me(
+        request: Request,
+        user: TelegramWebAppUser = Depends(current_user),
+        x_diag_session: Annotated[str | None, Header()] = None,
+    ) -> dict:
         # Первый валидный запуск Mini App — создать/обновить User (username).
-        async with session_scope() as session:
-            await repo.get_or_create_user(
-                session, telegram_id=user.id, username=user.username
+        session_id = (x_diag_session or "").strip()[:64]
+        client_ip = request.client.host if request.client else ""
+        write_diag_event(
+            {
+                "kind": "backend",
+                "event": "api_me_start",
+                "stage": "api_me_start",
+                "session_id": session_id,
+                "endpoint": "/api/me",
+                "path": "/api/me",
+                "client_ip_masked": mask_ip(client_ip),
+                "ua_sanitized": sanitize_ua(request.headers.get("user-agent")),
+                "ts": utc_now_iso(),
+            }
+        )
+        try:
+            async with session_scope() as session:
+                await repo.get_or_create_user(
+                    session, telegram_id=user.id, username=user.username
+                )
+        except Exception:
+            write_diag_event(
+                {
+                    "kind": "backend",
+                    "event": "api_me_error",
+                    "stage": "api_me_error",
+                    "session_id": session_id,
+                    "endpoint": "/api/me",
+                    "path": "/api/me",
+                    "http_status": 500,
+                    "status": 500,
+                    "error_code": "server_error",
+                    "client_ip_masked": mask_ip(client_ip),
+                    "ts": utc_now_iso(),
+                }
             )
+            raise
+        write_diag_event(
+            {
+                "kind": "backend",
+                "event": "api_me_response",
+                "stage": "api_me_ok",
+                "session_id": session_id,
+                "endpoint": "/api/me",
+                "path": "/api/me",
+                "http_status": 200,
+                "status": 200,
+                "client_ip_masked": mask_ip(client_ip),
+                "ts": utc_now_iso(),
+            }
+        )
         return {
             "telegram_user_id": user.id,
             "first_name": user.first_name,
@@ -346,68 +462,119 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         }
 
     @app.post("/api/diag/miniapp-bootstrap")
-    async def diag_miniapp_bootstrap(body: MiniAppDiagIn = Body(default_factory=MiniAppDiagIn)) -> dict:
-        """BUG-02.1: безопасная диагностика bootstrap без секретов и PII."""
-        stage = (body.stage or "unknown")[:64]
+    async def diag_miniapp_bootstrap(
+        request: Request,
+        body: MiniAppDiagIn = Body(default_factory=MiniAppDiagIn),
+    ) -> dict:
+        """BUG-02.5: безопасная диагностика bootstrap + JSONL session log."""
+        stage = (body.event or body.stage or "unknown")[:64]
         init_len = body.init_data_len if 0 <= body.init_data_len <= 100000 else 0
         elapsed = body.elapsed_ms if 0 <= body.elapsed_ms <= 600000 else 0
         endpoint = (body.endpoint or "")[:64]
         error_code = (body.error_code or "")[:64]
+        session_id = (body.session_id or "")[:64]
+        client_ip = request.client.host if request.client else ""
         logger.info(
-            "miniapp_diag stage=%s boot=%s has_init=%s init_len=%s cached=%s inside=%s "
-            "ui_started=%s elapsed_ms=%s endpoint=%s http_status=%s error_code=%s "
-            "has_tg=%s has_webapp=%s platform=%s asset=%s sdk_fb=%s "
-            "unsafe_user=%s unsafe_keys=%s hash=%s/%s search=%s/%s storage=%s "
-            "path=%s origin=%s ref=%s proxy=%s nav=%s href_len=%s "
-            "h_params=%s h_lens=%s s_params=%s s_lens=%s "
-            "tgdata=%s/%s ver=%s plat=%s theme=%s "
-            "decode_ok=%s decode_n=%s extract_ok=%s extract_src=%s extract_len=%s "
-            "spa=%s sdk_init_len=%s",
+            "miniapp_diag sid=%s stage=%s boot=%s has_init=%s init_len=%s mode=%s "
+            "asset=%s platform=%s tgdata=%s/%s extract_ok=%s elapsed_ms=%s",
+            session_id or "-",
             stage,
             (body.boot_state or "-")[:32],
             bool(body.has_init_data),
             init_len,
-            bool(body.has_cached_init),
-            bool(body.inside_telegram),
-            bool(body.ui_started),
-            elapsed,
-            endpoint or "-",
-            int(body.http_status or 0),
-            error_code or "-",
-            bool(body.has_telegram),
-            bool(body.has_webapp),
-            (body.platform or "-")[:32],
+            (body.launch_mode or "-")[:32],
             (body.asset or "-")[:32],
-            bool(body.sdk_fallback),
-            bool(body.unsafe_has_user),
-            (body.unsafe_keys or "-")[:80],
-            bool(body.hash_present),
-            int(body.hash_len or 0),
-            bool(body.search_present),
-            int(body.search_len or 0),
-            bool(body.storage_present),
-            (body.path or "-")[:64],
-            (body.origin or "-")[:64],
-            (body.referrer_origin or "-")[:64],
-            bool(body.has_webview_proxy),
-            (body.nav_type or "-")[:32],
-            int(body.href_len or 0),
-            (body.hash_params or "-")[:120],
-            (body.hash_param_lens or "-")[:200],
-            (body.search_params or "-")[:120],
-            (body.search_param_lens or "-")[:200],
+            (body.platform or "-")[:32],
             bool(body.has_tgwebappdata),
             int(body.tgwebappdata_len or 0),
-            bool(body.has_tgwebappversion),
-            bool(body.has_tgwebappplatform),
-            bool(body.has_tgwebapptheme),
-            bool(body.decode_ok),
-            int(body.decode_passes or 0),
             bool(body.extract_ok),
-            (body.extract_source or "-")[:32],
-            int(body.extract_len or 0),
-            bool(body.spa_path),
-            int(body.sdk_init_len or 0),
+            elapsed,
+        )
+        write_diag_event(
+            {
+                "kind": "frontend",
+                "ts": utc_now_iso(),
+                "session_id": session_id,
+                "event": stage,
+                "stage": stage,
+                "boot_state": (body.boot_state or "")[:32],
+                "has_init_data": bool(body.has_init_data),
+                "init_data_len": init_len,
+                "has_cached_init": bool(body.has_cached_init),
+                "inside_telegram": bool(body.inside_telegram),
+                "ui_started": bool(body.ui_started),
+                "elapsed_ms": elapsed,
+                "endpoint": endpoint,
+                "http_status": int(body.http_status or 0),
+                "error_code": error_code,
+                "has_telegram": bool(body.has_telegram),
+                "has_webapp": bool(body.has_webapp),
+                "platform": (body.platform or "")[:32],
+                "sdk_fallback": bool(body.sdk_fallback),
+                "sdk_source": (body.sdk_source or "")[:16],
+                "asset": (body.asset or "")[:32],
+                "launch_mode": (body.launch_mode or "")[:32],
+                "unsafe_keys": (body.unsafe_keys or "")[:120],
+                "unsafe_has_user": bool(body.unsafe_has_user),
+                "hash_present": bool(body.hash_present),
+                "hash_len": int(body.hash_len or 0),
+                "hash_params": (body.hash_params or "")[:120],
+                "hash_param_lens": (body.hash_param_lens or "")[:200],
+                "search_present": bool(body.search_present),
+                "search_len": int(body.search_len or 0),
+                "search_params": (body.search_params or "")[:120],
+                "search_param_lens": (body.search_param_lens or "")[:200],
+                "has_tgwebappdata": bool(body.has_tgwebappdata),
+                "tgwebappdata_len": int(body.tgwebappdata_len or 0),
+                "has_tgwebappversion": bool(body.has_tgwebappversion),
+                "has_tgwebappplatform": bool(body.has_tgwebappplatform),
+                "has_tgwebapptheme": bool(body.has_tgwebapptheme),
+                "decode_ok": bool(body.decode_ok),
+                "decode_passes": int(body.decode_passes or 0),
+                "extract_ok": bool(body.extract_ok),
+                "extract_source": (body.extract_source or "")[:32],
+                "extract_len": int(body.extract_len or 0),
+                "spa_path": bool(body.spa_path),
+                "sdk_init_len": int(body.sdk_init_len or 0),
+                "storage_present": bool(body.storage_present),
+                "href_len": int(body.href_len or 0),
+                "path": (body.path or "")[:64],
+                "origin": (body.origin or "")[:64],
+                "referrer_origin": (body.referrer_origin or "")[:64],
+                "referrer_path": (body.referrer_path or "")[:64],
+                "has_webview_proxy": bool(body.has_webview_proxy),
+                "has_telegram_webview": bool(body.has_telegram_webview),
+                "nav_type": (body.nav_type or "")[:32],
+                "visibility": (body.visibility or "")[:32],
+                "ready_state": (body.ready_state or "")[:32],
+                "online": bool(body.online),
+                "url_changed": bool(body.url_changed),
+                "ready_called": bool(body.ready_called),
+                "expand_called": bool(body.expand_called),
+                "webapp_version": (body.webapp_version or "")[:16],
+                "color_scheme": (body.color_scheme or "")[:16],
+                "is_expanded": bool(body.is_expanded),
+                "viewport_height": int(body.viewport_height or 0),
+                "viewport_stable_height": int(body.viewport_stable_height or 0),
+                "ua": sanitize_ua(body.ua),
+                "ua_sanitized": sanitize_ua(body.ua),
+                "nav_platform": (body.nav_platform or "")[:64],
+                "nav_vendor": (body.nav_vendor or "")[:64],
+                "language": (body.language or "")[:32],
+                "languages": (body.languages or "")[:120],
+                "ua_data_present": bool(body.ua_data_present),
+                "ua_brands": (body.ua_brands or "")[:120],
+                "ua_platform": (body.ua_platform or "")[:64],
+                "screen_w": int(body.screen_w or 0),
+                "screen_h": int(body.screen_h or 0),
+                "dpr": float(body.dpr or 0),
+                "timezone": (body.timezone or "")[:64],
+                "cookie_enabled": bool(body.cookie_enabled),
+                "local_storage_ok": bool(body.local_storage_ok),
+                "session_storage_ok": bool(body.session_storage_ok),
+                "detail": (body.detail or "")[:200],
+                "client_ip_masked": mask_ip(client_ip),
+            }
         )
         return {"ok": True}
 

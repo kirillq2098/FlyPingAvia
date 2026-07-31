@@ -664,6 +664,32 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             parse_mode="HTML",
             reply_markup=menu(),
         )
+        try:
+            from flypingavia.diagnostics.miniapp_session import (
+                mask_chat_id,
+                utc_now_iso,
+                write_diag_event,
+            )
+
+            web_url = webapp or ""
+            write_diag_event(
+                {
+                    "kind": "bot",
+                    "event": "bot_start_received",
+                    "stage": "bot_start_received",
+                    "ts": utc_now_iso(),
+                    "bot_username": "FlyPingAvia_Bot",
+                    "bot_id": 8855806512,
+                    "chat_id_masked": mask_chat_id(message.chat.id if message.chat else None),
+                    "message_id": int(message.message_id or 0),
+                    "button_type": "reply_keyboard_web_app" if web_url else "none",
+                    "button_url": web_url[:128],
+                    "polling": True,
+                    "detail": "menu_button_press_not_delivered_to_bot",
+                }
+            )
+        except Exception:
+            logging.getLogger("flypingavia.bot").debug("diag start log skipped", exc_info=True)
         app_kb = kb.open_app_kb(webapp)
         if app_kb and webapp:
             from urllib.parse import urlparse
@@ -674,6 +700,23 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 parse_mode="HTML",
                 reply_markup=app_kb,
             )
+            try:
+                from flypingavia.diagnostics.miniapp_session import utc_now_iso, write_diag_event
+
+                write_diag_event(
+                    {
+                        "kind": "bot",
+                        "event": "bot_webapp_keyboard_sent",
+                        "stage": "bot_webapp_keyboard_sent",
+                        "ts": utc_now_iso(),
+                        "button_type": "inline_web_app",
+                        "button_url": webapp[:128],
+                        "message_id": int(message.message_id or 0),
+                        "polling": True,
+                    }
+                )
+            except Exception:
+                pass
         else:
             await message.answer(
                 fmt.mini_app_unavailable_text(),

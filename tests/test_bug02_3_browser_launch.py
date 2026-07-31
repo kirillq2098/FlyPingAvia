@@ -53,12 +53,16 @@ def _serve(page, *, blank_sdk_init: bool = False):
     app_js = (STATIC / "app.js").read_text(encoding="utf-8")
     sdk = (STATIC / "telegram-web-app.js").read_text(encoding="utf-8")
     lp = (STATIC / "launch-params.js").read_text(encoding="utf-8")
+    diag = (STATIC / "diag-session.js").read_text(encoding="utf-8")
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     me_calls: list[str] = []
     diags: list[dict] = []
 
     def handle(route):
         url = route.request.url
+        if "/assets/diag-session.js" in url:
+            route.fulfill(status=200, content_type="application/javascript", body=diag)
+            return
         if "/assets/launch-params.js" in url:
             route.fulfill(status=200, content_type="application/javascript", body=lp)
             return
@@ -219,8 +223,8 @@ def test_hmac_still_required_invalid_rejected(page):
 
 def test_asset_bug023(page):
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "0.3.0-bug023" in html
+    assert "0.3.0-bug025" in html
     me, diags = _serve(page)
     page.goto("https://app.flyping.ru/#" + _hash(_init(9)))
     _wait_ok(page)
-    assert any(d.get("asset") == "0.3.0-bug023" for d in diags)
+    assert any(d.get("asset") == "0.3.0-bug025" for d in diags)

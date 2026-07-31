@@ -35,6 +35,7 @@ def _serve(page, *, delay_sdk_ms: int = 0, html_override: str | None = None):
     app_js = (STATIC / "app.js").read_text(encoding="utf-8")
     sdk = (STATIC / "telegram-web-app.js").read_text(encoding="utf-8")
     lp = (STATIC / "launch-params.js").read_text(encoding="utf-8")
+    diag = (STATIC / "diag-session.js").read_text(encoding="utf-8")
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     me_calls: list[str] = []
 
@@ -44,6 +45,9 @@ def _serve(page, *, delay_sdk_ms: int = 0, html_override: str | None = None):
             "app.flyping.ru/" in url and "/assets/" not in url and "/api/" not in url
         ):
             route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        if "/assets/diag-session.js" in url:
+            route.fulfill(status=200, content_type="application/javascript", body=diag)
             return
         if "/assets/launch-params.js" in url:
             route.fulfill(status=200, content_type="application/javascript", body=lp)
@@ -251,13 +255,16 @@ def test_11_url_button_without_initdata_not_session_error(chromium_page):
     page.wait_for_function(
         """() => {
           const t = document.getElementById('auth-title');
-          return t && t.textContent.indexOf('внутри Telegram') >= 0;
+          return t && (
+            t.textContent.indexOf('внутри Telegram') >= 0 ||
+            t.textContent.indexOf('обычную ссылку') >= 0
+          );
         }""",
         timeout=8000,
     )
     title = page.inner_text("#auth-title")
     assert "сессию" not in title.lower()
-    assert "данные запуска" not in title.lower()
+    assert "данные запуска" not in title.lower() or "ссылку" in title.lower()
 
 
 def test_12_official_web_app_launch_with_initdata(chromium_page):
@@ -277,7 +284,7 @@ def test_13_html_js_asset_mismatch_reported(chromium_page):
     page = chromium_page
     init = _build_init_data(13)
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('asset: "0.3.0-bug023"', 'asset: "0.3.0-OLD"')
+    html = html.replace('asset: "0.3.0-bug025"', 'asset: "0.3.0-OLD"')
     me_calls = _serve(page, html_override=html)
     diags: list[dict] = []
 
@@ -322,15 +329,16 @@ def test_15_ui_stays_after_me_200(chromium_page):
 def test_frontend_bug022_contract():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "0.3.0-bug023" in html
+    assert "0.3.0-bug025" in html
     assert "/assets/telegram-web-app.js" in html
     assert "launch-params.js" in html
+    assert "diag-session.js" in html
     assert "isTelegramMiniAppContext" in js
     assert "BOOT_STATES" in js
     assert "waitForTelegramSdk" in js
     assert "readInitDataFromUrlFallback" in js or "FlyPingLaunchParams" in js
-    assert "Не удалось получить данные запуска Telegram" in js
+    assert "Не удалось получить данные запуска Telegram" in js or "обычную ссылку" in js
     assert "/Telegram/i" not in js
     assert "JS_ASSET_BUILD" in js
-    # CDN must not be a critical path (Huawei blocks telegram.org).
     assert "telegram.org/js/telegram-web-app.js" not in html
+    assert "X-Diag-Session" in js

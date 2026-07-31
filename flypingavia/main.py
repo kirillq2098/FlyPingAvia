@@ -157,6 +157,27 @@ async def _async_main() -> None:
                 getattr(menu_button, "type", None),
                 getattr(menu_button, "text", None),
             )
+            try:
+                from flypingavia.diagnostics.miniapp_session import utc_now_iso, write_diag_event
+
+                web = getattr(getattr(menu_button, "web_app", None), "url", None) or ""
+                write_diag_event(
+                    {
+                        "kind": "bot",
+                        "event": "bot_menu_button_state",
+                        "stage": "bot_menu_button_state",
+                        "ts": utc_now_iso(),
+                        "menu_button_type": str(getattr(menu_button, "type", "") or "")[:32],
+                        "menu_button_url": str(web)[:128],
+                        "button_type": "menu_web_app",
+                        "button_url": str(web)[:128],
+                        "bot_username": "FlyPingAvia_Bot",
+                        "polling": True,
+                        "detail": "menu_button_clicks_are_not_delivered_as_bot_updates",
+                    }
+                )
+            except Exception:
+                pass
         except Exception:
             logger.exception("Не удалось установить menu button")
 

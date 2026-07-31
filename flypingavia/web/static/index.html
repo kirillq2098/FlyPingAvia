@@ -8,8 +8,8 @@
   <title>FlyPing</title>
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
   <script>
-    /* BUG-02.3: asset build + preserve any pre-injected Telegram initData. */
-    window.__FLYPING_BOOT__ = { asset: "0.3.0-bug023", t: Date.now() };
+    /* BUG-02.5: asset + session boot (session_id filled by diag-session.js). */
+    window.__FLYPING_BOOT__ = { asset: "0.3.0-bug025", t: Date.now() };
     window.__FLYPING_PRESERVED_INIT__ = "";
     try {
       var tg0 = window.Telegram && window.Telegram.WebApp;
@@ -18,13 +18,24 @@
       }
     } catch (e) {}
   </script>
+  <!-- Safe diagnostic tracer (session_id) — before SDK. -->
+  <script src="/assets/diag-session.js?v=0.3.0-bug025"></script>
   <!-- Local official SDK (vendored). CDN is non-critical — Huawei/EMUI often blocks telegram.org. -->
+  <script>try { if (window.FlyPingDiag) window.FlyPingDiag.emit("local_sdk_start"); } catch (e) {}</script>
   <script src="/assets/telegram-web-app.js"></script>
-  <script>try { window.__FLYPING_BOOT__.localSdk = true; } catch (e) {}</script>
+  <script>
+    try {
+      window.__FLYPING_BOOT__.localSdk = true;
+      if (window.FlyPingDiag) {
+        window.FlyPingDiag.emit(window.Telegram && window.Telegram.WebApp ? "local_sdk_success" : "telegram_sdk_cdn_error");
+        if (window.Telegram && window.Telegram.WebApp) window.FlyPingDiag.emit("telegram_webapp_detected");
+      }
+    } catch (e) {}
+  </script>
   <!-- Independent launch-param parser (does not rely on SDK initData). -->
-  <script src="/assets/launch-params.js?v=0.3.0-bug023"></script>
-  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-bug023" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-bug023" />
+  <script src="/assets/launch-params.js?v=0.3.0-bug025"></script>
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-bug025" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-bug025" />
 </head>
 <body class="auth-locked">
   <div id="auth-gate" class="auth-gate" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -189,6 +200,7 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=0.3.0-bug023"></script>
+  <script>try { if (window.FlyPingDiag) window.FlyPingDiag.emit("app_script_started"); } catch (e) {}</script>
+  <script src="/assets/app.js?v=0.3.0-bug025"></script>
 </body>
 </html>

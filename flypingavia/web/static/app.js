@@ -530,15 +530,58 @@
       const tg = getTelegramWebApp();
       if (!tg) return null;
       try {
-        if (typeof tg.ready === "function") tg.ready();
+        if (typeof tg.ready === "function") {
+          tg.ready();
+          try {
+            if (window.FlyPingDiag) {
+              window.FlyPingDiag.markReady();
+              window.FlyPingDiag.emit("telegram_ready_called");
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
       try {
-        if (typeof tg.expand === "function") tg.expand();
+        if (typeof tg.expand === "function") {
+          tg.expand();
+          try {
+            if (window.FlyPingDiag) {
+              window.FlyPingDiag.markExpand();
+              window.FlyPingDiag.emit("telegram_expand_called");
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
       return tg;
     }
 
     function reportDiag(stage, extra) {
+      try {
+        if (window.FlyPingDiag && typeof window.FlyPingDiag.emit === "function") {
+          const init = getInitData();
+          const signals = collectLaunchSignals();
+          const payload = Object.assign(
+            {
+              boot_state: String(state.bootState || "").slice(0, 32),
+              has_init_data: !!init,
+              init_data_len: init ? init.length : 0,
+              has_cached_init: !!state.cachedInitData,
+              inside_telegram: isTelegramMiniAppContext(),
+              ui_started: !!state.uiStarted,
+              storage_present: !!readInitDataFromTelegramStorage(),
+            },
+            signals
+          );
+          if (extra && typeof extra === "object") {
+            if (extra.http_status != null) payload.http_status = Number(extra.http_status) || 0;
+            if (extra.endpoint) payload.endpoint = String(extra.endpoint).slice(0, 64);
+            if (extra.error_code) payload.error_code = String(extra.error_code).slice(0, 64);
+            if (extra.detail) payload.detail = String(extra.detail).slice(0, 200);
+          }
+          window.FlyPingDiag.emit(stage, payload);
+          return;
+        }
+      } catch (_) {}
+      // Fallback if diag-session.js missing
       try {
         const init = getInitData();
         const signals = collectLaunchSignals();
@@ -552,6 +595,8 @@
             inside_telegram: isTelegramMiniAppContext(),
             ui_started: !!state.uiStarted,
             elapsed_ms: state.bootStartedAt ? Date.now() - state.bootStartedAt : 0,
+            session_id:
+              (window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.session_id) || "",
           },
           signals
         );
@@ -562,7 +607,10 @@
         }
         fetch("/api/diag/miniapp-bootstrap", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Diag-Session": payload.session_id || "",
+          },
           body: JSON.stringify(payload),
           keepalive: true,
         }).catch(function () {});
@@ -811,6 +859,13 @@
       if (initData) {
         headers["Authorization"] = "tma " + initData;
       }
+      try {
+        const sid =
+          (window.FlyPingDiag && window.FlyPingDiag.sessionId && window.FlyPingDiag.sessionId()) ||
+          (window.__FLYPING_BOOT__ && window.__FLYPING_BOOT__.session_id) ||
+          "";
+        if (sid) headers["X-Diag-Session"] = String(sid).slice(0, 64);
+      } catch (_) {}
       const controller = new AbortController();
       const timeoutMs = Number(options.timeoutMs) || 0;
       let timer = null;
@@ -1981,7 +2036,7 @@
       syncFlexUi();
     }
 
-    const JS_ASSET_BUILD = "0.3.0-bug023";
+    const JS_ASSET_BUILD = "0.3.0-bug025";
 
     function detectAssetMismatch() {
       try {
@@ -2007,8 +2062,17 @@
       detectAssetMismatch();
       // Prefer URL launch params even before SDK (Huawei: SDK initData empty).
       try {
+        reportDiag("location_snapshot");
+        reportDiag("launch_parser_start");
         const early = readInitDataFromUrlFallback();
-        if (early) rememberInitData(early);
+        if (early) {
+          rememberInitData(early);
+          reportDiag("initdata_from_url");
+        }
+        reportDiag("launch_parser_result");
+        const tgSnap = getTelegramWebApp();
+        if (tgSnap && tgSnap.initData) reportDiag("initdata_from_sdk");
+        if (readInitDataFromTelegramStorage()) reportDiag("initdata_from_storage");
       } catch (_) {}
       reportDiag("bootstrap_start");
 
@@ -2053,16 +2117,49 @@
       const appEnv = (health && health.app_env) || "production";
       const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
       const miniAppCtx = isTelegramMiniAppContext();
+      let launchMode = "external_browser";
+      try {
+        launchMode =
+          (window.FlyPingDiag && window.FlyPingDiag.detectLaunchMode()) ||
+          (miniAppCtx ? "telegram_browser" : "external_browser");
+      } catch (_) {}
 
       let initData = getInitData();
       if (!initData && miniAppCtx) {
         setBoot("Telegram…");
+        reportDiag("wait_init_data_start");
         reportDiag("wait_init_data");
         initData = await waitForInitData(12000);
       }
 
       if (!initData && appEnv === "production") {
         state.bootstrapInFlight = false;
+        // Direct open of https://app.flyping.ru/ or Telegram in-app browser without tgWebAppData
+        // is not a "lost Mini App session" — guide user back to the bot web_app button.
+        if (launchMode === "telegram_browser" || launchMode === "external_browser" || !getInitData()) {
+          const isBrowserLike =
+            launchMode !== "valid_miniapp" &&
+            !(window.FlyPingLaunchParams &&
+              window.FlyPingLaunchParams.diagnoseLaunchUrl &&
+              window.FlyPingLaunchParams.diagnoseLaunchUrl(location.hash || "", location.search || "")
+                .has_tgwebappdata);
+          if (isBrowserLike || !miniAppCtx) {
+            setBootState(BOOT_STATES.NOT_TELEGRAM);
+            reportDiag("missing_init_data");
+            showAuthGate(
+              launchMode === "external_browser"
+                ? "FlyPing работает внутри Telegram"
+                : "Вы открыли FlyPing как обычную ссылку",
+              launchMode === "external_browser"
+                ? "Откройте бота и нажмите кнопку «Открыть FlyPing»."
+                : "Вернитесь в чат с ботом и нажмите кнопку «Открыть FlyPing».",
+              launchMode === "external_browser" ? botLink : "",
+              { showRetry: false }
+            );
+            setBoot("Нужен web_app");
+            return;
+          }
+        }
         if (miniAppCtx) {
           setBootState(BOOT_STATES.AUTH_FAILED);
           reportDiag("missing_init_data");
@@ -2098,6 +2195,7 @@
         state.bootstrapInFlight = false;
         setBootState(BOOT_STATES.AUTH_SUCCESS);
         reportDiag("api_me_ok", { endpoint: "/api/me", http_status: 200 });
+        reportDiag("bootstrap_success", { endpoint: "/api/me", http_status: 200 });
         const name = (me && me.first_name) || (me && me.username) || "";
         setBoot(name ? "Привет, " + name : "Готово");
         setTimeout(() => setBoot(""), 1500);
@@ -2106,13 +2204,22 @@
         state.bootstrapInFlight = false;
         setBootState(BOOT_STATES.AUTH_FAILED);
         const networkFail = !(err && err.status) && !(err && err.auth);
-        reportDiag(networkFail ? "network_fail" : "api_me_fail", {
+        reportDiag(networkFail ? "network_fail" : "api_me_error", {
           endpoint: "/api/me",
           http_status: (err && err.status) || 0,
           error_code:
             (err && err.detail && err.detail.code) ||
             (err && err.auth ? "auth" : networkFail ? "network" : "error"),
         });
+        if (!networkFail) {
+          reportDiag("api_me_fail", {
+            endpoint: "/api/me",
+            http_status: (err && err.status) || 0,
+            error_code:
+              (err && err.detail && err.detail.code) ||
+              (err && err.auth ? "auth" : "error"),
+          });
+        }
         if (networkFail) {
           showAuthGate(
             "Нет связи с сервером",
