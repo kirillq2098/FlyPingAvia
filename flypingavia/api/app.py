@@ -181,7 +181,15 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         index_path = STATIC_DIR / "index.html"
         if not index_path.exists():
             raise HTTPException(404, "Mini App UI не собран")
-        return FileResponse(index_path)
+        # index.html must not be cached by Telegram WebView / browsers
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
     @app.get("/api/health")
     async def health() -> dict:

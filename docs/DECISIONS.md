@@ -22,7 +22,7 @@
 | 2026-07 (`91e516d`) | One-way на дату брать из month-matrix, не из `prices/cheap` | `cheap` отдавал нерелевантный/кэш RT | `prices.py` (CHEAP_URL не вызывается для dated OW) | Active |
 | 2026-07 (`d2659c8`) | Не умножать кэш-цену Data API на число пассажиров | Цена в кэше за 1 взрослого | `prices.py` | Active |
 | 2026-07 (`c392b09` + позже) | Хранить `return_date` и pax-поля в `Watch` | Подготовка к RT и будущему live search | `models.py`, API `WatchIn` | Active (pax UI off) |
-| 2026-07 (`03c1846`) | Не ставить MenuButtonWebApp с tunnel URL | Telegram кэширует URL → Error 1033 | `main.py` → `MenuButtonCommands`; WebApp через кнопки `/start` | Active |
+| 2026-07 (`03c1846`) | Не ставить MenuButtonWebApp с tunnel URL | Telegram кэширует URL → Error 1033 | `menu_button.py`: tunnel → commands; стабильный HTTPS (`app.flyping.ru`) → MenuButtonWebApp | Active |
 | 2026-07 (`91ed030`) | Убрать лимиты маршрутов | На этапе роста MVP | handlers/API без проверки; `FREE_WATCH_LIMIT` остался в конфиге | Active (конфиг-долг) |
 | 2026-07 (`541e466`) | Mini App как основной UI поиска/подписок рядом с ботом | Удобнее формы, чем чистый чат | `api/app.py`, `web/static/*` | Active |
 | 2026-07 (`fa04c96`) | Watchdog supervise для бота + cloudflared | Сервис падал вместе с ephemeral tunnel | `scripts/supervise.sh` | Active |

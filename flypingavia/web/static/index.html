@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>FlyPingAvia</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/assets/app.css" />
+  <!-- Local SDK first: CDN can fail/race in Telegram WebView and leave empty initData. -->
+  <script src="/assets/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.0" />
 </head>
 <body>
   <div id="auth-gate" class="auth-gate hidden" role="dialog" aria-live="polite">
@@ -136,6 +137,6 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="/assets/app.js"></script>
+  <script src="/assets/app.js?v=0.3.0"></script>
 </body>
 </html>

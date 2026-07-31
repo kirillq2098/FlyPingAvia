@@ -76,6 +76,13 @@ chmod 600 /opt/flyping/.env
 В `docker-compose.prod.yml` сервис `flyping` использует `network_mode: host`, чтобы наследовать IPv6 хоста.
 Приложение слушает `127.0.0.1:8080` (не публикует 8080 наружу через UFW).
 
+## Deploy
+
+```bash
+cd /opt/flyping
+./deploy/scripts/deploy.sh
+```
+
 `init_db()` при старте создаёт/догоняет схему SQLite.
 
 ## Nginx + TLS

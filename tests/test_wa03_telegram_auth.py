@@ -573,12 +573,15 @@ def test_frontend_wa03_contract() -> None:
     js = (root / "flypingavia/web/static/app.js").read_text(encoding="utf-8")
     css = (root / "flypingavia/web/static/app.css").read_text(encoding="utf-8")
 
-    sdk = 'src="https://telegram.org/js/telegram-web-app.js"'
+    sdk = 'src="/assets/telegram-web-app.js"'
     assert sdk in html
     assert html.index(sdk) < html.index("app.js")
+    assert (root / "flypingavia/web/static/telegram-web-app.js").is_file()
 
     assert "window.Telegram" in js
     assert "initData" in js
+    assert "isInsideTelegramWebView" in js
+    assert "waitForInitData" in js
     assert ".ready()" in js
     assert ".expand()" in js
     assert '"tma "' in js

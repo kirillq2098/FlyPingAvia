@@ -175,6 +175,49 @@
       return (tg && tg.initData) || "";
     }
 
+    /** True when launched inside Telegram WebView (even before initData is ready). */
+    function isInsideTelegramWebView() {
+      const tg = getTelegramWebApp();
+      if (tg) {
+        if (tg.initData) return true;
+        try {
+          const unsafe = tg.initDataUnsafe;
+          if (unsafe && (unsafe.user || unsafe.query_id || unsafe.hash)) return true;
+        } catch (_) {}
+        // Outside Telegram the SDK still loads; platform stays "unknown".
+        const platform = String(tg.platform || "").toLowerCase();
+        if (platform && platform !== "unknown") return true;
+      }
+      try {
+        const hash = String(location.hash || "");
+        if (hash.indexOf("tgWebAppData=") >= 0 || hash.indexOf("tgWebAppVersion=") >= 0) {
+          return true;
+        }
+      } catch (_) {}
+      try {
+        if (/Telegram/i.test(String(navigator.userAgent || ""))) return true;
+      } catch (_) {}
+      return false;
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    /** Wait briefly for Telegram SDK to populate initData (CDN race / WebView). */
+    async function waitForInitData(maxMs) {
+      maxMs = typeof maxMs === "number" ? maxMs : 2500;
+      const started = Date.now();
+      let data = getInitData();
+      if (data) return data;
+      while (Date.now() - started < maxMs) {
+        await sleep(50);
+        data = getInitData();
+        if (data) return data;
+      }
+      return getInitData();
+    }
+
     function clearUserDataUi() {
       state.quote = null;
       state.me = null;
@@ -206,12 +249,15 @@
         msgEl.textContent =
           message || "Откройте бота и нажмите кнопку «Открыть FlyPing».";
       }
+      // Inside Telegram WebView never offer a bot deep-link loop.
+      const allowBotLink = !!botLink && !isInsideTelegramWebView();
       if (botBtn) {
-        if (botLink) {
+        if (allowBotLink) {
           botBtn.href = botLink;
           botBtn.classList.remove("hidden");
         } else {
           botBtn.classList.add("hidden");
+          botBtn.removeAttribute("href");
         }
       }
       gate.classList.remove("hidden");
@@ -312,12 +358,16 @@
           state.health && state.health.telegram_bot_link
             ? state.health.telegram_bot_link
             : "";
+        // Browser-only fallback: never show t.me loop when already in Telegram.
+        const gateBotLink = isInsideTelegramWebView() ? "" : botLink;
         showAuthGate(
           code === "MISSING_INIT_DATA"
             ? "FlyPing работает внутри Telegram"
             : "Нужно открыть приложение заново",
-          message,
-          botLink
+          isInsideTelegramWebView()
+            ? "Сессия Telegram недоступна. Закройте Mini App и откройте снова через кнопку бота."
+            : message,
+          gateBotLink
         );
         const err = new Error(message);
         err.status = 401;
@@ -981,7 +1031,13 @@
 
       const appEnv = (health && health.app_env) || "production";
       const tg = getTelegramWebApp();
-      const initData = getInitData();
+      const insideTelegram = isInsideTelegramWebView();
+      // Give Telegram WebView time to populate initData before browser fallback.
+      let initData = getInitData();
+      if (!initData && insideTelegram) {
+        setBoot("Telegram…");
+        initData = await waitForInitData(2500);
+      }
       const botLink = health && health.telegram_bot_link ? health.telegram_bot_link : "";
 
       if (tg) {
@@ -994,6 +1050,17 @@
       }
 
       if (!initData && appEnv === "production") {
+        if (insideTelegram) {
+          // Already in Telegram but no initData — do not redirect to bot.
+          showAuthGate(
+            "Не удалось получить сессию Telegram",
+            "Закройте Mini App и откройте снова через кнопку «Открыть FlyPing» или Menu.",
+            ""
+          );
+          setBoot("Нет initData");
+          return;
+        }
+        // Browser fallback only (no Telegram WebApp context).
         showAuthGate(
           "FlyPing работает внутри Telegram",
           "Откройте бота и нажмите кнопку «Открыть FlyPing».",
@@ -1018,7 +1085,7 @@
             "Не удалось войти",
             (err && err.message) ||
               "Закройте и снова откройте приложение через Telegram.",
-            botLink
+            insideTelegram ? "" : botLink
           );
         }
         setBoot("Auth");
