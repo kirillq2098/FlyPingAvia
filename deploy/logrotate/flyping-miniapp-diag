@@ -7,5 +7,7 @@
     delaycompress
     copytruncate
     su root root
-    create 0640 root root
+    # Host user `appuser` (uid 10001) matches container appuser; create if missing:
+    #   useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin appuser
+    create 0640 appuser appuser
 }
