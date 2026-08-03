@@ -142,6 +142,7 @@ async def _async_main() -> None:
     async def _ensure_menu_button() -> None:
         # Не блокируем bind uvicorn/polling — иначе Docker healthcheck падает.
         # Production / стабильный HTTPS → MenuButtonWebApp; tunnel → commands (TG-05).
+        # BUG-03A: idempotent set + verify; never flip stable HTTPS back to commands.
         from flypingavia.bot.menu_button import resolve_startup_menu_button
 
         menu_button = resolve_startup_menu_button(settings.telegram_webapp_url)
@@ -152,10 +153,25 @@ async def _async_main() -> None:
                 bot.set_chat_menu_button(menu_button=menu_button),
                 timeout=15,
             )
+            current = await asyncio.wait_for(bot.get_chat_menu_button(), timeout=15)
+            current_type = str(getattr(current, "type", "") or "")
+            expected_type = str(getattr(menu_button, "type", "") or "")
+            if expected_type == "web_app" and current_type != "web_app":
+                logger.warning(
+                    "Chat menu button mismatch after set (got type=%s); retrying WebApp",
+                    current_type,
+                )
+                await asyncio.wait_for(
+                    bot.set_chat_menu_button(menu_button=menu_button),
+                    timeout=15,
+                )
+                current = await asyncio.wait_for(bot.get_chat_menu_button(), timeout=15)
+                current_type = str(getattr(current, "type", "") or "")
             logger.info(
-                "Chat menu button: type=%s text=%s",
+                "Chat menu button: type=%s text=%s verified=%s",
                 getattr(menu_button, "type", None),
                 getattr(menu_button, "text", None),
+                current_type,
             )
             try:
                 from flypingavia.diagnostics.miniapp_session import utc_now_iso, write_diag_event
@@ -173,7 +189,10 @@ async def _async_main() -> None:
                         "button_url": str(web)[:128],
                         "bot_username": "FlyPingAvia_Bot",
                         "polling": True,
-                        "detail": "menu_button_clicks_are_not_delivered_as_bot_updates",
+                        "detail": (
+                            f"verified_type={current_type};"
+                            "menu_button_clicks_are_not_delivered_as_bot_updates"
+                        ),
                     }
                 )
             except Exception:

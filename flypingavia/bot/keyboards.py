@@ -9,6 +9,8 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from flypingavia.bot.menu_button import telegram_webapp_button_url
+
 # TG-02: пользовательские подписи кнопок (callback data не меняем)
 BTN_OPEN_FLYPING = "🌐 Открыть FlyPing"
 BTN_CREATE_WATCH = "➕ Создать подписку"
@@ -20,11 +22,12 @@ BTN_HELP = "ℹ️ Помощь"
 def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     # Только canonical публичный HTTPS — не localhost и не пустой URL.
+    # BUG-03A: always WebAppInfo (never url=) so Telegram injects tgWebAppData.
     if webapp_url:
         builder.row(
             KeyboardButton(
                 text=BTN_OPEN_FLYPING,
-                web_app=WebAppInfo(url=webapp_url),
+                web_app=WebAppInfo(url=telegram_webapp_button_url(webapp_url)),
             )
         )
     builder.row(
@@ -182,11 +185,11 @@ def open_app_kb(webapp_url: str | None = None) -> InlineKeyboardMarkup | None:
         return None
     builder = InlineKeyboardBuilder()
     # Only web_app — a plain url= button opens Telegram in-app browser WITHOUT initData
-    # (BUG-02.2: looks like Mini App via UA, then fails auth).
+    # (BUG-02.2 / BUG-03A: looks like Mini App via UA, then fails auth).
     builder.row(
         InlineKeyboardButton(
-            text="🌐 Открыть FlyPing",
-            web_app=WebAppInfo(url=webapp_url),
+            text=BTN_OPEN_FLYPING,
+            web_app=WebAppInfo(url=telegram_webapp_button_url(webapp_url)),
         )
     )
     return builder.as_markup()

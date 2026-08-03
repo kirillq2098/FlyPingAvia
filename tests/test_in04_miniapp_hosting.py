@@ -28,7 +28,7 @@ def test_startup_menu_button_webapp_production_url() -> None:
     btn = resolve_startup_menu_button("https://app.flyping.ru")
     assert isinstance(btn, MenuButtonWebApp)
     assert btn.text == MENU_BUTTON_TEXT == "FlyPing"
-    assert btn.web_app.url == "https://app.flyping.ru"
+    assert btn.web_app.url == "https://app.flyping.ru/"
 
 
 def test_startup_menu_button_commands_on_tunnel() -> None:
@@ -54,7 +54,7 @@ def test_start_reply_keyboard_uses_webapp_info_not_tme_url() -> None:
     open_btn = markup.keyboard[0][0]
     assert open_btn.text == kb.BTN_OPEN_FLYPING
     assert open_btn.web_app is not None
-    assert open_btn.web_app.url == "https://app.flyping.ru"
+    assert open_btn.web_app.url == "https://app.flyping.ru/"
     assert getattr(open_btn, "url", None) in (None, "")
 
 
@@ -63,7 +63,7 @@ def test_open_app_inline_primary_is_webapp() -> None:
     assert markup is not None
     primary = markup.inline_keyboard[0][0]
     assert primary.web_app is not None
-    assert primary.web_app.url == "https://app.flyping.ru"
+    assert primary.web_app.url == "https://app.flyping.ru/"
     assert primary.url is None
     # BUG-02.2: only web_app — plain url= opens in-app browser without initData.
     assert len(markup.inline_keyboard) == 1
