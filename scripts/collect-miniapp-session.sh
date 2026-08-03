@@ -32,7 +32,7 @@ done
 
 python3 - "$DIAG_LOG" "$NGINX_ACCESS" "$CONTAINER" "$SESSION_ID" "$FROM" "$TO" "$CLIENT_PREFIX" <<'PY'
 import json, os, re, subprocess, sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 diag_log, nginx_access, container, session_id, from_s, to_s, client_prefix = sys.argv[1:8]
@@ -96,34 +96,87 @@ if not session_id and client_prefix and events:
         session_id = max(by_sid.keys(), key=lambda k: len(by_sid[k]))
         events = [e for e in events if e.get("session_id") == session_id]
 
+# Derive time window from session events when only session_id is known
+event_times = []
+for e in events:
+    ts = e.get("ts") or ""
+    try:
+        event_times.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
+    except Exception:
+        pass
+if event_times and not from_dt:
+    from_dt = min(event_times).replace(tzinfo=timezone.utc)
+if event_times and not to_dt:
+    to_dt = max(event_times).replace(tzinfo=timezone.utc)
+# Widen ±120s for nginx correlation
+nginx_from = (from_dt - timedelta(seconds=120)) if from_dt else None
+nginx_to = (to_dt + timedelta(seconds=120)) if to_dt else None
+
+# Client prefix from session events if not provided
+if not client_prefix and events:
+    for e in events:
+        cip = str(e.get("client_ip_masked") or "")
+        # e.g. "5.44.168…" → "5.44.168"
+        m = re.match(r"^(\d+\.\d+\.\d+)", cip)
+        if m:
+            client_prefix = m.group(1)
+            break
+
+docker_since = from_s
+if not docker_since and from_dt:
+    docker_since = from_dt.strftime("%Y-%m-%dT%H:%M:%S")
+docker_until = to_s
+if not docker_until and to_dt:
+    docker_until = (to_dt + timedelta(seconds=30)).strftime("%Y-%m-%dT%H:%M:%S")
+
 # Docker app logs snippet
 docker_lines = []
 try:
-    cmd = ["docker", "logs", container, "--since", from_s or "30m", "--until", to_s or ""]
-    cmd = [c for c in cmd if c]
-    if not to_s:
-        cmd = ["docker", "logs", container, "--since", from_s or "30m"]
+    if docker_until:
+        cmd = ["docker", "logs", container, "--since", docker_since or "30m", "--until", docker_until]
+    else:
+        cmd = ["docker", "logs", container, "--since", docker_since or "30m"]
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True, timeout=30)
     for ln in out.splitlines():
         if session_id and session_id in ln:
             docker_lines.append(ln)
-        elif (not session_id) and ("miniapp_diag" in ln or "/api/me" in ln or "/api/diag" in ln):
-            if client_prefix and client_prefix not in ln and "miniapp_diag" not in ln:
+        elif (not session_id) and ("miniapp_diag" in ln or "/api/me" in ln or "/api/diag" in ln or "bot_event" in ln):
+            if client_prefix and client_prefix not in ln and "miniapp_diag" not in ln and "bot_event" not in ln:
                 continue
             docker_lines.append(ln)
 except Exception as exc:
     docker_lines.append(f"[docker logs unavailable: {exc}]")
 
-# Nginx (best-effort)
+def parse_nginx_ts(line: str):
+    # [31/Jul/2026:11:26:17 +0000]
+    m = re.search(r"\[(\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}) ([+-]\d{4})\]", line)
+    if not m:
+        return None
+    try:
+        dt = datetime.strptime(m.group(1), "%d/%b/%Y:%H:%M:%S")
+        return dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+# Nginx (best-effort): filter by time window and optional client prefix
 nginx_lines = []
 nap = Path(nginx_access)
 if nap.is_file():
     try:
-        for ln in nap.read_text(encoding="utf-8", errors="replace").splitlines()[-5000:]:
+        for ln in nap.read_text(encoding="utf-8", errors="replace").splitlines()[-8000:]:
             if "app.flyping.ru" not in ln and "api.flyping.ru" not in ln:
                 continue
             if client_prefix and client_prefix not in ln:
                 continue
+            nts = parse_nginx_ts(ln)
+            if nginx_from and nts and nts < nginx_from:
+                continue
+            if nginx_to and nts and nts > nginx_to:
+                continue
+            # If we have a tight session window but no client_prefix, still require /api/diag|/api/me|/assets
+            if session_id and not client_prefix:
+                if not any(x in ln for x in ("/api/diag", "/api/me", "/assets/", "GET / HTTP")):
+                    continue
             nginx_lines.append(ln)
     except Exception as exc:
         nginx_lines.append(f"[nginx unavailable: {exc}]")
