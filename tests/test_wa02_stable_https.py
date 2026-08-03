@@ -295,7 +295,7 @@ def test_https_creates_webapp_button() -> None:
     assert kb.BTN_OPEN_FLYPING in texts
     web = markup.keyboard[0][0]
     assert web.web_app is not None
-    assert web.web_app.url == "https://app.example.com"
+    assert web.web_app.url == "https://app.example.com/"
 
 
 def test_empty_url_no_broken_button() -> None:
@@ -317,7 +317,7 @@ def test_localhost_not_telegram_safe() -> None:
 def test_canonical_url_no_extra_path() -> None:
     markup = kb.open_app_kb("https://app.example.com")
     assert markup is not None
-    assert markup.inline_keyboard[0][0].web_app.url == "https://app.example.com"
+    assert markup.inline_keyboard[0][0].web_app.url == "https://app.example.com/"
     assert "/index" not in markup.inline_keyboard[0][0].web_app.url
 
 

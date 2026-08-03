@@ -659,10 +659,27 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await message.answer(INVALID_SHARE_MESSAGE)
             # fall through to normal welcome
 
+        # BUG-03B: one primary /start message (welcome + launch CTA).
+        # Mini App launch must use WebAppInfo on the reply keyboard (BUG-03A),
+        # not a plain url= button and not a separate URL-only menu path.
+        if webapp:
+            start_text = (
+                f"{fmt.format_start_message(user.first_name)}\n\n"
+                f"{fmt.mini_app_text('')}"
+            )
+            start_markup = menu()
+            button_type = "reply_keyboard_web_app"
+        else:
+            start_text = (
+                f"{fmt.format_start_message(user.first_name)}\n\n"
+                f"{fmt.mini_app_unavailable_text()}"
+            )
+            start_markup = menu()
+            button_type = "none"
         await message.answer(
-            fmt.format_start_message(user.first_name),
+            start_text,
             parse_mode="HTML",
-            reply_markup=menu(),
+            reply_markup=start_markup,
         )
         try:
             from flypingavia.diagnostics.miniapp_session import (
@@ -670,8 +687,9 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 utc_now_iso,
                 write_diag_event,
             )
+            from flypingavia.bot.menu_button import telegram_webapp_button_url
 
-            web_url = webapp or ""
+            web_url = telegram_webapp_button_url(webapp) if webapp else ""
             write_diag_event(
                 {
                     "kind": "bot",
@@ -682,7 +700,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                     "bot_id": 8855806512,
                     "chat_id_masked": mask_chat_id(message.chat.id if message.chat else None),
                     "message_id": int(message.message_id or 0),
-                    "button_type": "reply_keyboard_web_app" if web_url else "none",
+                    "button_type": button_type,
                     "button_url": web_url[:128],
                     "polling": True,
                     "detail": "menu_button_press_not_delivered_to_bot",
@@ -690,44 +708,6 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             )
         except Exception:
             logging.getLogger("flypingavia.bot").debug("diag start log skipped", exc_info=True)
-        app_kb = kb.open_app_kb(webapp)
-        if app_kb and webapp:
-            from urllib.parse import urlparse
-
-            host = urlparse(webapp).hostname or webapp
-            await message.answer(
-                fmt.mini_app_text(host),
-                parse_mode="HTML",
-                reply_markup=app_kb,
-            )
-            try:
-                from flypingavia.diagnostics.miniapp_session import utc_now_iso, write_diag_event
-
-                write_diag_event(
-                    {
-                        "kind": "bot",
-                        "event": "bot_webapp_keyboard_sent",
-                        "stage": "bot_webapp_keyboard_sent",
-                        "ts": utc_now_iso(),
-                        "button_type": "inline_web_app",
-                        "button_url": webapp[:128],
-                        "message_id": int(message.message_id or 0),
-                        "polling": True,
-                    }
-                )
-            except Exception:
-                pass
-        else:
-            await message.answer(
-                fmt.mini_app_unavailable_text(),
-                parse_mode="HTML",
-                reply_markup=menu(),
-            )
-        await message.answer(
-            "<b>Быстрый старт</b> — популярные направления:",
-            parse_mode="HTML",
-            reply_markup=kb.popular_routes_kb(),
-        )
 
     @router.message(Command("help"))
     @router.message(F.text == kb.BTN_HELP)
