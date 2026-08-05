@@ -91,13 +91,15 @@ def test_alert_copy_has_watchdog_line() -> None:
     assert "лучшая цена на рынке" not in text.lower()
 
 
-def test_main_menu_buttons_and_webapp() -> None:
+def test_main_menu_buttons_without_reply_webapp() -> None:
     with_url = kb.main_menu("https://app.example.com")
     texts = [b.text for row in with_url.keyboard for b in row]
     assert kb.BTN_CREATE_WATCH in texts
     assert kb.BTN_MY_WATCHES in texts
-    assert kb.BTN_OPEN_FLYPING in texts
-    assert with_url.keyboard[0][0].web_app is not None
+    assert kb.BTN_OPEN_FLYPING not in texts
+    for row in with_url.keyboard:
+        for b in row:
+            assert b.web_app is None
 
     no_url = kb.main_menu(None)
     texts2 = [b.text for row in no_url.keyboard for b in row]
