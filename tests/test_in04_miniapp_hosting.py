@@ -18,10 +18,10 @@ MAIN_PY = ROOT / "flypingavia" / "main.py"
 
 
 def test_version_unchanged_030() -> None:
-    assert __version__ == "0.3.0"
-    assert FALLBACK_VERSION == "0.3.0"
+    assert __version__ == "0.3.1"
+    assert FALLBACK_VERSION == "0.3.1"
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "0.3.0"' in pyproject
+    assert 'version = "0.3.1"' in pyproject
 
 
 def test_startup_menu_button_webapp_production_url() -> None:

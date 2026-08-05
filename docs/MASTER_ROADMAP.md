@@ -9,7 +9,7 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Версия продукта | `0.3.0` (`pyproject.toml` → `flypingavia.__version__`) |
+| Версия продукта | `0.3.1` (`pyproject.toml` → `flypingavia.__version__`) |
 | Канал доставки | Telegram (polling) + Mini App (FastAPI/uvicorn) |
 | Хранилище | SQLite |
 | Источник цен | Travelpayouts Data API **или** demo |

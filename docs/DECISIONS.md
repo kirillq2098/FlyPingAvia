@@ -39,7 +39,7 @@
 | Повторные алерты | Алертить каждый цикл / только если цена изменилась / cooldown | Шум в UX | Использовать ли `last_alert_price`? |
 | Live Search | Ждать доступ партнёра / искать другой источник / остаться на 1 взрослом | UI пассажиров, «семейные» цены | Когда снова включаем pax UI? |
 | Хостинг Mini App | **Целевой:** свой домен или named Cloudflare Tunnel + `APP_ENV=production`. Quick tunnel — только development | Надёжность кнопки | Checklist: `docs/PRODUCTION_CHECKLIST.md` |
-| Версионирование | **Решено (RL-02):** единый `0.3.0` из `pyproject.toml` → `flypingavia.version` | Документы и ожидания | Ручной tag `v0.3.0` после merge + smoke |
+| Версионирование | **Решено (RL-02):** единый `0.3.1` из `pyproject.toml` → `flypingavia.version` | Документы и ожидания | Ручной tag `v0.3.1` после merge + smoke |
 
 ## Как обновлять этот файл
 

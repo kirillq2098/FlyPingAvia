@@ -3,7 +3,7 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 #   systemctl start flyping.service
 #
-# Architecture (v0.3.0):
+# Architecture (v0.3.1):
 #   flyping       — bot (polling) + FastAPI Mini App + checker + RL-03 (8080)
 #   flyping-site  — marketing Next.js site for flyping.ru / www (3000)
 # SQLite in named volume. PostgreSQL is NOT used.
@@ -16,8 +16,8 @@ services:
     build:
       context: .
       args:
-        APP_VERSION: "0.3.0"
-    image: flypingavia:0.3.0
+        APP_VERSION: "0.3.1"
+    image: flypingavia:0.3.1
     container_name: flyping-app
     restart: unless-stopped
     init: true
@@ -69,7 +69,7 @@ services:
         NEXT_PUBLIC_SUPPORT_EMAIL: "support@flyping.ru"
         NEXT_PUBLIC_GA_ID: ""
         NEXT_PUBLIC_YANDEX_METRICA_ID: ""
-    image: flyping-site:0.3.0
+    image: flyping-site:0.3.1
     container_name: flyping-site
     restart: unless-stopped
     init: true

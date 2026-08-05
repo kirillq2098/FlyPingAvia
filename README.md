@@ -26,9 +26,9 @@ Telegram-бот для мониторинга цен на авиабилеты.
 | [Attribution](docs/ATTRIBUTION.md) | Deep-link `?start=`, first/last touch |
 | [KPI](docs/KPI.md) | Метрики по этапам |
 
-## Текущая версия: 0.3.0
+## Текущая версия: 0.3.1
 
-Current application version: **0.3.0**
+Current application version: **0.3.1**
 
 Проверка без запуска бота:
 
@@ -243,7 +243,7 @@ scripts/               # supervise (автоперезапуск)
 
 ## Статус
 
-Текущая версия приложения: **0.3.0** (бот + Mini App + auth + CS/NT/TR пакет).  
+Текущая версия приложения: **0.3.1** (бот + Mini App + auth + CS/NT/TR пакет).  
 Запуск с `BOT_TOKEN`. Без `TRAVELPAYOUTS_TOKEN` — demo-цены.  
 История: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
@@ -253,8 +253,8 @@ scripts/               # supervise (автоперезапуск)
 > Команды **не** запускаются автоматически агентом/CI.
 
 ```bash
-git tag -a v0.3.0 -m "FlyPingAvia 0.3.0"
-git push origin v0.3.0
+git tag -a v0.3.1 -m "FlyPingAvia 0.3.1"
+git push origin v0.3.1
 ```
 
 Tag в репозитории на момент документации может ещё не существовать.
