@@ -70,4 +70,4 @@ def test_rollback_and_deploy_landing_scripts_exist() -> None:
 def test_version_unchanged() -> None:
     from flypingavia.version import __version__
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"

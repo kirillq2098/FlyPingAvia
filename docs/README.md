@@ -3,7 +3,7 @@
 Точка входа в продуктовые и технические документы проекта.
 
 **Продукт сейчас:** Telegram-бот + Mini App для мониторинга цен на авиабилеты.  
-**Версия в репозитории:** `0.3.0` (`pyproject.toml` → `flypingavia.__version__` / `/api/health` / CLI `--version`). См. [CHANGELOG](CHANGELOG.md), [RL-02](FEATURE_BACKLOG.md).
+**Версия в репозитории:** `0.3.1` (`pyproject.toml` → `flypingavia.__version__` / `/api/health` / CLI `--version`). См. [CHANGELOG](CHANGELOG.md), [RL-02](FEATURE_BACKLOG.md).
 
 ## Карта документов
 

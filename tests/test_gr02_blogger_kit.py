@@ -71,7 +71,7 @@ def test_blogger_kit_backlog_and_version() -> None:
     assert "**Статус:** Done" in section or "Статус:** Done" in section
     assert "BLOGGER_KIT.md" in section
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"
     assert (ROOT / "docs" / "MARKETING.md").read_text(encoding="utf-8").find(
         "BLOGGER_KIT"
     ) >= 0

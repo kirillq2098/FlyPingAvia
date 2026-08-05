@@ -82,8 +82,8 @@ async def api_client(tmp_path, monkeypatch):
 def test_version_stays_030() -> None:
     from flypingavia.version import __version__, FALLBACK_VERSION
 
-    assert __version__ == "0.3.0"
-    assert FALLBACK_VERSION == "0.3.0"
+    assert __version__ == "0.3.1"
+    assert FALLBACK_VERSION == "0.3.1"
 
 
 def test_frontend_single_cta_no_mainbutton_show() -> None:

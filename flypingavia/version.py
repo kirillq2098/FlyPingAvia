@@ -10,7 +10,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 PACKAGE_NAME = "flypingavia"
-FALLBACK_VERSION = "0.3.0"
+FALLBACK_VERSION = "0.3.1"
 
 
 def get_version() -> str:

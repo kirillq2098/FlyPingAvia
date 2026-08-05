@@ -1,13 +1,13 @@
 # Production recovery — FlyPing OPS-01
 
-Версия продукта: **0.3.0**. Хост: Timeweb VPS (`/opt/flyping`).
+Версия продукта: **0.3.1**. Хост: Timeweb VPS (`/opt/flyping`).
 
 ## Архитектура
 
 | Компонент | Где |
 |---|---|
-| Telegram bot + FastAPI API + Mini App static + checker + RL-03 | контейнер **`flyping-app`** (`flypingavia:0.3.0`, host network, `:8080`) |
-| Marketing Next.js | контейнер **`flyping-site`** (`flyping-site:0.3.0`, host network, `:3000`) |
+| Telegram bot + FastAPI API + Mini App static + checker + RL-03 | контейнер **`flyping-app`** (`flypingavia:0.3.1`, host network, `:8080`) |
+| Marketing Next.js | контейнер **`flyping-site`** (`flyping-site:0.3.1`, host network, `:3000`) |
 | TLS / reverse proxy | host **`nginx.service`** |
 | SQLite | Docker volume **`flyping-data`** → `/app/data/flypingavia.db` |
 | Compose project | `/opt/flyping/docker-compose.prod.yml` |

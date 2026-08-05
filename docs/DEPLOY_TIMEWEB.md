@@ -2,7 +2,7 @@
 
 Связанные: [PRODUCTION_CHECKLIST](PRODUCTION_CHECKLIST.md) · [HEALTH_MONITORING](HEALTH_MONITORING.md) · [SECURITY](SECURITY.md)
 
-## Целевая схема (v0.3.0)
+## Целевая схема (v0.3.1)
 
 ```text
 Internet → Nginx (TLS) → 127.0.0.1:8080 → Docker container flyping-app
@@ -95,7 +95,7 @@ cd /opt/flyping
 
 Landing: `/var/www/flyping-landing` из `deploy/landing/` (deployment stub).
 
-Фронтенды в репозитории (v0.3.0):
+Фронтенды в репозитории (v0.3.1):
 
 | Host | Каталог | Что это |
 |------|---------|---------|

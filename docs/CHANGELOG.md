@@ -8,6 +8,16 @@
 
 ### Added
 
+-
+
+### Changed
+
+-
+
+## [0.3.1] — 2026-08-05
+
+### Added
+
 - **TG-02:** единое позиционирование FlyPing как сторожа цены в Telegram и Mini App (`format_start_message` / `format_help_message`, COPY_GUIDE, fixed copy без A/B).
 - **TG-03:** Telegram deep-link attribution — whitelist start payload, first/last source + timestamps на `users`, `build_telegram_start_link`, docs/ATTRIBUTION.md.
 - **TG-04:** поделиться подпиской — opaque `share_<token>`, attribution `share` (без raw token), HMAC confirm proof, копия Watch, TTL/max uses, revoke, Mini App share API (`docs/WATCH_SHARING.md`).
@@ -16,9 +26,20 @@
 - **GR-02:** блогер-кит — `docs/BLOGGER_KIT.md` (креативы, deep links TG-03, FAQ, checklist; без кода продукта).
 - **IN-04:** production deploy Timeweb — `docker-compose.prod.yml`, Nginx, scripts, `docs/DEPLOY_TIMEWEB.md` (SQLite).
 
+### Fixed
+
+- **BUG-03 / BUG-03C:** запуск Mini App только через inline `WebAppInfo` (`open_app_kb`); Reply Keyboard без WebApp-кнопки (iOS без `tgWebAppData`).
+- Persistent reply keyboard после `/start` («Главное меню:»), чтобы iOS не сворачивал меню в иконку.
+
 ### Changed
 
--
+- Стабильная baseline для закрытой beta: production принят как рабочий (bot + Mini App + сайт).
+- Версия пакета / Docker image / `/api/health` → **0.3.1**.
+
+### Known
+
+- Funnel product-analytics события (search/quote/watch/notification/ticket) ещё не как единый KPI pipeline.
+- Asset cache-buster Mini App остаётся `0.3.0-bug025` (не путать с package version).
 
 ## [0.3.0] — 2026-07-30
 

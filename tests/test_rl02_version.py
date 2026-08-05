@@ -21,8 +21,8 @@ def _pyproject_version() -> str:
     return data["project"]["version"]
 
 
-def test_pyproject_version_is_030() -> None:
-    assert _pyproject_version() == "0.3.0"
+def test_pyproject_version_is_031() -> None:
+    assert _pyproject_version() == "0.3.1"
 
 
 def test_package_dunder_version() -> None:
@@ -67,7 +67,7 @@ def test_fastapi_app_version() -> None:
             travelpayouts_token="",
         )
     )
-    assert app.version == flypingavia.__version__ == "0.3.0"
+    assert app.version == flypingavia.__version__ == "0.3.1"
 
 
 @pytest.mark.asyncio
@@ -119,8 +119,9 @@ def test_readme_and_changelog_and_backlog() -> None:
     changelog = (ROOT / "docs/CHANGELOG.md").read_text(encoding="utf-8")
     backlog = (ROOT / "docs/FEATURE_BACKLOG.md").read_text(encoding="utf-8")
 
-    assert "0.3.0" in readme
+    assert "0.3.1" in readme
     assert "python -m flypingavia --version" in readme
+    assert re.search(r"## \[0\.3\.1\]", changelog)
     assert re.search(r"## \[0\.3\.0\]", changelog)
     assert re.search(
         r"### RL-02[^\n]*\n(?:.*\n)*?- \*\*Статус:\*\* Done",
@@ -143,7 +144,7 @@ def test_no_runtime_020_in_python() -> None:
 
 def test_dockerfile_app_version_label() -> None:
     text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert "ARG APP_VERSION=0.3.0" in text
+    assert "ARG APP_VERSION=0.3.1" in text
     assert "org.opencontainers.image.version=$APP_VERSION" in text
     assert "pip install" in text and "--no-deps" in text
 
@@ -170,7 +171,7 @@ def test_cli_version_subprocess(tmp_path) -> None:
         assert proc.returncode == 0, proc.stderr
         lines = [ln for ln in proc.stdout.strip().splitlines() if ln.strip()]
         assert len(lines) == 1
-        assert lines[0] == "FlyPingAvia 0.3.0"
+        assert lines[0] == "FlyPingAvia 0.3.1"
         assert "Traceback" not in (proc.stderr or "")
         assert not (tmp_path / "should-not-create.db").exists()
         # no sqlite file created under cwd
@@ -181,4 +182,4 @@ def test_version_module_constants() -> None:
     from flypingavia.version import FALLBACK_VERSION, PACKAGE_NAME
 
     assert PACKAGE_NAME == "flypingavia"
-    assert FALLBACK_VERSION == "0.3.0"
+    assert FALLBACK_VERSION == "0.3.1"

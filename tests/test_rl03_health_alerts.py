@@ -356,7 +356,7 @@ async def test_ready_health_monitor_summary(rl03_db) -> None:
         h = await c.get("/api/health")
         assert h.status_code == 200
         assert h.json()["version"] == __version__
-        assert __version__ == "0.3.0"
+        assert __version__ == "0.3.1"
         r = await c.get("/api/ready")
         assert r.status_code == 200
         body = r.json()
@@ -392,7 +392,7 @@ def test_docs_and_env() -> None:
     backlog = (ROOT / "docs/FEATURE_BACKLOG.md").read_text(encoding="utf-8")
     section = backlog.split("### RL-03")[1].split("###")[0]
     assert "**Статус:** Done" in section
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"
 
 
 def test_config_admin_defaults() -> None:

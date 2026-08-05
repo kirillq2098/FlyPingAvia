@@ -24,8 +24,8 @@ STATIC = ROOT / "flypingavia/web/static"
 
 
 def test_version_stays_030() -> None:
-    assert __version__ == "0.3.0"
-    assert FALLBACK_VERSION == "0.3.0"
+    assert __version__ == "0.3.1"
+    assert FALLBACK_VERSION == "0.3.1"
 
 
 def test_ui_has_orientir_not_vilka() -> None:

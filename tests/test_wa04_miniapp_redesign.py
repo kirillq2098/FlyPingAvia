@@ -94,7 +94,7 @@ def test_website_unchanged_source_of_truth() -> None:
 def test_version_still_030() -> None:
     from flypingavia.version import __version__
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.3.1"
 
 
 def test_self_hosted_fonts() -> None:
