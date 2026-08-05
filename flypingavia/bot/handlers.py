@@ -659,9 +659,9 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await message.answer(INVALID_SHARE_MESSAGE)
             # fall through to normal welcome
 
-        # BUG-03B/C: one welcome/CTA message with Inline WebAppInfo (open_app_kb).
+        # BUG-03B/C: exactly one /start message with Inline WebAppInfo CTA (open_app_kb).
         # Reply Keyboard must not carry KeyboardButton.web_app (iOS drops tgWebAppData).
-        # Short "Главное меню:" follow-up only syncs reply actions (no second Open CTA).
+        # No second Open CTA. Reply actions keyboard updates on later menu() calls.
         if webapp:
             start_text = (
                 f"{fmt.format_start_message(user.first_name)}\n\n"
@@ -681,8 +681,6 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             parse_mode="HTML",
             reply_markup=start_markup,
         )
-        if webapp:
-            await message.answer("Главное меню:", reply_markup=menu())
         try:
             from flypingavia.diagnostics.miniapp_session import (
                 mask_chat_id,

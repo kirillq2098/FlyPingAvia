@@ -116,8 +116,8 @@ async def test_cmd_start_one_welcome_with_inline_webapp(monkeypatch) -> None:
 
     await cmd_start(message, AsyncMock(), CommandObject(command="start", args=None))
 
-    # One welcome/CTA message + one reply-keyboard sync (no second Open button).
-    assert len(calls) == 2
+    # Exactly one /start message: welcome + inline WebApp CTA (no duplicate Open).
+    assert len(calls) == 1
     welcome = calls[0]
     assert "сторож цены" in welcome["text"].lower()
     assert "удобном окне" in welcome["text"]
@@ -127,15 +127,6 @@ async def test_cmd_start_one_welcome_with_inline_webapp(monkeypatch) -> None:
     assert primary.web_app.url == "https://app.flyping.ru/"
     assert getattr(primary, "url", None) in (None, "")
     assert primary.text == kb.BTN_OPEN_FLYPING
-
-    sync = calls[1]
-    assert sync["text"] == "Главное меню:"
-    reply_texts = [btn.text for row in sync["reply_markup"].keyboard for btn in row]
-    assert kb.BTN_OPEN_FLYPING not in reply_texts
-    assert kb.BTN_CREATE_WATCH in reply_texts
-    for row in sync["reply_markup"].keyboard:
-        for btn in row:
-            assert btn.web_app is None
 
 @pytest.mark.asyncio
 async def test_cmd_start_without_webapp_still_one_message(monkeypatch) -> None:
