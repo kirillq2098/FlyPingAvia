@@ -25,6 +25,9 @@ def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
     iOS opens Reply Keyboard WebApp without tgWebAppData. Mini App CTA is
     InlineKeyboardButton via ``open_app_kb``. ``webapp_url`` is ignored and
     kept for call-site compatibility.
+
+    ``is_persistent=True`` keeps the keyboard visible on Telegram iOS instead of
+    collapsing to the keyboard icon next to the input field.
     """
     _ = webapp_url
     builder = ReplyKeyboardBuilder()
@@ -36,7 +39,11 @@ def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
         KeyboardButton(text=BTN_CHECK_PRICES),
         KeyboardButton(text=BTN_HELP),
     )
-    return builder.as_markup(resize_keyboard=True)
+    return builder.as_markup(
+        resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
+    )
 
 
 def cancel_kb() -> ReplyKeyboardMarkup:
