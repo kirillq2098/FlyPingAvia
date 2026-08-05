@@ -317,7 +317,10 @@ async def test_api_quote_cache_hit_skips_provider(quote_api) -> None:
     assert r1.status_code == 200
     body1 = r1.json()
     assert body1["cheap_max"] == 15_000
-    assert body1["title"] == "Ориентир по стоимости"
+    assert body1["title"] == "Оценка стоимости"
+    assert body1["price_source"] == "travelpayouts_estimate"
+    assert body1["is_live"] is False
+    assert body1["market_band_source"] == "test"
     calls_after_first = provider.calls
 
     r2 = await client.get("/api/quote", params=params)
