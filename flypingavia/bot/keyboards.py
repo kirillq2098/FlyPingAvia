@@ -20,16 +20,14 @@ BTN_HELP = "ℹ️ Помощь"
 
 
 def main_menu(webapp_url: str | None = None) -> ReplyKeyboardMarkup:
+    """Reply keyboard actions only — no KeyboardButton.web_app (BUG-03C).
+
+    iOS opens Reply Keyboard WebApp without tgWebAppData. Mini App CTA is
+    InlineKeyboardButton via ``open_app_kb``. ``webapp_url`` is ignored and
+    kept for call-site compatibility.
+    """
+    _ = webapp_url
     builder = ReplyKeyboardBuilder()
-    # Только canonical публичный HTTPS — не localhost и не пустой URL.
-    # BUG-03A: always WebAppInfo (never url=) so Telegram injects tgWebAppData.
-    if webapp_url:
-        builder.row(
-            KeyboardButton(
-                text=BTN_OPEN_FLYPING,
-                web_app=WebAppInfo(url=telegram_webapp_button_url(webapp_url)),
-            )
-        )
     builder.row(
         KeyboardButton(text=BTN_CREATE_WATCH),
         KeyboardButton(text=BTN_MY_WATCHES),

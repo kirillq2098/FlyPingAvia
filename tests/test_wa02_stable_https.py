@@ -289,11 +289,11 @@ async def test_health_production_ready_and_demo(tmp_path, monkeypatch) -> None:
 # --- Telegram button ---
 
 
-def test_https_creates_webapp_button() -> None:
-    markup = kb.main_menu("https://app.example.com")
-    texts = [btn.text for row in markup.keyboard for btn in row]
-    assert kb.BTN_OPEN_FLYPING in texts
-    web = markup.keyboard[0][0]
+def test_https_creates_inline_webapp_button() -> None:
+    markup = kb.open_app_kb("https://app.example.com")
+    assert markup is not None
+    web = markup.inline_keyboard[0][0]
+    assert web.text == kb.BTN_OPEN_FLYPING
     assert web.web_app is not None
     assert web.web_app.url == "https://app.example.com/"
 
@@ -304,6 +304,9 @@ def test_empty_url_no_broken_button() -> None:
     assert kb.BTN_OPEN_FLYPING not in texts
     assert kb.BTN_CREATE_WATCH in texts
     assert kb.open_app_kb(None) is None
+    for row in markup.keyboard:
+        for btn in row:
+            assert btn.web_app is None
 
 
 def test_localhost_not_telegram_safe() -> None:

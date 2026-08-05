@@ -49,13 +49,14 @@ def test_main_uses_ensure_webapp_menu_button() -> None:
     assert "ensure-menu-button" in src
 
 
-def test_start_reply_keyboard_uses_webapp_info_not_tme_url() -> None:
+def test_start_reply_keyboard_has_no_webapp_open_button() -> None:
     markup = kb.main_menu("https://app.flyping.ru")
-    open_btn = markup.keyboard[0][0]
-    assert open_btn.text == kb.BTN_OPEN_FLYPING
-    assert open_btn.web_app is not None
-    assert open_btn.web_app.url == "https://app.flyping.ru/"
-    assert getattr(open_btn, "url", None) in (None, "")
+    texts = [btn.text for row in markup.keyboard for btn in row]
+    assert kb.BTN_OPEN_FLYPING not in texts
+    assert kb.BTN_CREATE_WATCH in texts
+    for row in markup.keyboard:
+        for btn in row:
+            assert btn.web_app is None
 
 
 def test_open_app_inline_primary_is_webapp() -> None:
@@ -67,7 +68,6 @@ def test_open_app_inline_primary_is_webapp() -> None:
     assert primary.url is None
     # BUG-02.2: only web_app — plain url= opens in-app browser without initData.
     assert len(markup.inline_keyboard) == 1
-
 
 def test_mini_app_index_uses_official_telegram_sdk() -> None:
     html = (STATIC / "index.html").read_text(encoding="utf-8")
