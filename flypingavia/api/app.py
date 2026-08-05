@@ -623,28 +623,6 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             default_quote_cache,
             make_quote_cache_key,
         )
-        LIVE_FRESH_TTL_SECONDS = 60
-        LIVE_STALE_TTL_SECONDS = 120
-
-        def _normalize_cache_status(
-            original: str,
-            entry_data: dict | None,
-            age_seconds: int | None,
-        ) -> str:
-            if original == "miss":
-                return "miss"
-            if not entry_data:
-                return original
-            src = (entry_data.get("price_source") or entry_data.get("source") or "").lower()
-            is_live_src = src == "live_search"
-            if not is_live_src:
-                return original
-            age = int(age_seconds or 0)
-            if age <= LIVE_FRESH_TTL_SECONDS:
-                return "fresh"
-            if age <= LIVE_STALE_TTL_SECONDS:
-                return "stale"
-            return "miss"
 
         _ = user
         t0 = time.monotonic()
@@ -685,11 +663,6 @@ def create_api(settings: Settings | None = None) -> FastAPI:
         )
         cache = default_quote_cache
         entry, status = cache.lookup(cache_key)
-        status = _normalize_cache_status(
-            status,
-            (entry.data if entry else None),
-            (entry.age_seconds if entry else None),
-        )
         if status == "fresh" and not refresh:
             cache.metrics.cache_hits += 1
             cache.metrics.record_latency((time.monotonic() - t0) * 1000)
@@ -752,6 +725,8 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 flex,
             )
             prov_t0 = time.monotonic()
+            # UI quote uses Travelpayouts Data API estimate only.
+            # Flight Search is intentionally not used here (no live_access_denied probe).
             result = await search_flexible_trip(
                 provider,
                 origins=origin_place.search_codes,
@@ -763,7 +738,8 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 children=children,
                 infants=infants,
                 currency=settings.currency,
-                prefer_live_for_quote=True,
+                prefer_live_for_quote=False,
+                allow_live=False,
             )
             logger.info(
                 "quote.provider.completed duration_ms=%.0f combinations=%s completed=%s partial=%s",
@@ -782,15 +758,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
             completed_count = result.completed_count if result else 0
 
             level = band.classify(quote.price).value if quote and band else None
-            is_live = bool(quote and quote.is_live)
-            fallback_reason = quote.fallback_reason if quote else None
-            price_source = "live_search" if is_live else ("travelpayouts_estimate" if quote else None)
+            # Contract for UI quote: always Data API estimate (compat fields kept).
+            is_live = False
+            fallback_reason = None
+            price_source = "travelpayouts_estimate" if quote else None
             note = None
             if origin_place.kind == "city" and len(origin_place.airport_codes) > 1:
                 note = f"Проверены аэропорты: {', '.join(origin_place.airport_codes)}"
-            if quote and not quote.is_live and fallback_reason:
-                extra = "Оценка по данным Travelpayouts"
-                note = f"{note}. {extra}" if note else extra
 
             status_label = "partial" if partial else ("timeout" if quote is None else "live")
             if result is None:
@@ -799,16 +773,6 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 cache.metrics.partials += 1
             if combinations_count:
                 cache.metrics.combinations.append(int(combinations_count))
-            if is_live:
-                cache.metrics.live_success += 1
-            elif fallback_reason:
-                cache.metrics.fallback_used += 1
-                if fallback_reason == "live_timeout":
-                    cache.metrics.live_timeout += 1
-                elif fallback_reason == "live_no_results":
-                    cache.metrics.live_no_results += 1
-                else:
-                    cache.metrics.live_error += 1
 
             out = QuoteOut(
                 origin=origin_place.code,
@@ -843,7 +807,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 children=children,
                 infants=infants,
                 trip_type=trip_type,
-                price_for="passengers" if (quote and quote.is_live) else "adult",
+                price_for="adult",
                 source=quote.source if quote else None,
                 price_source=price_source,
                 is_live=is_live,
@@ -866,9 +830,7 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 combinations_count=combinations_count,
                 completed_count=completed_count,
                 title=(
-                    "Предварительный ориентир"
-                    if partial
-                    else ("Минимальная цена сейчас" if is_live else "Оценка стоимости")
+                    "Предварительный ориентир" if partial else "Оценка стоимости"
                 ),
             )
             return out.model_dump(mode="json")

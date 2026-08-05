@@ -463,3 +463,160 @@ async def test_live_access_denied_falls_back_to_estimate(monkeypatch) -> None:
     )
     assert quote is not None
     assert quote.fallback_reason == "live_access_denied"
+
+
+@pytest.mark.asyncio
+async def test_allow_live_false_skips_flight_search(monkeypatch) -> None:
+    from flypingavia.services.flight_search import LiveTicketQuote
+    from flypingavia.services.prices import PriceQuote, TravelpayoutsPriceProvider
+
+    live_calls = {"n": 0}
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            live_calls["n"] += 1
+            return LiveTicketQuote(price=1, currency="RUB")
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*args, **kwargs):
+        return PriceQuote(price=37377, currency="RUB", source="travelpayouts")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        adults=2,
+        prefer_live_for_quote=True,
+        allow_live=False,
+    )
+    assert quote is not None
+    assert quote.source == "travelpayouts"
+    assert quote.fallback_reason is None
+    assert live_calls["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_api_quote_does_not_call_live_client_for_one_adult(monkeypatch, tmp_path) -> None:
+    import os
+    import time
+
+    import flypingavia.api.app as api_mod
+    import flypingavia.db.session as sess
+    from flypingavia.api.app import create_api
+    from flypingavia.config import get_settings
+    from flypingavia.services.flight_search import LiveTicketQuote
+    from flypingavia.services.prices import PriceBand, PriceQuote, TravelpayoutsPriceProvider
+    from flypingavia.services.provider_http_cache import default_provider_http_cache
+    from flypingavia.services.quote_cache import default_quote_cache
+    from httpx import ASGITransport, AsyncClient
+
+    os.environ["DB_PATH"] = str(tmp_path / "quote_nolive.db")
+    os.environ["BOT_TOKEN"] = "1:T"
+    os.environ["APP_ENV"] = "test"
+    os.environ["WEBAPP_DEV_USER_ID"] = "42"
+    os.environ["TRAVELPAYOUTS_TOKEN"] = "tok"
+    os.environ["AFFILIATE_MARKER"] = "marker"
+    get_settings.cache_clear()
+    sess._engine = None
+    sess._session_factory = None
+    default_quote_cache.clear()
+    default_provider_http_cache.clear()
+    await sess.init_db()
+
+    live_calls = {"n": 0}
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            live_calls["n"] += 1
+            return LiveTicketQuote(price=1, currency="RUB")
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*a, **k):
+        return PriceQuote(
+            price=37377,
+            currency="RUB",
+            source="travelpayouts",
+            origin_code="OVB",
+            destination_code="IST",
+        )
+
+    async def fake_band(*a, **k):
+        return PriceBand(
+            cheap_max=36434,
+            typical=39886,
+            expensive_min=44632,
+            sample_size=10,
+            currency="RUB",
+            source="travelpayouts",
+        )
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    monkeypatch.setattr(provider, "get_trip_band", fake_band)
+    monkeypatch.setattr(api_mod, "build_price_provider", lambda _s: provider)
+
+    app = create_api(get_settings())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        t0 = time.monotonic()
+        res = await client.get(
+            "/api/quote",
+            params={
+                "origin": "OVB",
+                "destination": "IST",
+                "depart_date": "2026-11-24",
+                "return_date": "2026-12-01",
+                "adults": 1,
+            },
+        )
+        cold_ms = (time.monotonic() - t0) * 1000
+        assert res.status_code == 200
+        body = res.json()
+        assert body["is_live"] is False
+        assert body["price_source"] == "travelpayouts_estimate"
+        assert body["fallback_reason"] is None
+        assert body["title"] == "Оценка стоимости"
+        assert body["market_band_source"] == "travelpayouts"
+        assert live_calls["n"] == 0
+        assert cold_ms < 5000
+
+        t1 = time.monotonic()
+        res2 = await client.get(
+            "/api/quote",
+            params={
+                "origin": "OVB",
+                "destination": "IST",
+                "depart_date": "2026-11-24",
+                "return_date": "2026-12-01",
+                "adults": 1,
+            },
+        )
+        warm_ms = (time.monotonic() - t1) * 1000
+        assert res2.status_code == 200
+        assert res2.json()["cached"] is True
+        assert live_calls["n"] == 0
+        assert warm_ms < 1000
+
+    if sess._engine is not None:
+        await sess._engine.dispose()
+    sess._engine = None
+    sess._session_factory = None
+    default_quote_cache.clear()
+    get_settings.cache_clear()
+
+
+def test_checker_source_has_no_prefer_live_true() -> None:
+    from pathlib import Path
+
+    checker = (Path(__file__).resolve().parents[1] / "flypingavia/services/checker.py").read_text(
+        encoding="utf-8"
+    )
+    assert "prefer_live_for_quote=True" not in checker

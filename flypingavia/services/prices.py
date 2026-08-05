@@ -265,8 +265,9 @@ class PriceProvider:
         infants: int = 0,
         currency: str = "rub",
         prefer_live_for_quote: bool = False,
+        allow_live: bool = True,
     ) -> Optional[PriceQuote]:
-        _ = prefer_live_for_quote
+        _ = (prefer_live_for_quote, allow_live)
         outbound = await self.get_cheapest_across(origins, destinations, depart_date, currency)
         if outbound is None:
             return None
@@ -398,7 +399,10 @@ class TravelpayoutsPriceProvider(PriceProvider):
         children: int,
         infants: int,
         prefer_live_for_quote: bool = False,
+        allow_live: bool = True,
     ) -> bool:
+        if not allow_live:
+            return False
         if self._live is None or not self._live.enabled:
             return False
         if prefer_live_for_quote:
@@ -421,6 +425,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
         infants: int = 0,
         currency: str = "rub",
         prefer_live_for_quote: bool = False,
+        allow_live: bool = True,
     ) -> Optional[PriceQuote]:
         adults = max(1, int(adults))
         children = max(0, int(children))
@@ -432,6 +437,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
             children,
             infants,
             prefer_live_for_quote=prefer_live_for_quote,
+            allow_live=allow_live,
         ):
             origin = next((c for c in origins if c), None)
             destination = next((c for c in destinations if c), None)
@@ -489,10 +495,11 @@ class TravelpayoutsPriceProvider(PriceProvider):
             infants=infants,
             currency=currency,
             prefer_live_for_quote=prefer_live_for_quote,
+            allow_live=allow_live,
         )
         if quote is None:
             return None
-        if prefer_live_for_quote and live_fallback_reason is None:
+        if prefer_live_for_quote and allow_live and live_fallback_reason is None:
             live_fallback_reason = "live_no_results"
         if live_fallback_reason:
             quote = PriceQuote(
@@ -854,7 +861,6 @@ def build_price_provider(settings: Settings) -> PriceProvider:
             settings.travelpayouts_token,
             settings.search_marker,
             host=settings.live_search_host or "flypingavia.app",
-            cache_ttl_seconds=60.0,
         )
     return TravelpayoutsPriceProvider(
         settings.travelpayouts_token,
