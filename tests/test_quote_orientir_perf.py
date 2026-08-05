@@ -34,6 +34,9 @@ def test_ui_has_orientir_not_vilka() -> None:
     blob = html + "\n" + js
     assert "вилка" not in blob.lower()
     assert "Ориентир по стоимости" in blob
+    assert "Оценка стоимости" in js
+    assert "По данным Travelpayouts" in js
+    assert "Фактическая цена на Aviasales может отличаться" in js
     assert "Выгодная цена" in js
     assert "Средняя цена" in js
     assert "Высокая цена" in js
@@ -320,6 +323,7 @@ async def test_api_quote_cache_hit_skips_provider(quote_api) -> None:
     assert body1["title"] == "Оценка стоимости"
     assert body1["price_source"] == "travelpayouts_estimate"
     assert body1["is_live"] is False
+    assert body1["fallback_reason"] is None
     assert body1["market_band_source"] == "test"
     calls_after_first = provider.calls
 
@@ -400,3 +404,79 @@ def test_frontend_create_uses_snapshot_not_quote_search() -> None:
     slice_ = js[create_idx:end]
     assert "/api/watches" in slice_
     assert "/api/quote" not in slice_
+
+
+@pytest.mark.asyncio
+async def test_api_quote_one_adult_never_calls_flight_search(quote_api, monkeypatch) -> None:
+    """Prove default /api/quote for 1 adult does not touch Flight Search."""
+    client, provider = quote_api
+    import flypingavia.api.app as api_mod
+    from flypingavia.services import flexible_dates as fd
+    from flypingavia.services.prices import PriceBand, PriceQuote
+
+    live_calls = {"n": 0}
+    seen_flags = []
+
+    class TrackingProvider:
+        async def get_trip_quote(self, *a, **kwargs):
+            seen_flags.append(
+                {
+                    "prefer_live_for_quote": kwargs.get("prefer_live_for_quote", None),
+                    "allow_live": kwargs.get("allow_live", None),
+                }
+            )
+            if kwargs.get("allow_live") is True or kwargs.get("prefer_live_for_quote") is True:
+                live_calls["n"] += 1
+            return PriceQuote(
+                price=18_000,
+                currency="RUB",
+                source="travelpayouts",
+                origin_code="OVB",
+                destination_code="IST",
+            )
+
+        async def get_trip_band(self, *a, **k):
+            return PriceBand(
+                cheap_max=15_000,
+                typical=18_000,
+                expensive_min=24_000,
+                sample_size=5,
+                currency="RUB",
+                source="travelpayouts",
+            )
+
+    tracking = TrackingProvider()
+
+    async def _search(provider_arg, **kwargs):
+        seen_flags.append(
+            {
+                "prefer_live_for_quote": kwargs.get("prefer_live_for_quote", None),
+                "allow_live": kwargs.get("allow_live", None),
+            }
+        )
+        assert kwargs.get("allow_live") is False
+        assert kwargs.get("prefer_live_for_quote") is False
+        return await fd.search_flexible_trip(tracking, **kwargs)
+
+    monkeypatch.setattr(api_mod, "search_flexible_trip", _search)
+    # Also ensure create_api closed-over provider path is unused for this assertion.
+    _ = provider
+
+    params = {
+        "origin": "OVB",
+        "destination": "IST",
+        "depart_date": (date.today() + timedelta(days=60)).isoformat(),
+        "return_date": (date.today() + timedelta(days=67)).isoformat(),
+        "adults": 1,
+        "flexibility_days": 0,
+    }
+    res = await client.get("/api/quote", params=params)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["is_live"] is False
+    assert body["price_source"] == "travelpayouts_estimate"
+    assert body["fallback_reason"] is None
+    assert body["title"] == "Оценка стоимости"
+    assert body["market_band_source"] == "travelpayouts"
+    assert live_calls["n"] == 0
+    assert any(f.get("allow_live") is False for f in seen_flags)

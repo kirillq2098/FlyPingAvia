@@ -1223,7 +1223,7 @@
       const originCode = escapeHtml(q.origin || "");
       const destCode = escapeHtml(q.destination || "");
       const isLive = !!q.is_live;
-      const isEstimate = !isLive;
+      const isEstimate = !isLive || q.price_source === "travelpayouts_estimate";
       const title =
         q.partial
           ? "Предварительный ориентир"
@@ -1235,8 +1235,11 @@
       else if (opts.updating || q.refreshing) statusBits.push("Обновляем данные…");
       else if (q.stale) statusBits.push("Показаны сохранённые данные");
       else if (q.cached) statusBits.push("Ориентир обновлён");
-      if (isLive) statusBits.push("Живой поиск");
-      if (isEstimate) statusBits.push("Оценка по данным Travelpayouts");
+      if (isLive && !isEstimate) statusBits.push("Живой поиск");
+      if (isEstimate) {
+        statusBits.push("По данным Travelpayouts");
+        statusBits.push("Фактическая цена на Aviasales может отличаться");
+      }
       const computed = formatComputedAt(q.updated_at || q.computed_at);
       if (computed) statusBits.push("расчёт: " + computed);
       box.classList.remove("hidden");
