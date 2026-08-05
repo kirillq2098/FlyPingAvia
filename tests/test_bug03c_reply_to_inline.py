@@ -37,6 +37,13 @@ def test_main_menu_has_no_keyboard_button_web_app() -> None:
             assert btn.web_app is None
 
 
+def test_main_menu_persistent_and_not_one_time() -> None:
+    markup = kb.main_menu("https://app.flyping.ru")
+    assert markup.resize_keyboard is True
+    assert markup.is_persistent is True
+    assert markup.one_time_keyboard is False
+
+
 def test_main_menu_keeps_action_buttons() -> None:
     markup = kb.main_menu("https://app.flyping.ru")
     texts = [btn.text for row in markup.keyboard for btn in row]
@@ -76,7 +83,7 @@ def test_browser_fallback_remains_safe_without_false_session() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cmd_start_one_welcome_with_inline_webapp(monkeypatch) -> None:
+async def test_cmd_start_welcome_inline_then_persistent_reply_menu(monkeypatch) -> None:
     from flypingavia.bot.handlers import create_router
     from flypingavia.config import Settings
 
@@ -116,8 +123,8 @@ async def test_cmd_start_one_welcome_with_inline_webapp(monkeypatch) -> None:
 
     await cmd_start(message, AsyncMock(), CommandObject(command="start", args=None))
 
-    # Exactly one /start message: welcome + inline WebApp CTA (no duplicate Open).
-    assert len(calls) == 1
+    # Welcome + inline CTA, then persistent Reply Keyboard sync (no second Open).
+    assert len(calls) == 2
     welcome = calls[0]
     assert "сторож цены" in welcome["text"].lower()
     assert "удобном окне" in welcome["text"]
@@ -127,6 +134,22 @@ async def test_cmd_start_one_welcome_with_inline_webapp(monkeypatch) -> None:
     assert primary.web_app.url == "https://app.flyping.ru/"
     assert getattr(primary, "url", None) in (None, "")
     assert primary.text == kb.BTN_OPEN_FLYPING
+
+    sync = calls[1]
+    assert sync["text"] == "Главное меню:"
+    reply = sync["reply_markup"]
+    assert reply.is_persistent is True
+    assert reply.one_time_keyboard is False
+    assert reply.resize_keyboard is True
+    reply_texts = [btn.text for row in reply.keyboard for btn in row]
+    assert kb.BTN_OPEN_FLYPING not in reply_texts
+    assert kb.BTN_CREATE_WATCH in reply_texts
+    assert kb.BTN_MY_WATCHES in reply_texts
+    assert kb.BTN_CHECK_PRICES in reply_texts
+    assert kb.BTN_HELP in reply_texts
+    for row in reply.keyboard:
+        for btn in row:
+            assert btn.web_app is None
 
 @pytest.mark.asyncio
 async def test_cmd_start_without_webapp_still_one_message(monkeypatch) -> None:
