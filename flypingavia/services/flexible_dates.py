@@ -26,6 +26,41 @@ DEFAULT_SOFT_TIMEOUT_SECONDS = 9.0
 DEFAULT_HARD_TIMEOUT_SECONDS = 18.0
 
 
+async def _get_trip_quote_safe(
+    provider: PriceProvider,
+    origins: Sequence[str],
+    destinations: Sequence[str],
+    *,
+    depart_date: Optional[date],
+    return_date: Optional[date],
+    adults: int,
+    children: int,
+    infants: int,
+    currency: str,
+    prefer_live_for_quote: bool,
+) -> Optional[PriceQuote]:
+    kwargs = dict(
+        depart_date=depart_date,
+        return_date=return_date,
+        adults=adults,
+        children=children,
+        infants=infants,
+        currency=currency,
+    )
+    if prefer_live_for_quote:
+        try:
+            return await provider.get_trip_quote(
+                origins,
+                destinations,
+                prefer_live_for_quote=True,
+                **kwargs,
+            )
+        except TypeError as exc:
+            if "prefer_live_for_quote" not in str(exc):
+                raise
+    return await provider.get_trip_quote(origins, destinations, **kwargs)
+
+
 @dataclass(frozen=True)
 class DateCandidate:
     depart_date: date
@@ -110,6 +145,7 @@ async def search_flexible_trip(
     children: int = 0,
     infants: int = 0,
     currency: str = "rub",
+    prefer_live_for_quote: bool = False,
     concurrency: int = DEFAULT_SEARCH_CONCURRENCY,
     today: date | None = None,
     soft_timeout_seconds: float | None = DEFAULT_SOFT_TIMEOUT_SECONDS,
@@ -135,7 +171,8 @@ async def search_flexible_trip(
             corr = _remaining_hard()
             if corr is not None:
                 quote = await asyncio.wait_for(
-                    provider.get_trip_quote(
+                    _get_trip_quote_safe(
+                        provider,
                         origins,
                         destinations,
                         depart_date=depart_date,
@@ -144,11 +181,13 @@ async def search_flexible_trip(
                         children=children,
                         infants=infants,
                         currency=currency,
+                        prefer_live_for_quote=prefer_live_for_quote,
                     ),
                     timeout=corr,
                 )
             else:
-                quote = await provider.get_trip_quote(
+                quote = await _get_trip_quote_safe(
+                    provider,
                     origins,
                     destinations,
                     depart_date=depart_date,
@@ -157,6 +196,7 @@ async def search_flexible_trip(
                     children=children,
                     infants=infants,
                     currency=currency,
+                    prefer_live_for_quote=prefer_live_for_quote,
                 )
         except asyncio.TimeoutError:
             logger.info("Flexible search hard timeout primary_depart=%s", depart_date)
@@ -257,7 +297,8 @@ async def search_flexible_trip(
             if stop.is_set():
                 return
             try:
-                quote = await provider.get_trip_quote(
+                quote = await _get_trip_quote_safe(
+                    provider,
                     origins,
                     destinations,
                     depart_date=cand.depart_date,
@@ -266,6 +307,7 @@ async def search_flexible_trip(
                     children=children,
                     infants=infants,
                     currency=currency,
+                    prefer_live_for_quote=prefer_live_for_quote,
                 )
                 if quote is None:
                     logger.info(

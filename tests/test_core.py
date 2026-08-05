@@ -315,3 +315,151 @@ async def test_live_quote_preferred_when_client_returns(monkeypatch) -> None:
     assert quote.price == 32155
     assert quote.is_total_for_passengers is True
 
+
+@pytest.mark.asyncio
+async def test_live_quote_used_for_single_adult_when_preferred(monkeypatch) -> None:
+    from flypingavia.services.flight_search import LiveTicketQuote
+    from flypingavia.services.prices import TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            return LiveTicketQuote(price=27990, currency="RUB", transfers=1, price_per_person=27990)
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def boom(*args, **kwargs):
+        raise AssertionError("Data API should not be used when prefer_live_for_quote is enabled")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", boom)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        adults=1,
+        prefer_live_for_quote=True,
+    )
+    assert quote is not None
+    assert quote.source == "live_search"
+    assert quote.fallback_reason is None
+    assert quote.price == 27990
+
+
+@pytest.mark.asyncio
+async def test_live_timeout_falls_back_to_estimate(monkeypatch) -> None:
+    from flypingavia.services.flight_search import FlightSearchTimeout
+    from flypingavia.services.prices import PriceQuote, TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            raise FlightSearchTimeout("timeout")
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*args, **kwargs):
+        return PriceQuote(price=37377, currency="RUB", source="travelpayouts")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        prefer_live_for_quote=True,
+    )
+    assert quote is not None
+    assert quote.source == "travelpayouts"
+    assert quote.fallback_reason == "live_timeout"
+
+
+@pytest.mark.asyncio
+async def test_live_no_results_falls_back_to_estimate(monkeypatch) -> None:
+    from flypingavia.services.prices import PriceQuote, TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            return None
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*args, **kwargs):
+        return PriceQuote(price=37377, currency="RUB", source="travelpayouts")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        prefer_live_for_quote=True,
+    )
+    assert quote is not None
+    assert quote.source == "travelpayouts"
+    assert quote.fallback_reason == "live_no_results"
+
+
+@pytest.mark.asyncio
+async def test_live_provider_error_falls_back_to_estimate(monkeypatch) -> None:
+    from flypingavia.services.flight_search import FlightSearchError
+    from flypingavia.services.prices import PriceQuote, TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            raise FlightSearchError("provider down")
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*args, **kwargs):
+        return PriceQuote(price=37377, currency="RUB", source="travelpayouts")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        prefer_live_for_quote=True,
+    )
+    assert quote is not None
+    assert quote.fallback_reason == "live_provider_error"
+
+
+@pytest.mark.asyncio
+async def test_live_access_denied_falls_back_to_estimate(monkeypatch) -> None:
+    from flypingavia.services.flight_search import FlightSearchAccessDenied
+    from flypingavia.services.prices import PriceQuote, TravelpayoutsPriceProvider
+
+    class FakeLive:
+        enabled = True
+        access_denied = False
+
+        async def search(self, **kwargs):
+            raise FlightSearchAccessDenied("denied")
+
+    provider = TravelpayoutsPriceProvider("tok", live_client=FakeLive(), live_mode="multi")
+
+    async def fake_data(*args, **kwargs):
+        return PriceQuote(price=37377, currency="RUB", source="travelpayouts")
+
+    monkeypatch.setattr(provider, "get_cheapest_across", fake_data)
+    quote = await provider.get_trip_quote(
+        ["OVB"],
+        ["IST"],
+        depart_date=date(2026, 11, 24),
+        return_date=date(2026, 12, 1),
+        prefer_live_for_quote=True,
+    )
+    assert quote is not None
+    assert quote.fallback_reason == "live_access_denied"

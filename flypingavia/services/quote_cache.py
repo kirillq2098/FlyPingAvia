@@ -85,6 +85,11 @@ class QuoteMetrics:
     partials: int = 0
     provider_errors: int = 0
     combinations: list[int] = field(default_factory=list)
+    live_success: int = 0
+    live_timeout: int = 0
+    live_error: int = 0
+    live_no_results: int = 0
+    fallback_used: int = 0
 
     def record_latency(self, ms: float) -> None:
         self.latencies_ms.append(float(ms))
@@ -111,6 +116,11 @@ class QuoteMetrics:
             "quote_timeout_count": self.timeouts,
             "quote_partial_result_count": self.partials,
             "quote_provider_error_count": self.provider_errors,
+            "live_success": self.live_success,
+            "live_timeout": self.live_timeout,
+            "live_error": self.live_error,
+            "live_no_results": self.live_no_results,
+            "fallback_used": self.fallback_used,
             "quote_combinations_count_avg": (
                 round(sum(self.combinations) / len(self.combinations), 2)
                 if self.combinations

@@ -16,6 +16,7 @@ from flypingavia.services.flight_search import (
     FlightSearchAccessDenied,
     FlightSearchClient,
     FlightSearchError,
+    FlightSearchTimeout,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class PriceQuote:
     infants: int = 0
     return_date: Optional[date] = None
     return_origin_code: Optional[str] = None
+    fallback_reason: Optional[str] = None
 
     @property
     def is_live(self) -> bool:
@@ -262,7 +264,9 @@ class PriceProvider:
         children: int = 0,
         infants: int = 0,
         currency: str = "rub",
+        prefer_live_for_quote: bool = False,
     ) -> Optional[PriceQuote]:
+        _ = prefer_live_for_quote
         outbound = await self.get_cheapest_across(origins, destinations, depart_date, currency)
         if outbound is None:
             return None
@@ -388,9 +392,17 @@ class TravelpayoutsPriceProvider(PriceProvider):
             http_cache = default_provider_http_cache
         self._http_cache = http_cache
 
-    def _want_live(self, adults: int, children: int, infants: int) -> bool:
+    def _want_live(
+        self,
+        adults: int,
+        children: int,
+        infants: int,
+        prefer_live_for_quote: bool = False,
+    ) -> bool:
         if self._live is None or not self._live.enabled:
             return False
+        if prefer_live_for_quote:
+            return True
         if self._live_mode in {"always", "on", "1", "true"}:
             return True
         if self._live_mode in {"multi", "multipax", "passengers"}:
@@ -408,12 +420,19 @@ class TravelpayoutsPriceProvider(PriceProvider):
         children: int = 0,
         infants: int = 0,
         currency: str = "rub",
+        prefer_live_for_quote: bool = False,
     ) -> Optional[PriceQuote]:
         adults = max(1, int(adults))
         children = max(0, int(children))
         infants = max(0, min(int(infants), adults))
 
-        if depart_date is not None and self._want_live(adults, children, infants):
+        live_fallback_reason: Optional[str] = None
+        if depart_date is not None and self._want_live(
+            adults,
+            children,
+            infants,
+            prefer_live_for_quote=prefer_live_for_quote,
+        ):
             origin = next((c for c in origins if c), None)
             destination = next((c for c in destinations if c), None)
             if origin and destination and self._live is not None:
@@ -444,15 +463,23 @@ class TravelpayoutsPriceProvider(PriceProvider):
                             children=children,
                             infants=infants,
                             return_date=return_date,
+                            fallback_reason=None,
                         )
                 except FlightSearchAccessDenied as exc:
                     logger.warning("%s", exc)
+                    live_fallback_reason = "live_access_denied"
+                except FlightSearchTimeout:
+                    live_fallback_reason = "live_timeout"
                 except FlightSearchError as exc:
                     logger.warning("Live search failed, fallback to Data API: %s", exc)
+                    live_fallback_reason = "live_provider_error"
                 except Exception:
                     logger.exception("Live search unexpected error, fallback to Data API")
+                    live_fallback_reason = "live_provider_error"
+                else:
+                    live_fallback_reason = "live_no_results"
 
-        return await super().get_trip_quote(
+        quote = await super().get_trip_quote(
             origins,
             destinations,
             depart_date=depart_date,
@@ -461,7 +488,32 @@ class TravelpayoutsPriceProvider(PriceProvider):
             children=children,
             infants=infants,
             currency=currency,
+            prefer_live_for_quote=prefer_live_for_quote,
         )
+        if quote is None:
+            return None
+        if prefer_live_for_quote and live_fallback_reason is None:
+            live_fallback_reason = "live_no_results"
+        if live_fallback_reason:
+            quote = PriceQuote(
+                price=quote.price,
+                currency=quote.currency,
+                airline=quote.airline,
+                transfers=quote.transfers,
+                source=quote.source,
+                origin_code=quote.origin_code,
+                destination_code=quote.destination_code,
+                searched_origins=quote.searched_origins,
+                searched_destinations=quote.searched_destinations,
+                price_per_adult=quote.price_per_adult,
+                adults=quote.adults,
+                children=quote.children,
+                infants=quote.infants,
+                return_date=quote.return_date,
+                return_origin_code=quote.return_origin_code,
+                fallback_reason=live_fallback_reason,
+            )
+        return quote
 
     async def get_trip_band(
         self,
@@ -802,6 +854,7 @@ def build_price_provider(settings: Settings) -> PriceProvider:
             settings.travelpayouts_token,
             settings.search_marker,
             host=settings.live_search_host or "flypingavia.app",
+            cache_ttl_seconds=60.0,
         )
     return TravelpayoutsPriceProvider(
         settings.travelpayouts_token,

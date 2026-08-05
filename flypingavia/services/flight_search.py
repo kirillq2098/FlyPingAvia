@@ -23,6 +23,10 @@ class FlightSearchError(RuntimeError):
     pass
 
 
+class FlightSearchTimeout(FlightSearchError):
+    pass
+
+
 def _collect_values(obj: Any) -> list[str]:
     values: list[str] = []
     if isinstance(obj, dict):
@@ -76,21 +80,31 @@ class FlightSearchClient:
         host: str = "flypingavia.app",
         user_ip: str = "127.0.0.1",
         timeout: float = 45.0,
+        search_timeout: float = 20.0,
         poll_interval: float = 2.0,
         max_polls: int = 12,
         cache_ttl_seconds: float = 300.0,
+        max_concurrency: int = 4,
+        fail_threshold: int = 3,
+        backoff_seconds: float = 30.0,
     ) -> None:
         self._token = token.strip()
         self._marker = str(marker).strip()
         self._host = host
         self._user_ip = user_ip
         self._timeout = timeout
+        self._search_timeout = search_timeout
         self._poll_interval = poll_interval
         self._max_polls = max_polls
         self._cache_ttl = cache_ttl_seconds
+        self._sem = asyncio.Semaphore(max(1, int(max_concurrency)))
+        self._fail_threshold = max(1, int(fail_threshold))
+        self._backoff_seconds = max(1.0, float(backoff_seconds))
         self._cache: dict[str, _CacheEntry] = {}
         self._access_denied = False
         self._access_checked = False
+        self._fail_streak = 0
+        self._backoff_until = 0.0
 
     @property
     def enabled(self) -> bool:
@@ -229,6 +243,9 @@ class FlightSearchClient:
     ) -> Optional[LiveTicketQuote]:
         if not self.enabled:
             return None
+        now = time.monotonic()
+        if now < self._backoff_until:
+            raise FlightSearchError("live backoff active")
 
         key = self._cache_key(
             origin, destination, depart_date, return_date, adults, children, infants, currency
@@ -237,6 +254,59 @@ class FlightSearchClient:
         if cached and cached.expires_at > time.monotonic():
             return cached.quote
 
+        async with self._sem:
+            try:
+                quote = await asyncio.wait_for(
+                    self._search_inner(
+                        origin=origin,
+                        destination=destination,
+                        depart_date=depart_date,
+                        return_date=return_date,
+                        adults=adults,
+                        children=children,
+                        infants=infants,
+                        currency=currency,
+                    ),
+                    timeout=self._search_timeout,
+                )
+                self._fail_streak = 0
+                if quote is not None:
+                    self._cache[key] = _CacheEntry(
+                        quote=quote,
+                        expires_at=time.monotonic() + self._cache_ttl,
+                    )
+                return quote
+            except FlightSearchAccessDenied:
+                self._access_denied = True
+                self._register_failure()
+                raise
+            except asyncio.TimeoutError as exc:
+                self._register_failure()
+                raise FlightSearchTimeout("live search timeout") from exc
+            except FlightSearchError:
+                self._register_failure()
+                raise
+            except Exception as exc:
+                self._register_failure()
+                raise FlightSearchError(f"live search unexpected error: {type(exc).__name__}") from exc
+
+    def _register_failure(self) -> None:
+        self._fail_streak += 1
+        if self._fail_streak >= self._fail_threshold:
+            self._backoff_until = time.monotonic() + self._backoff_seconds
+
+    async def _search_inner(
+        self,
+        *,
+        origin: str,
+        destination: str,
+        depart_date: date,
+        return_date: Optional[date],
+        adults: int,
+        children: int,
+        infants: int,
+        currency: str,
+    ) -> Optional[LiveTicketQuote]:
         status, data, text = await self._start(
             origin=origin,
             destination=destination,
@@ -248,7 +318,6 @@ class FlightSearchClient:
             currency=currency,
         )
         if status == 403 or "access denied" in (text or "").lower():
-            self._access_denied = True
             raise FlightSearchAccessDenied(
                 "Нет доступа к Flight Search API. "
                 "Напишите в support@travelpayouts.com и укажите числовой marker партнёра."
@@ -263,10 +332,7 @@ class FlightSearchClient:
         if not search_id:
             raise FlightSearchError(f"no search_id in response: {data}")
 
-        quote = await self._poll_cheapest(results_url, str(search_id), currency.upper())
-        if quote is not None:
-            self._cache[key] = _CacheEntry(quote=quote, expires_at=time.monotonic() + self._cache_ttl)
-        return quote
+        return await self._poll_cheapest(results_url, str(search_id), currency.upper())
 
     async def _poll_cheapest(
         self,

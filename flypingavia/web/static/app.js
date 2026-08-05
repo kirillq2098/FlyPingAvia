@@ -1222,18 +1222,22 @@
       if (q.return_date) dateBits.push("⇄ " + q.return_date);
       const originCode = escapeHtml(q.origin || "");
       const destCode = escapeHtml(q.destination || "");
+      const isLive = !!q.is_live;
+      const isEstimate = !isLive;
       const title =
         q.partial
           ? "Предварительный ориентир"
           : q.stale || opts.updating
             ? "Ориентир по стоимости"
-            : q.title || "Ориентир по стоимости";
+            : q.title || (isLive ? "Минимальная цена сейчас" : "Оценка стоимости");
       const statusBits = [];
       if (q.partial) statusBits.push("Предварительный ориентир — уточняем гибкие даты");
       else if (opts.updating || q.refreshing) statusBits.push("Обновляем данные…");
       else if (q.stale) statusBits.push("Показаны сохранённые данные");
       else if (q.cached) statusBits.push("Ориентир обновлён");
-      const computed = formatComputedAt(q.computed_at);
+      if (isLive) statusBits.push("Живой поиск");
+      if (isEstimate) statusBits.push("Оценка по данным Travelpayouts");
+      const computed = formatComputedAt(q.updated_at || q.computed_at);
       if (computed) statusBits.push("расчёт: " + computed);
       box.classList.remove("hidden");
       box.innerHTML =
@@ -1261,7 +1265,7 @@
         (dateBits.length ? " · " + escapeHtml(dateBits.join(" ")) : "") +
         "</div>" +
         '<div class="price-now">' +
-        (q.price != null ? money(q.price) : "—") +
+        (q.price != null ? (isEstimate ? "~ " : "") + money(q.price) : "—") +
         "</div>" +
         (lvl[0]
           ? '<div class="level ' + lvl[0] + '">относительно рынка · ' + lvl[1] + "</div>"
