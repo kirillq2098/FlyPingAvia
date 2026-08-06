@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,6 +33,25 @@ async def db(monkeypatch, tmp_path):
 
     get_settings.cache_clear()
     await init_db()
+    # Beta tables are migration-only: apply explicit SQL migration in tests.
+    migration_raw = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "migrations"
+        / "008_beta_flow.sql"
+    ).read_text(encoding="utf-8")
+    migration = "\n".join(
+        line for line in migration_raw.splitlines() if not line.strip().startswith("--")
+    )
+    factory = get_session_factory()
+    async with factory() as session:
+        from sqlalchemy import text
+
+        for chunk in migration.split(";"):
+            stmt = chunk.strip()
+            if stmt:
+                await session.execute(text(stmt))
+        await session.commit()
     yield
     get_settings.cache_clear()
     sess._engine = None
@@ -304,3 +324,34 @@ def test_admin_gate_allows_listed():
     )
     assert 42 in s.admin_user_id_set
     assert 99 not in s.admin_user_id_set
+
+
+def test_beta_router_disabled_when_beta_off():
+    from aiogram import Bot
+    from flypingavia.bot.handlers import create_dispatcher
+
+    settings = Settings(
+        app_env="test",
+        bot_token="1:x",
+        beta_enabled=False,
+        watch_share_callback_secret="x" * 32,
+    )
+    dp, _ = create_dispatcher(settings, Bot("1:x"))
+    names = [r.name for r in dp.sub_routers]
+    assert "beta" not in names
+
+
+def test_beta_router_enabled_when_beta_on():
+    from aiogram import Bot
+    from flypingavia.bot.handlers import create_dispatcher
+
+    settings = Settings(
+        app_env="test",
+        bot_token="1:x",
+        beta_enabled=True,
+        beta_invite_codes="w1",
+        watch_share_callback_secret="x" * 32,
+    )
+    dp, _ = create_dispatcher(settings, Bot("1:x"))
+    names = [r.name for r in dp.sub_routers]
+    assert "beta" in names

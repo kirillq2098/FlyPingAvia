@@ -295,9 +295,9 @@ class Settings(BaseSettings):
         description="Задержка Survey A после первой подписки (секунды)",
     )
     beta_dispatcher_interval_seconds: int = Field(
-        default=45,
-        ge=15,
-        le=120,
+        default=120,
+        ge=30,
+        le=600,
         validation_alias=AliasChoices(
             "BETA_DISPATCHER_INTERVAL_SECONDS",
             "beta_dispatcher_interval_seconds",

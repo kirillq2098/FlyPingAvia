@@ -1718,9 +1718,11 @@ def create_dispatcher(settings: Settings, bot: Bot) -> tuple[Dispatcher, PriceCh
     provider = build_price_provider(settings)
     checker = PriceChecker(bot=bot, settings=settings, provider=provider)
     dp = Dispatcher(storage=MemoryStorage())
-    from flypingavia.bot.beta_handlers import create_beta_router
 
-    # Beta router first so FSM (/bug, survey text) wins over fallback
-    dp.include_router(create_beta_router(settings, bot))
+    if settings.beta_enabled:
+        from flypingavia.bot.beta_handlers import create_beta_router
+
+        # Beta router first so FSM (/bug, survey text) wins over fallback.
+        dp.include_router(create_beta_router(settings, bot))
     dp.include_router(create_router(settings, checker, provider))
     return dp, checker

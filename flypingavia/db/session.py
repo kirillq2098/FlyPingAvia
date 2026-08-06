@@ -83,7 +83,14 @@ async def init_db() -> None:
     """
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # Beta tables are created only by explicit SQL migration
+        # scripts/migrations/008_beta_flow.sql.
+        non_beta_tables = [
+            t for t in Base.metadata.sorted_tables if not t.name.startswith("beta_")
+        ]
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(sync_conn, tables=non_beta_tables)
+        )
         if engine.dialect.name == "sqlite":
             await _migrate_sqlite(conn)
 
