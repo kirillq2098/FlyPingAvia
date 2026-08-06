@@ -429,6 +429,17 @@ async def _finalize_watch_creation(
     )
     await state.clear()
     await _confirm_watch_message(target, settings, provider, data, watch_id, max_price)
+    try:
+        from flypingavia.services.beta_hooks import maybe_schedule_survey_a_for_user
+
+        async with session_scope() as session:
+            user = await repo.get_or_create_user(
+                session, telegram_id=telegram_id, username=username
+            )
+            user_pk = user.id
+        await maybe_schedule_survey_a_for_user(user_id=user_pk, settings=settings)
+    except Exception:
+        logger.exception("beta survey schedule skipped after watch create")
     return watch_id
 
 
@@ -659,6 +670,35 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             await message.answer(INVALID_SHARE_MESSAGE)
             # fall through to normal welcome
 
+        # Closed Beta Phase A: cohort + one-shot onboarding
+        beta_onboarding_pending = False
+        if settings.beta_enabled and source:
+            from flypingavia.bot.beta_codes import (
+                is_allowed_beta_code,
+                parse_beta_invite_code,
+            )
+            from flypingavia.services import beta_repo as beta_repo
+
+            invite_code = parse_beta_invite_code(source)
+            if is_allowed_beta_code(
+                invite_code, allowed=settings.beta_invite_code_set
+            ):
+                async with session_scope() as session:
+                    db_user = await repo.get_or_create_user(
+                        session, telegram_id=user.id, username=user.username
+                    )
+                    part, _created = await beta_repo.upsert_participant(
+                        session,
+                        user_id=db_user.id,
+                        cohort_code=str(invite_code),
+                        now=now,
+                    )
+                    if part.onboarding_sent_at is None:
+                        beta_onboarding_pending = True
+                        await beta_repo.mark_onboarding_sent(
+                            session, user_id=db_user.id, now=now
+                        )
+
         # BUG-03B/C: welcome with Inline WebAppInfo CTA (open_app_kb).
         # Reply Keyboard has no WebApp row; sync it with a short follow-up so iOS
         # shows the persistent actions keyboard (not only the keyboard icon).
@@ -667,13 +707,19 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
                 f"{fmt.format_start_message(user.first_name)}\n\n"
                 f"{fmt.mini_app_text('')}"
             )
-            start_markup = kb.open_app_kb(webapp)
+            if beta_onboarding_pending:
+                start_text = f"{start_text}\n\n{fmt.format_beta_onboarding_extra()}"
+                start_markup = kb.open_app_kb(webapp)
+            else:
+                start_markup = kb.open_app_kb(webapp)
             button_type = "inline_keyboard_web_app"
         else:
             start_text = (
                 f"{fmt.format_start_message(user.first_name)}\n\n"
                 f"{fmt.mini_app_unavailable_text()}"
             )
+            if beta_onboarding_pending:
+                start_text = f"{start_text}\n\n{fmt.format_beta_onboarding_extra()}"
             start_markup = menu()
             button_type = "none"
         await message.answer(
@@ -681,6 +727,11 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
             parse_mode="HTML",
             reply_markup=start_markup,
         )
+        if beta_onboarding_pending:
+            await message.answer(
+                "Подтвердите участие в бете:",
+                reply_markup=kb.beta_consent_kb(),
+            )
         if webapp:
             await message.answer("Главное меню:", reply_markup=menu())
         try:
@@ -780,6 +831,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         )
         await message.answer(text, parse_mode="HTML", reply_markup=menu())
 
+    @router.message(Command("cancel"))
     @router.message(F.text == "❌ Отмена")
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
         await state.clear()
@@ -1667,5 +1719,11 @@ def create_dispatcher(settings: Settings, bot: Bot) -> tuple[Dispatcher, PriceCh
     provider = build_price_provider(settings)
     checker = PriceChecker(bot=bot, settings=settings, provider=provider)
     dp = Dispatcher(storage=MemoryStorage())
+
+    if settings.beta_enabled:
+        from flypingavia.bot.beta_handlers import create_beta_router
+
+        # Beta router first so FSM (/bug, survey text) wins over fallback.
+        dp.include_router(create_beta_router(settings, bot))
     dp.include_router(create_router(settings, checker, provider))
     return dp, checker

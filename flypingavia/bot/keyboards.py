@@ -274,3 +274,72 @@ def list_empty_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➕ Создать подписку", callback_data="menu:add")
     )
     return builder.as_markup()
+
+
+def beta_consent_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Понятно, участвую", callback_data="beta:consent")
+    )
+    return builder.as_markup()
+
+
+def beta_survey_result_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Да", callback_data="beta:survey:result:yes"),
+        InlineKeyboardButton(text="Частично", callback_data="beta:survey:result:partial"),
+        InlineKeyboardButton(text="Нет", callback_data="beta:survey:result:no"),
+    )
+    return builder.as_markup()
+
+
+def beta_survey_clarity_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        *[
+            InlineKeyboardButton(text=str(n), callback_data=f"beta:survey:clarity:{n}")
+            for n in range(1, 6)
+        ]
+    )
+    return builder.as_markup()
+
+
+def beta_survey_free_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Пропустить", callback_data="beta:survey:skip_text")
+    )
+    return builder.as_markup()
+
+
+def beta_bug_device_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="iPhone", callback_data="beta:bug:device:iphone"),
+        InlineKeyboardButton(text="Android", callback_data="beta:bug:device:android"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="Другое", callback_data="beta:bug:device:other"),
+    )
+    return builder.as_markup()
+
+
+def beta_bug_skip_kb(*, callback: str, label: str = "Пропустить") -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=label, callback_data=callback))
+    return builder.as_markup()
+
+
+def beta_bug_severity_kb() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="P0 — невозможно пользоваться", callback_data="beta:bug:sev:P0")
+    )
+    builder.row(
+        InlineKeyboardButton(text="P1 — мешает", callback_data="beta:bug:sev:P1")
+    )
+    builder.row(
+        InlineKeyboardButton(text="P2 — мелочь", callback_data="beta:bug:sev:P2")
+    )
+    return builder.as_markup()

@@ -14,6 +14,9 @@
 
 -
 
+> **Freeze v0.3.1:** разработка версии завершена. Дальше только go-live Closed Beta
+> ([BETA_GO_LIVE_CHECKLIST.md](BETA_GO_LIVE_CHECKLIST.md)). Новый функционал — не в 0.3.1.
+
 ## [0.3.1] — 2026-08-05
 
 ### Added
@@ -25,21 +28,25 @@
 - **RL-03 review:** DB outage in-memory fallback, `checker_crashed` via `run_checker_job`, `recovery_pending` до успешной доставки (`006_rl03_recovery_delivery.sql`).
 - **GR-02:** блогер-кит — `docs/BLOGGER_KIT.md` (креативы, deep links TG-03, FAQ, checklist; без кода продукта).
 - **IN-04:** production deploy Timeweb — `docker-compose.prod.yml`, Nginx, scripts, `docs/DEPLOY_TIMEWEB.md` (SQLite).
+- **Closed Beta Phase A** (default off): invite `?start=beta_<code>`, cohort + consent, Survey A (durable `beta_jobs`), `/bug`, admin `/beta_status|feedback|bugs|pause|resume`, `008_beta_flow.sql`, playbook + go-live checklist. Включается только `BETA_ENABLED=true` после миграции.
 
 ### Fixed
 
 - **BUG-03 / BUG-03C:** запуск Mini App только через inline `WebAppInfo` (`open_app_kb`); Reply Keyboard без WebApp-кнопки (iOS без `tgWebAppData`).
 - Persistent reply keyboard после `/start` («Главное меню:»), чтобы iOS не сворачивал меню в иконку.
+- **Beta Phase A harden:** reclaim stuck `processing` jobs; атомарный mark Survey перед send; FSM `/cancel`; `/bug` только участникам; gate router/dispatcher при `BETA_ENABLED=false`.
 
 ### Changed
 
 - Стабильная baseline для закрытой beta: production принят как рабочий (bot + Mini App + сайт).
 - Версия пакета / Docker image / `/api/health` → **0.3.1**.
+- `init_db()` не создаёт `beta_*` — только явная миграция `008_beta_flow.sql`.
 
 ### Known
 
 - Funnel product-analytics события (search/quote/watch/notification/ticket) ещё не как единый KPI pipeline.
 - Asset cache-buster Mini App остаётся `0.3.0-bug025` (не путать с package version).
+- `beta_dispatcher` рассчитан на **один** инстанс app (не горизонтальное масштабирование).
 
 ## [0.3.0] — 2026-07-30
 

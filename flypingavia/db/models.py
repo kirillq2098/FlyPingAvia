@@ -275,3 +275,93 @@ class WatchCreateIdempotency(Base):
         server_default=func.now(),
         index=True,
     )
+
+
+class BetaParticipant(Base):
+    """Closed Beta Phase A: cohort membership (no admin powers)."""
+
+    __tablename__ = "beta_participants"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    cohort_code: Mapped[str] = mapped_column(String(32))
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    onboarding_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    consent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    messaging_opt_out_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # active | opted_out | blocked
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
+
+
+class BetaSurvey(Base):
+    """Closed Beta surveys (Phase A: survey_key=A only)."""
+
+    __tablename__ = "beta_surveys"
+    __table_args__ = (UniqueConstraint("user_id", "survey_key", name="uq_beta_survey_user_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    survey_key: Mapped[str] = mapped_column(String(8))
+    # pending | sent | completed | skipped
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    scheduled_for: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    result: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    clarity_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    free_text: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+
+
+class BetaBug(Base):
+    """User bug reports (/bug) for Closed Beta."""
+
+    __tablename__ = "beta_bugs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    severity: Mapped[str] = mapped_column(String(8))
+    device_class: Mapped[str] = mapped_column(String(16))
+    device_note: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    what_did: Mapped[str] = mapped_column(String(1000))
+    what_happened: Mapped[str] = mapped_column(String(1000))
+    what_expected: Mapped[str] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="open", server_default="open")
+
+
+class BetaJob(Base):
+    """Durable beta scheduler jobs (survive process restart)."""
+
+    __tablename__ = "beta_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    logical_key: Mapped[str] = mapped_column(String(128), unique=True)
+    job_type: Mapped[str] = mapped_column(String(32))
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # pending | processing | done | cancelled | error
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_error_summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
