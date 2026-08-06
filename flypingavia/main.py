@@ -114,6 +114,22 @@ async def _async_main() -> None:
         coalesce=True,
         kwargs={"checker": checker, "bot": bot, "settings": settings},
     )
+    if settings.beta_enabled:
+        from flypingavia.services.beta_dispatcher import run_beta_dispatcher
+
+        scheduler.add_job(
+            run_beta_dispatcher,
+            trigger="interval",
+            seconds=settings.beta_dispatcher_interval_seconds,
+            id="beta_dispatcher",
+            max_instances=1,
+            coalesce=True,
+            kwargs={"bot": bot, "settings": settings},
+        )
+        logger.info(
+            "Beta dispatcher interval=%ss",
+            settings.beta_dispatcher_interval_seconds,
+        )
     scheduler.start()
 
     api = create_api(settings)

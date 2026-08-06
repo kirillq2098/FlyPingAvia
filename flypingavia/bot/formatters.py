@@ -628,6 +628,22 @@ def format_start_message(first_name: str | None = None) -> str:
     )
 
 
+def format_beta_onboarding_extra() -> str:
+    """Closed Beta Phase A: честные ожидания + opt-out."""
+    return (
+        "<b>Закрытая бета</b>\n\n"
+        "• Стоимость в FlyPing — <b>оценка</b> по данным Travelpayouts "
+        "(часто со знаком ≈).\n"
+        "• На Aviasales фактическая цена может отличаться.\n"
+        "• Сейчас расчёт для <b>1 взрослого</b>.\n"
+        "• Mini App открывайте кнопкой <b>«Открыть FlyPing»</b> "
+        "в сообщении чата (не как обычную ссылку в браузере).\n"
+        "• Может прийти один короткий опрос после первой подписки.\n"
+        "• Отказаться от beta-сообщений: /beta_stop "
+        "(уведомления о ценах продолжат работать)."
+    )
+
+
 def welcome_text(first_name: str | None = None) -> str:
     """Совместимость: то же, что format_start_message."""
     return format_start_message(first_name)

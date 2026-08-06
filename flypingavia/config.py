@@ -273,6 +273,37 @@ class Settings(BaseSettings):
         ),
         description="CSV Telegram user id для /admin_health (если chat — группа)",
     )
+    # Closed Beta Phase A
+    beta_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("BETA_ENABLED", "beta_enabled"),
+        description="Включить регистрацию по ?start=beta_<code>",
+    )
+    beta_invite_codes: str = Field(
+        default="",
+        validation_alias=AliasChoices("BETA_INVITE_CODES", "beta_invite_codes"),
+        description="CSV кодов волны без префикса beta_ (например w1)",
+    )
+    beta_survey_a_delay_seconds: int = Field(
+        default=90,
+        ge=30,
+        le=600,
+        validation_alias=AliasChoices(
+            "BETA_SURVEY_A_DELAY_SECONDS",
+            "beta_survey_a_delay_seconds",
+        ),
+        description="Задержка Survey A после первой подписки (секунды)",
+    )
+    beta_dispatcher_interval_seconds: int = Field(
+        default=45,
+        ge=15,
+        le=120,
+        validation_alias=AliasChoices(
+            "BETA_DISPATCHER_INTERVAL_SECONDS",
+            "beta_dispatcher_interval_seconds",
+        ),
+        description="Интервал beta_dispatcher (секунды)",
+    )
     # TR-04: единая бизнес-таймзона для отображения last_checked_at (БД хранит UTC)
     display_timezone: str = Field(
         default="Europe/Moscow",
@@ -380,6 +411,20 @@ class Settings(BaseSettings):
                     continue
         if self.admin_telegram_chat_id is not None and self.admin_telegram_chat_id > 0:
             out.add(int(self.admin_telegram_chat_id))
+        return out
+
+    @property
+    def beta_invite_code_set(self) -> set[str]:
+        out: set[str] = set()
+        raw = (self.beta_invite_codes or "").strip()
+        if not raw:
+            return out
+        for part in raw.split(","):
+            code = part.strip().lower()
+            if code.startswith("beta_"):
+                code = code[5:]
+            if code:
+                out.add(code)
         return out
 
     @property

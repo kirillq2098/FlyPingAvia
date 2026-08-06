@@ -21,6 +21,7 @@
 | [MONETIZATION.md](MONETIZATION.md) | Что уже в коде и что только в стратегии |
 | [MARKETING.md](MARKETING.md) | Каналы; блогер-кит → [BLOGGER_KIT.md](BLOGGER_KIT.md) |
 | [BLOGGER_KIT.md](BLOGGER_KIT.md) | GR-02: тексты, deep links, FAQ, checklist для блогеров |
+| [CLOSED_BETA_PLAYBOOK.md](CLOSED_BETA_PLAYBOOK.md) | Пакет запуска Closed Beta: инвайт, FAQ, опрос, чек-листы |
 | [DECISIONS.md](DECISIONS.md) | Зафиксированные продуктовые/технические решения |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений по коммитам |
 | [COPY_GUIDE.md](COPY_GUIDE.md) | USP «сторож цены», glossary, fixed copy |

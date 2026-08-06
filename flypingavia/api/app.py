@@ -1090,7 +1090,14 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                     if existing is not None:
                         return _watch_out(existing)
                     raise
-            return _watch_out(watch)
+            created_user_id = db_user.id
+            out = _watch_out(watch)
+        from flypingavia.services.beta_hooks import maybe_schedule_survey_a_for_user
+
+        await maybe_schedule_survey_a_for_user(
+            user_id=created_user_id, settings=settings
+        )
+        return out
 
     @app.delete("/api/watches/{watch_id}")
     async def api_delete_watch(

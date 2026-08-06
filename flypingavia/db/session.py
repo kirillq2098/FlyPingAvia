@@ -79,6 +79,7 @@ async def init_db() -> None:
     - scripts/migrations/005_rl03_health_incidents.sql
     - scripts/migrations/006_rl03_recovery_delivery.sql
     - scripts/migrations/007_watch_create_idempotency.sql
+    - scripts/migrations/008_beta_flow.sql
     """
     engine = get_engine()
     async with engine.begin() as conn:
