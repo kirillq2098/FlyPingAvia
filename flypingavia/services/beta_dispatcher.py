@@ -6,7 +6,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+)
 
 from flypingavia.config import Settings
 from flypingavia.db.models import BetaJob
@@ -23,6 +28,9 @@ async def run_beta_dispatcher(*, bot: Bot, settings: Settings) -> None:
     async with session_scope() as session:
         if await beta.is_beta_paused(session):
             return
+        reclaimed = await beta.reclaim_stale_processing_jobs(session)
+        if reclaimed:
+            logger.warning("beta_dispatcher reclaimed_stale_processing count=%s", reclaimed)
         jobs = await beta.claim_due_jobs(session)
         job_meta = [
             {
@@ -47,11 +55,37 @@ async def run_beta_dispatcher(*, bot: Bot, settings: Settings) -> None:
                 )
 
 
+async def _requeue_after_send_failure(
+    *,
+    job_id: int,
+    user_id: int,
+    attempts: int,
+    error_summary: str,
+    delay: timedelta,
+) -> None:
+    async with session_scope() as session:
+        await beta.revert_survey_to_pending(session, user_id=user_id)
+        if attempts >= beta.MAX_JOB_ATTEMPTS:
+            await beta.finish_job(
+                session,
+                job_id=job_id,
+                status="error",
+                error_summary=error_summary,
+            )
+            return
+        job_row = await session.get(BetaJob, job_id)
+        if job_row is not None:
+            job_row.status = "pending"
+            job_row.run_at = datetime.now(timezone.utc) + delay
+            job_row.last_error_summary = beta.safe_error_summary(error_summary)
+
+
 async def _process_job(*, bot: Bot, settings: Settings, meta: dict) -> None:
     _ = settings
     job_type = meta["type"]
     job_id = int(meta["id"])
     user_id = meta["user_id"]
+    attempts = int(meta["attempts"])
     if job_type != beta.JOB_SURVEY_A or user_id is None:
         async with session_scope() as session:
             await beta.finish_job(
@@ -83,12 +117,23 @@ async def _process_job(*, bot: Bot, settings: Settings, meta: dict) -> None:
                 session, job_id=job_id, status="error", error_summary="missing_telegram_id"
             )
             return
+        mark = await beta.try_mark_survey_sending(session, user_id=user_id)
+        if mark == "missing":
+            await beta.finish_job(
+                session, job_id=job_id, status="cancelled", error_summary="survey_missing"
+            )
+            return
+        if mark == "already":
+            await beta.finish_job(
+                session, job_id=job_id, status="done", error_summary="survey_already_sent"
+            )
+            return
 
     from flypingavia.bot import keyboards as kb
 
     text = (
-        "Короткий опрос Closed Beta (1–2 минуты).\n\n"
-        "1) Всё получилось создать подписку и разобраться?"
+        "Короткий опрос Closed Beta (1–2 мин).\n\n"
+        "1) Удалось создать подписку и разобраться?"
     )
     try:
         await bot.send_message(
@@ -103,23 +148,25 @@ async def _process_job(*, bot: Bot, settings: Settings, meta: dict) -> None:
                 session, job_id=job_id, status="cancelled", error_summary="telegram_forbidden"
             )
         return
-    except TelegramBadRequest as exc:
-        async with session_scope() as session:
-            if int(meta["attempts"]) >= beta.MAX_JOB_ATTEMPTS:
-                await beta.finish_job(
-                    session,
-                    job_id=job_id,
-                    status="error",
-                    error_summary=str(exc),
-                )
-            else:
-                job_row = await session.get(BetaJob, job_id)
-                if job_row is not None:
-                    job_row.status = "pending"
-                    job_row.run_at = datetime.now(timezone.utc) + timedelta(minutes=5)
-                    job_row.last_error_summary = beta.safe_error_summary(exc)
+    except TelegramRetryAfter as exc:
+        delay_s = max(5, int(getattr(exc, "retry_after", 30) or 30))
+        await _requeue_after_send_failure(
+            job_id=job_id,
+            user_id=user_id,
+            attempts=attempts,
+            error_summary="telegram_retry_after",
+            delay=timedelta(seconds=delay_s),
+        )
+        return
+    except (TelegramNetworkError, TelegramBadRequest, TimeoutError, OSError) as exc:
+        await _requeue_after_send_failure(
+            job_id=job_id,
+            user_id=user_id,
+            attempts=attempts,
+            error_summary=str(exc),
+            delay=timedelta(minutes=5),
+        )
         return
 
     async with session_scope() as session:
-        await beta.mark_survey_sent(session, user_id=user_id)
         await beta.finish_job(session, job_id=job_id, status="done")

@@ -1,5 +1,9 @@
 -- Phase A Closed Beta flow
--- Upgrade: create tables (also created by SQLAlchemy init_db / Base.metadata).
+-- Upgrade: idempotent CREATE TABLE/INDEX IF NOT EXISTS only.
+-- Does not ALTER existing non-beta tables or mutate user/watch data.
+-- Tables are NOT created by init_db() — apply this migration explicitly
+-- before enabling BETA_ENABLED=true.
+-- Safe to re-run.
 -- Downgrade (SQLite 3.35+):
 --   DROP TABLE IF EXISTS beta_jobs;
 --   DROP TABLE IF EXISTS beta_bugs;

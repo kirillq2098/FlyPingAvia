@@ -22,6 +22,7 @@
 | [MARKETING.md](MARKETING.md) | Каналы; блогер-кит → [BLOGGER_KIT.md](BLOGGER_KIT.md) |
 | [BLOGGER_KIT.md](BLOGGER_KIT.md) | GR-02: тексты, deep links, FAQ, checklist для блогеров |
 | [CLOSED_BETA_PLAYBOOK.md](CLOSED_BETA_PLAYBOOK.md) | Пакет запуска Closed Beta: инвайт, FAQ, опрос, чек-листы |
+| [BETA_GO_LIVE_CHECKLIST.md](BETA_GO_LIVE_CHECKLIST.md) | Операционный go-live Phase A: push→deploy→migration→smoke |
 | [DECISIONS.md](DECISIONS.md) | Зафиксированные продуктовые/технические решения |
 | [CHANGELOG.md](CHANGELOG.md) | История изменений по коммитам |
 | [COPY_GUIDE.md](COPY_GUIDE.md) | USP «сторож цены», glossary, fixed copy |
@@ -43,6 +44,7 @@
 - цены Travelpayouts Data API или demo без токена;
 - партнёрские ссылки Aviasales (`AFFILIATE_MARKER`);
 - watchdog `scripts/supervise.sh` (бот + cloudflared).
+- **Closed Beta Phase A** (за флагом `BETA_ENABLED`, default off): invite `?start=beta_<code>`, Survey A, `/bug`, admin `/beta_*`, миграция `008_beta_flow.sql` — см. [CLOSED_BETA_PLAYBOOK](CLOSED_BETA_PLAYBOOK.md), [BETA_GO_LIVE_CHECKLIST](BETA_GO_LIVE_CHECKLIST.md).
 
 **Есть в конфиге / README, но не enforced в runtime:**
 

@@ -831,6 +831,7 @@ def create_router(settings: Settings, checker: PriceChecker, provider: PriceProv
         )
         await message.answer(text, parse_mode="HTML", reply_markup=menu())
 
+    @router.message(Command("cancel"))
     @router.message(F.text == "❌ Отмена")
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
         await state.clear()

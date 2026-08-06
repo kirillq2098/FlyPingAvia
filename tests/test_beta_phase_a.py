@@ -196,6 +196,44 @@ async def test_job_survives_restart_claim(db):
 
 
 @pytest.mark.asyncio
+async def test_reclaim_stale_processing_then_claim(db):
+    factory = get_session_factory()
+    now = datetime.now(timezone.utc)
+    async with factory() as session:
+        user = await _user(session)
+        await beta.upsert_participant(session, user_id=user.id, cohort_code="w1")
+        await beta.set_consent(session, user_id=user.id)
+        await beta.schedule_survey_a(session, user_id=user.id, delay_seconds=30)
+        job = (await session.execute(select(BetaJob))).scalar_one()
+        job.run_at = now - timedelta(seconds=1)
+        job.status = "processing"
+        job.attempts = 1
+        await session.commit()
+    async with factory() as session:
+        n = await beta.reclaim_stale_processing_jobs(session, now=now)
+        assert n == 1
+        claimed = await beta.claim_due_jobs(session, now=now)
+        assert len(claimed) == 1
+        assert claimed[0].status == "processing"
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_try_mark_survey_sending_idempotent(db):
+    factory = get_session_factory()
+    async with factory() as session:
+        user = await _user(session)
+        await beta.upsert_participant(session, user_id=user.id, cohort_code="w1")
+        await beta.set_consent(session, user_id=user.id)
+        await beta.schedule_survey_a(session, user_id=user.id, delay_seconds=30)
+        assert await beta.try_mark_survey_sending(session, user_id=user.id) == "ok"
+        assert await beta.try_mark_survey_sending(session, user_id=user.id) == "already"
+        survey = await beta.get_survey_a(session, user_id=user.id)
+        assert survey is not None and survey.status == "sent"
+        await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_dispatcher_does_not_call_price_provider(db, monkeypatch):
     from flypingavia.services import beta_dispatcher
 

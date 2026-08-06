@@ -232,3 +232,6 @@ deploy/cloudflared/*.json
 website/node_modules/
 website/.next/
 website/.env.local
+
+# Local ops scratch (never commit)
+.cleanup/

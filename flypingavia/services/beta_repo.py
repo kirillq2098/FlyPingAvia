@@ -228,6 +228,25 @@ async def schedule_survey_a(
     return True
 
 
+async def reclaim_stale_processing_jobs(
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Вернуть jobs, застрявшие в processing после crash/restart, в pending.
+
+    Безопасно при одном worker (max_instances=1). При нескольких репликах
+    контейнера возможны гонки — не масштабировать beta_dispatcher горизонтально.
+    """
+    _ = now
+    result = await session.execute(
+        update(BetaJob)
+        .where(BetaJob.status == "processing")
+        .values(status="pending", last_error_summary="reclaimed_stale_processing")
+    )
+    return int(result.rowcount or 0)
+
+
 async def claim_due_jobs(
     session: AsyncSession,
     *,
@@ -265,6 +284,58 @@ async def claim_due_jobs(
     return claimed
 
 
+async def try_mark_survey_sending(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    now: datetime | None = None,
+) -> str:
+    """Атомарно перевести Survey A pending→sent перед отправкой.
+
+    Returns: ``ok`` | ``already`` | ``missing``.
+    """
+    now = now or _utcnow()
+    survey = await session.scalar(
+        select(BetaSurvey).where(
+            BetaSurvey.user_id == user_id,
+            BetaSurvey.survey_key == SURVEY_KEY_A,
+        )
+    )
+    if survey is None:
+        return "missing"
+    if survey.status in {"sent", "completed", "skipped"}:
+        return "already"
+    if survey.status != "pending":
+        return "already"
+    survey.status = "sent"
+    survey.sent_at = now
+    await session.flush()
+    return "ok"
+
+
+async def revert_survey_to_pending(
+    session: AsyncSession, *, user_id: int
+) -> None:
+    """Откат после неудачной отправки (сеть/timeout), если ответов ещё нет."""
+    survey = await session.scalar(
+        select(BetaSurvey).where(
+            BetaSurvey.user_id == user_id,
+            BetaSurvey.survey_key == SURVEY_KEY_A,
+        )
+    )
+    if survey is None:
+        return
+    if survey.status != "sent":
+        return
+    if survey.result is not None or survey.clarity_score is not None:
+        return
+    if survey.completed_at is not None:
+        return
+    survey.status = "pending"
+    survey.sent_at = None
+    await session.flush()
+
+
 async def finish_job(
     session: AsyncSession,
     *,
@@ -294,21 +365,16 @@ async def requeue_job(
         job.attempts -= 1
     await session.flush()
 
-async def mark_survey_sent(
-    session: AsyncSession, *, user_id: int, now: datetime | None = None
-) -> None:
-    now = now or _utcnow()
-    survey = await session.scalar(
+
+async def get_survey_a(
+    session: AsyncSession, *, user_id: int
+) -> BetaSurvey | None:
+    return await session.scalar(
         select(BetaSurvey).where(
             BetaSurvey.user_id == user_id,
             BetaSurvey.survey_key == SURVEY_KEY_A,
         )
     )
-    if survey is None:
-        return
-    if survey.status == "pending":
-        survey.status = "sent"
-        survey.sent_at = now
 
 
 async def apply_survey_result(
@@ -332,11 +398,16 @@ async def apply_survey_result(
         return None
     if survey.status == "completed":
         return survey
-    if result is not None:
+    # Не перезаписывать уже сохранённые ответы (защита от double-tap).
+    if result is not None and survey.result is None:
         survey.result = clip_text(result, 32)
-    if clarity_score is not None and 1 <= int(clarity_score) <= 5:
+    if (
+        clarity_score is not None
+        and survey.clarity_score is None
+        and 1 <= int(clarity_score) <= 5
+    ):
         survey.clarity_score = int(clarity_score)
-    if free_text is not None:
+    if free_text is not None and survey.free_text is None:
         survey.free_text = clip_text(free_text, MAX_TEXT)
     if complete:
         survey.status = "completed"

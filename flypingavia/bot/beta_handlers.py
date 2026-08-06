@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -17,6 +17,9 @@ from flypingavia.db.session import session_scope
 from flypingavia.services import beta_repo as beta
 
 logger = logging.getLogger(__name__)
+
+_BUG_SEVERITIES = frozenset({"P0", "P1", "P2"})
+_CANCEL_TEXT = "❌ Отмена"
 
 
 class BugReport(StatesGroup):
@@ -38,8 +41,30 @@ def _is_admin(message: Message, settings: Settings) -> bool:
     return user is not None and user.id in settings.admin_user_id_set
 
 
+def _is_cancel_text(text: str | None) -> bool:
+    return bool(text) and text.strip() == _CANCEL_TEXT
+
+
+async def _cancel_fsm(
+    message: Message, state: FSMContext, *, webapp: str | None
+) -> None:
+    await state.clear()
+    await message.answer(
+        "Отменил. Можно начать снова.",
+        reply_markup=kb.main_menu(webapp),
+    )
+
+
 def create_beta_router(settings: Settings, bot: Bot) -> Router:
     router = Router(name="beta")
+    webapp = settings.telegram_webapp_url
+
+    # Выход из любого beta FSM: /cancel, /start уже в main; «❌ Отмена» здесь,
+    # потому что beta-router подключается раньше main.
+    @router.message(Command("cancel"))
+    @router.message(F.text == _CANCEL_TEXT)
+    async def cmd_cancel_beta(message: Message, state: FSMContext) -> None:
+        await _cancel_fsm(message, state, webapp=webapp)
 
     @router.callback_query(F.data == "beta:consent")
     async def on_consent(callback: CallbackQuery) -> None:
@@ -51,12 +76,16 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             db_user = await repo.get_or_create_user(
                 session, telegram_id=user.id, username=user.username
             )
+            part = await beta.get_participant(session, user_id=db_user.id)
+            if part is None:
+                await callback.answer("Нет доступа")
+                return
             ok = await beta.set_consent(session, user_id=db_user.id)
         await callback.answer("Спасибо!" if ok else "Ок")
         if callback.message:
             await callback.message.answer(
-                "Отлично. Создайте первую подписку — после этого может прийти короткий опрос.",
-                reply_markup=kb.main_menu(settings.telegram_webapp_url),
+                "Отлично. Создайте первую подписку — после неё может прийти короткий опрос.",
+                reply_markup=kb.main_menu(webapp),
             )
 
     @router.message(Command("beta_stop"))
@@ -74,12 +103,12 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             await message.answer(
                 "Вы отписались от beta-сообщений и опросов. "
                 "Уведомления о ценах по подпискам продолжат приходить.",
-                reply_markup=kb.main_menu(settings.telegram_webapp_url),
+                reply_markup=kb.main_menu(webapp),
             )
         else:
             await message.answer(
                 "Вы не в списке участников беты. Если нужно — напишите владельцу.",
-                reply_markup=kb.main_menu(settings.telegram_webapp_url),
+                reply_markup=kb.main_menu(webapp),
             )
 
     @router.callback_query(F.data.startswith("beta:survey:result:"))
@@ -97,12 +126,16 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             db_user = await repo.get_or_create_user(
                 session, telegram_id=user.id, username=user.username
             )
-            survey = await beta.apply_survey_result(
-                session, user_id=db_user.id, result=mapping[result]
-            )
-            if survey is None or survey.status == "completed":
+            existing = await beta.get_survey_a(session, user_id=db_user.id)
+            if existing is None or existing.status == "completed":
                 await callback.answer("Уже сохранено")
                 return
+            if existing.result is not None:
+                await callback.answer("Уже сохранено")
+                return
+            await beta.apply_survey_result(
+                session, user_id=db_user.id, result=mapping[result]
+            )
         await callback.answer()
         if callback.message:
             await callback.message.answer(
@@ -121,16 +154,26 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
         except ValueError:
             await callback.answer()
             return
+        if score < 1 or score > 5:
+            await callback.answer()
+            return
+        if await state.get_state() == SurveyFreeText.waiting.state:
+            await callback.answer("Уже сохранено")
+            return
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(
                 session, telegram_id=user.id, username=user.username
             )
-            survey = await beta.apply_survey_result(
-                session, user_id=db_user.id, clarity_score=score
-            )
-            if survey is None or survey.status == "completed":
+            existing = await beta.get_survey_a(session, user_id=db_user.id)
+            if existing is None or existing.status == "completed":
                 await callback.answer("Уже сохранено")
                 return
+            if existing.clarity_score is not None:
+                await callback.answer("Уже сохранено")
+                return
+            await beta.apply_survey_result(
+                session, user_id=db_user.id, clarity_score=score
+            )
         await state.set_state(SurveyFreeText.waiting)
         await callback.answer()
         if callback.message:
@@ -140,7 +183,6 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             )
 
     @router.callback_query(SurveyFreeText.waiting, F.data == "beta:survey:skip_text")
-    @router.callback_query(F.data == "beta:survey:skip_text")
     async def survey_skip_text(callback: CallbackQuery, state: FSMContext) -> None:
         user = callback.from_user
         if user is None:
@@ -163,6 +205,9 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
         user = message.from_user
         if user is None:
             return
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
         async with session_scope() as session:
             db_user = await repo.get_or_create_user(
                 session, telegram_id=user.id, username=user.username
@@ -179,17 +224,32 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
     @router.message(Command("bug"))
     async def cmd_bug(message: Message, state: FSMContext) -> None:
         await state.clear()
+        user = message.from_user
+        if user is None:
+            return
+        async with session_scope() as session:
+            db_user = await repo.get_or_create_user(
+                session, telegram_id=user.id, username=user.username
+            )
+            part = await beta.get_participant(session, user_id=db_user.id)
+            if part is None:
+                await message.answer(
+                    "Команда /bug доступна участникам закрытой беты.",
+                    reply_markup=kb.main_menu(webapp),
+                )
+                return
         await state.set_state(BugReport.did)
         await message.answer(
-            "Сообщение о проблеме.\n\n1) Что вы делали?",
+            "Сообщение о проблеме.\n\n"
+            "1) Что вы делали?\n\n"
+            "Отмена: /cancel или «❌ Отмена».",
             reply_markup=kb.cancel_kb(),
         )
 
     @router.message(BugReport.did, F.text)
     async def bug_did(message: Message, state: FSMContext) -> None:
-        if message.text and message.text.strip() == "❌ Отмена":
-            await state.clear()
-            await message.answer("Отменил.", reply_markup=kb.main_menu())
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
             return
         await state.update_data(what_did=beta.clip_text(message.text))
         await state.set_state(BugReport.happened)
@@ -197,12 +257,18 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
 
     @router.message(BugReport.happened, F.text)
     async def bug_happened(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
         await state.update_data(what_happened=beta.clip_text(message.text))
         await state.set_state(BugReport.expected)
         await message.answer("3) Что вы ожидали?")
 
     @router.message(BugReport.expected, F.text)
     async def bug_expected(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
         await state.update_data(what_expected=beta.clip_text(message.text))
         await state.set_state(BugReport.device)
         await message.answer("4) Устройство:", reply_markup=kb.beta_bug_device_kb())
@@ -212,14 +278,28 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
         if not callback.data:
             await callback.answer()
             return
-        await state.update_data(device_class=callback.data.rsplit(":", 1)[-1])
+        device = callback.data.rsplit(":", 1)[-1]
+        if device not in {"iphone", "android", "other"}:
+            await callback.answer()
+            return
+        await state.update_data(device_class=device)
         await state.set_state(BugReport.device_note)
         await callback.answer()
         if callback.message:
             await callback.message.answer(
-                "5) Модель устройства и версия Telegram (необязательно):",
+                "5) Модель и версия Telegram (необязательно):",
                 reply_markup=kb.beta_bug_skip_kb(callback="beta:bug:skip_note"),
             )
+
+    @router.message(StateFilter(BugReport.device), F.text)
+    async def bug_device_text_hint(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
+        await message.answer(
+            "Выберите устройство кнопкой ниже.",
+            reply_markup=kb.beta_bug_device_kb(),
+        )
 
     @router.callback_query(BugReport.device_note, F.data == "beta:bug:skip_note")
     async def bug_skip_note(callback: CallbackQuery, state: FSMContext) -> None:
@@ -234,6 +314,9 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
 
     @router.message(BugReport.device_note, F.text)
     async def bug_device_note(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
         await state.update_data(
             device_note=beta.clip_text(message.text, beta.MAX_DEVICE_NOTE)
         )
@@ -264,6 +347,26 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             reply_markup=kb.beta_bug_severity_kb(),
         )
 
+    @router.message(BugReport.screenshot, F.text)
+    async def bug_screenshot_text(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
+        await message.answer(
+            "Пришлите фото или нажмите «Пропустить».",
+            reply_markup=kb.beta_bug_skip_kb(callback="beta:bug:skip_photo"),
+        )
+
+    @router.message(StateFilter(BugReport.severity), F.text)
+    async def bug_severity_text_hint(message: Message, state: FSMContext) -> None:
+        if _is_cancel_text(message.text):
+            await _cancel_fsm(message, state, webapp=webapp)
+            return
+        await message.answer(
+            "Выберите серьёзность кнопкой ниже.",
+            reply_markup=kb.beta_bug_severity_kb(),
+        )
+
     @router.callback_query(BugReport.severity, F.data.startswith("beta:bug:sev:"))
     async def bug_severity(callback: CallbackQuery, state: FSMContext) -> None:
         user = callback.from_user
@@ -271,6 +374,9 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             await callback.answer()
             return
         severity = callback.data.rsplit(":", 1)[-1]
+        if severity not in _BUG_SEVERITIES:
+            await callback.answer()
+            return
         data = await state.get_data()
         photo_file_id = data.get("photo_file_id")
         await state.clear()
@@ -303,7 +409,7 @@ def create_beta_router(settings: Settings, bot: Bot) -> Router:
             await callback.message.answer(
                 f"Принято. Номер обращения: <b>BUG-{ticket_id}</b>. Спасибо!",
                 parse_mode="HTML",
-                reply_markup=kb.main_menu(settings.telegram_webapp_url),
+                reply_markup=kb.main_menu(webapp),
             )
 
         admin_chat = settings.admin_telegram_chat_id
