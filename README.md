@@ -103,15 +103,14 @@ public/images/       # оптимизированные изображения
 3. Deploy — `npm run build` выполнится автоматически.
 4. Проверьте `/`, `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`.
 
-## Placeholders перед публикацией
+## Юридические данные и env
 
-Замените в `lib/config.ts` / env:
+В `lib/config.ts` уже заданы оператор, дата документов и контакты.
+При деплое при необходимости переопределите через env:
 
-- `legalEntityName` — юридическое имя владельца;
-- `legalEffectiveDate` — дата вступления Privacy/Terms;
-- `NEXT_PUBLIC_SUPPORT_EMAIL` — рабочий email;
-- `NEXT_PUBLIC_SITE_URL` — боевой домен;
-- при необходимости `NEXT_PUBLIC_TELEGRAM_BOT_URL`.
+- `NEXT_PUBLIC_SITE_URL` — боевой домен (`https://flyping.ru`);
+- `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_TELEGRAM` — поддержка;
+- `NEXT_PUBLIC_TELEGRAM_BOT_URL` — ссылка на бота продукта.
 
 ## Лицензия
 
