@@ -1,125 +1,231 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Container } from "@/components/ui/Container";
-import { Logo } from "@/components/ui/Logo";
+import { LegalDoc } from "@/components/LegalDoc";
 import { siteConfig } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
-  description: `Пользовательское соглашение сервиса ${siteConfig.name}.`,
-  alternates: { canonical: siteConfig.links.terms },
+  description: `Условия использования сервиса ${siteConfig.name}.`,
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {
   return (
-    <main id="main" className="min-h-screen py-10 sm:py-14">
-      <Container className="max-w-3xl space-y-8">
-        <Logo />
-        <article className="space-y-8 border border-line bg-bg-elevated p-6 sm:p-10">
-          <header className="space-y-3 border-b border-line pb-6">
-            <p className="mono text-[11px] uppercase tracking-[0.16em] text-mute">
-              legal
-            </p>
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-ink sm:text-4xl">
-              Пользовательское соглашение
-            </h1>
-            <p className="mono text-xs text-mute">
-              Дата вступления в силу: {siteConfig.legalEffectiveDate}
-            </p>
-            <p className="text-sm text-mute">
-              Оператор: {siteConfig.legalEntityName}
-            </p>
-          </header>
-
-          <Section title="1. Предмет соглашения">
+    <LegalDoc
+      title="Пользовательское соглашение"
+      description={`Настоящее Соглашение регулирует использование сайта ${siteConfig.url} и Telegram-бота ${siteConfig.name}.`}
+      sections={[
+        {
+          id: "general",
+          title: "1. Общие положения",
+          content: (
+            <>
+              <p>
+                Сервис {siteConfig.name} предоставляет{" "}
+                <strong className="font-medium text-ink">
+                  {siteConfig.legalEntityName}
+                </strong>{" "}
+                ({siteConfig.legalEntityType}).
+              </p>
+              <p>
+                Начиная использование сайта или бота, вы принимаете условия
+                этого Соглашения и Политики конфиденциальности. Если вы не
+                согласны — не используйте сервис.
+              </p>
+              <p>
+                Контакты:{" "}
+                <a
+                  href={`mailto:${siteConfig.supportEmail}`}
+                  className="text-blue underline-offset-2 hover:underline"
+                >
+                  {siteConfig.supportEmail}
+                </a>
+                , Telegram{" "}
+                <a
+                  href={siteConfig.supportTelegramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue underline-offset-2 hover:underline"
+                >
+                  @{siteConfig.supportTelegramUsername}
+                </a>
+                .
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "service",
+          title: "2. Описание сервиса",
+          content: (
+            <>
+              <p>
+                {siteConfig.name} — информационный сервис мониторинга цен на
+                авиабилеты. Вы задаёте параметры в Telegram-боте, сервис
+                отслеживает изменение цены и отправляет уведомление при
+                снижении.
+              </p>
+              <p>
+                Сайт носит ознакомительный характер и направляет вас в
+                Telegram-бот. Покупка билетов на сайте {siteConfig.name}{" "}
+                <strong className="font-medium text-ink">не осуществляется</strong>.
+              </p>
+              <p>Сервис предоставляется бесплатно.</p>
+            </>
+          ),
+        },
+        {
+          id: "prices",
+          title: "3. Цены, наличие и источники данных",
+          content: (
+            <>
+              <p>
+                Сведения о ценах получают через {siteConfig.priceDataSource}.
+                Охват направлений и рейсов соответствует возможностям этого
+                источника и может меняться.
+              </p>
+              <p>
+                <strong className="font-medium text-ink">
+                  {siteConfig.name} не продаёт билеты.
+                </strong>{" "}
+                Цена может измениться. Наличие билета не гарантируется.
+                Уведомление о снижении цены не является офертой на продажу
+                билета и не гарантирует возможность купить билет по указанной
+                цене у перевозчика, агентства или агрегатора.
+              </p>
+              <p>
+                Окончательные условия перевозки, тарифы, сборы и наличие мест
+                определяются продавцом билета в момент оформления.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "no-agency",
+          title: "4. Статус сервиса",
+          content: (
             <p>
-              {siteConfig.name} — информационный сервис мониторинга цен на
-              авиабилеты с уведомлениями в Telegram.
+              {siteConfig.name} не является авиакомпанией, турагентством,
+              билетным агрегатором или платёжным посредником. Сервис не бронирует
+              места, не выписывает билеты и не принимает оплату за перелёты.
+              Любые переходы к покупке совершаются вами самостоятельно на
+              сторонних ресурсах на ваш риск.
             </p>
-            <p>
-              Используя сайт или бота {siteConfig.name}, вы соглашаетесь с
-              условиями настоящего соглашения.
-            </p>
-          </Section>
-
-          <Section title="2. Статус сервиса">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>{siteConfig.name} не является авиакомпанией;</li>
-              <li>{siteConfig.name} не является продавцом авиабилетов;</li>
+          ),
+        },
+        {
+          id: "user",
+          title: "5. Обязанности пользователя",
+          content: (
+            <ul className="list-disc space-y-1 pl-5">
+              <li>использовать сервис добросовестно и в рамках закона РФ;</li>
+              <li>не пытаться нарушить работу сайта, бота или инфраструктуры;</li>
               <li>
-                сервис предоставляет информацию о изменении цены и уведомления;
+                самостоятельно проверять актуальные условия и цену перед покупкой
+                билета;
               </li>
               <li>
-                покупка билета осуществляется на стороне партнёра или поставщика.
+                не передавать доступ к своему Telegram-аккаунту третьим лицам,
+                если это может привести к злоупотреблениям настройками
+                мониторинга.
               </li>
             </ul>
-          </Section>
-
-          <Section title="3. Цены и наличие билетов">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>цены на авиабилеты могут изменяться;</li>
-              <li>наличие билета по указанной цене не гарантируется;</li>
-              <li>
-                пользователь самостоятельно проверяет условия тарифа перед
-                покупкой;
-              </li>
-              <li>
-                {siteConfig.name} не отвечает за действия сторонних сайтов и
-                поставщиков.
-              </li>
-            </ul>
-          </Section>
-
-          <Section title="4. Доступность сервиса">
+          ),
+        },
+        {
+          id: "availability",
+          title: "6. Доступность и изменения",
+          content: (
+            <>
+              <p>
+                Сервис предоставляется «как есть». Оператор стремится к
+                стабильной работе, но не гарантирует бесперебойность,
+                мгновенность уведомлений и отсутствие ошибок в данных о цене.
+              </p>
+              <p>
+                Оператор вправе изменять функциональность, приостанавливать или
+                прекращать работу сервиса, а также обновлять это Соглашение.
+                Актуальная версия публикуется на {siteConfig.url}/terms.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "liability",
+          title: "7. Ограничение ответственности",
+          content: (
+            <>
+              <p>В максимально допустимой законом мере оператор не отвечает за:</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>убытки из‑за изменения цены или отсутствия билетов;</li>
+                <li>
+                  действия авиакомпаний, агентств, агрегаторов и платформы
+                  Telegram;
+                </li>
+                <li>
+                  задержки, пропуски или неточность уведомлений, сбои сети или
+                  хостинга;
+                </li>
+                <li>
+                  решения, которые вы приняли на основе информации сервиса,
+                  включая покупку или отказ от покупки билета.
+                </li>
+              </ul>
+              <p>
+                Сервис бесплатный; денежные претензии к оператору, связанные с
+                «упущенной выгодой» по цене билета, не принимаются.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "ip",
+          title: "8. Интеллектуальная собственность",
+          content: (
             <p>
-              Сервис может временно быть недоступен из‑за технических работ,
-              сбоев или ограничений сторонних платформ, включая Telegram.
+              Название {siteConfig.name}, дизайн сайта, тексты и иные материалы
+              сервиса принадлежат оператору или используются на законном
+              основании. Копирование в коммерческих целях без согласия
+              запрещено.
             </p>
-          </Section>
-
-          <Section title="5. Прекращение использования">
+          ),
+        },
+        {
+          id: "law",
+          title: "9. Применимое право",
+          content: (
             <p>
-              Пользователь может прекратить использование бота в любой момент:
-              удалить маршруты, остановить уведомления или заблокировать бота в
-              Telegram.
+              К Соглашению применяется право Российской Федерации. Споры
+              стороны стремятся урегулировать путём переговоров; при
+              недостижении согласия спор рассматривается в порядке,
+              установленном законодательством РФ.
             </p>
-          </Section>
-
-          <Section title="6. Контакты">
-            <p>
-              Вопросы по соглашению:{" "}
-              <a
-                className="font-medium text-blue hover:text-blue-deep"
-                href={`mailto:${siteConfig.supportEmail}`}
-              >
-                {siteConfig.supportEmail}
-              </a>
-            </p>
-          </Section>
-
-          <Link
-            href="/"
-            className="inline-flex text-sm font-medium text-blue hover:text-blue-deep"
-          >
-            ← На главную
-          </Link>
-        </article>
-      </Container>
-    </main>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold tracking-[-0.03em] text-ink">{title}</h2>
-      <div className="space-y-3 text-sm leading-7 text-mute sm:text-base">{children}</div>
-    </section>
+          ),
+        },
+        {
+          id: "contacts",
+          title: "10. Реквизиты и связь",
+          content: (
+            <>
+              <p>
+                Оператор: {siteConfig.legalEntityName} ({siteConfig.legalEntityType}).
+              </p>
+              <p>
+                Email: {siteConfig.supportEmail}
+                <br />
+                Telegram поддержки: @{siteConfig.supportTelegramUsername}
+                <br />
+                Сайт: {siteConfig.url}
+                <br />
+                Бот: @{siteConfig.telegramUsername}
+              </p>
+              <p>
+                ИНН / ОГРНИП не указываются: оператор действует как физическое
+                лицо без публикации таких реквизитов в сервисе.
+              </p>
+            </>
+          ),
+        },
+      ]}
+    />
   );
 }
