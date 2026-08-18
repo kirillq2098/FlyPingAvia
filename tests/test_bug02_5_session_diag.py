@@ -67,7 +67,7 @@ def test_write_diag_event_jsonl(tmp_path, monkeypatch):
             "kind": "frontend",
             "event": "html_loaded",
             "session_id": "sess-1",
-            "asset": "0.3.0-bug025",
+            "asset": "0.3.0-thresholdfix1",
         }
     )
     text = log.read_text(encoding="utf-8")
@@ -109,7 +109,7 @@ async def test_diag_endpoint_writes_session(tmp_path, monkeypatch):
             json={
                 "session_id": "unit-sess",
                 "event": "bootstrap_start",
-                "asset": "0.3.0-bug025",
+                "asset": "0.3.0-thresholdfix1",
                 "launch_mode": "telegram_browser",
                 "has_tgwebappdata": False,
                 "platform": "android",
@@ -129,7 +129,7 @@ def test_frontend_bug025_contract():
     html = (root / "flypingavia/web/static/index.html").read_text(encoding="utf-8")
     js = (root / "flypingavia/web/static/app.js").read_text(encoding="utf-8")
     diag = (root / "flypingavia/web/static/diag-session.js").read_text(encoding="utf-8")
-    assert "0.3.0-bug025" in html
+    assert "0.3.0-thresholdfix1" in html
     assert "diag-session.js" in html
     assert "FlyPingDiag" in diag
     assert "X-Diag-Session" in js

@@ -2030,7 +2030,7 @@
       syncFlexUi();
     }
 
-    const JS_ASSET_BUILD = "0.3.0-bug025";
+    const JS_ASSET_BUILD = "0.3.0-thresholdfix1";
 
     function detectAssetMismatch() {
       try {

@@ -284,7 +284,7 @@ def test_13_html_js_asset_mismatch_reported(chromium_page):
     page = chromium_page
     init = _build_init_data(13)
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    html = html.replace('asset: "0.3.0-bug025"', 'asset: "0.3.0-OLD"')
+    html = html.replace('asset: "0.3.0-thresholdfix1"', 'asset: "0.3.0-OLD"')
     me_calls = _serve(page, html_override=html)
     diags: list[dict] = []
 
@@ -329,7 +329,7 @@ def test_15_ui_stays_after_me_200(chromium_page):
 def test_frontend_bug022_contract():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "0.3.0-bug025" in html
+    assert "0.3.0-thresholdfix1" in html
     assert "/assets/telegram-web-app.js" in html
     assert "launch-params.js" in html
     assert "diag-session.js" in html

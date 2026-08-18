@@ -223,8 +223,8 @@ def test_hmac_still_required_invalid_rejected(page):
 
 def test_asset_bug023(page):
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    assert "0.3.0-bug025" in html
+    assert "0.3.0-thresholdfix1" in html
     me, diags = _serve(page)
     page.goto("https://app.flyping.ru/#" + _hash(_init(9)))
     _wait_ok(page)
-    assert any(d.get("asset") == "0.3.0-bug025" for d in diags)
+    assert any(d.get("asset") == "0.3.0-thresholdfix1" for d in diags)

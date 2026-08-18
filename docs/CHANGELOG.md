@@ -45,7 +45,7 @@
 ### Known
 
 - Funnel product-analytics события (search/quote/watch/notification/ticket) ещё не как единый KPI pipeline.
-- Asset cache-buster Mini App остаётся `0.3.0-bug025` (не путать с package version).
+- Asset cache-buster Mini App обновлён до `0.3.0-thresholdfix1` для принудительного обновления Telegram WebView кэша (не путать с package version).
 - `beta_dispatcher` рассчитан на **один** инстанс app (не горизонтальное масштабирование).
 
 ## [0.3.0] — 2026-07-30
