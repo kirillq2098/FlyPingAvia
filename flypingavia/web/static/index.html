@@ -162,8 +162,8 @@
 
       <form id="watch-form" class="stack watch-form hidden" novalidate>
         <label class="field" for="threshold">
-          <span class="field-label">Ваш порог, ₽</span>
-          <input id="threshold" name="threshold" type="number" min="1" step="1" inputmode="numeric" required aria-describedby="threshold-error" />
+          <span class="field-label">При какой цене сообщить?</span>
+          <input id="threshold" name="threshold" type="number" min="1" step="1" inputmode="numeric" placeholder="Введите желаемую цену" required aria-label="При какой цене сообщить?" aria-describedby="threshold-error" />
           <div id="threshold-error" class="field-error" role="alert"></div>
         </label>
         <div class="field">
@@ -175,10 +175,6 @@
             <button type="button" class="btn ghost flex-btn" data-flex="7">±7</button>
           </div>
           <p class="meta" id="flex-hint">Ищем только выбранную дату вылета.</p>
-        </div>
-        <div class="btn-row">
-          <button type="button" class="btn ghost" data-preset="cheap">Дёшево</button>
-          <button type="button" class="btn ghost" data-preset="typical">Обычно</button>
         </div>
         <div id="low-threshold-warn" class="low-threshold-warn hidden" role="status">
           <p class="warn-title">Порог заметно ниже текущего рынка</p>
