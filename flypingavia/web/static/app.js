@@ -1215,7 +1215,6 @@
       state.quote = q;
       hideQuoteLoading();
       const box = $("#quote");
-      const lvl = levelLabel(q.level);
       const tripLabel = q.return_date ? "туда-обратно" : "в одну сторону";
       const dateBits = [];
       if (q.depart_date) dateBits.push(q.depart_date);
@@ -1270,9 +1269,6 @@
         '<div class="price-now">' +
         (q.price != null ? (isEstimate ? "~ " : "") + money(q.price) : "—") +
         "</div>" +
-        (lvl[0]
-          ? '<div class="level ' + lvl[0] + '">относительно рынка · ' + lvl[1] + "</div>"
-          : "") +
         '<div class="meta">' +
         (q.origin_airport ? "вылет " + escapeHtml(q.origin_airport) : "") +
         (q.destination_airport ? " · прилёт " + escapeHtml(q.destination_airport) : "") +
@@ -1284,17 +1280,6 @@
         (q.airline ? " · " + escapeHtml(q.airline) : "") +
         "</div>" +
         (q.airports_note ? '<div class="meta">' + escapeHtml(q.airports_note) + "</div>" : "") +
-        '<div class="band">' +
-        '<div class="band-row cheap"><span>Выгодная цена</span><span>≤ ' +
-        money(q.cheap_max) +
-        "</span></div>" +
-        '<div class="band-row typical"><span>Средняя цена</span><span>~ ' +
-        money(q.typical) +
-        "</span></div>" +
-        '<div class="band-row expensive"><span>Высокая цена</span><span>≥ ' +
-        money(q.expensive_min) +
-        "</span></div>" +
-        "</div>" +
         '<div style="margin-top:12px" class="btn-row">' +
         '<a class="btn ghost" href="' +
         escapeHtml(q.tickets_url) +
@@ -1304,8 +1289,19 @@
           : "") +
         "</div>";
       $("#watch-form").classList.remove("hidden");
+      const thresholdInput = $("#threshold");
+      const recommended = Math.round(q.cheap_max || q.price || 0);
+      if (thresholdInput) {
+        if (!opts.keepThreshold) {
+          thresholdInput.value = "";
+        }
+        thresholdInput.placeholder =
+          recommended > 0
+            ? "Например, " + money(recommended)
+            : "Введите желаемую цену";
+      }
       if (!opts.keepThreshold) {
-        $("#threshold").value = Math.round(q.cheap_max || q.price || 0);
+        hideLowThresholdWarn();
       }
       updateDirtyClosingConfirmation();
       syncMainButton();
@@ -1330,7 +1326,10 @@
         "</div>";
       $("#watch-form").classList.remove("hidden");
       const thr = $("#threshold");
-      if (thr && !thr.value) thr.value = "";
+      if (thr) {
+        if (!thr.value) thr.value = "";
+        if (!thr.placeholder) thr.placeholder = "Введите желаемую цену";
+      }
       const retry = $("#quote-retry");
       if (retry) {
         retry.addEventListener("click", function () {
@@ -1693,8 +1692,8 @@
       if (!state.quote) return;
       const threshold = Math.round(Number($("#threshold").value));
       if (!Number.isFinite(threshold) || threshold < 1) {
-        setFieldError("threshold", "Введите порог числом, например 12000");
-        toast("Введите порог числом, например 12000");
+        setFieldError("threshold", "Укажите цену, при которой вам сообщить");
+        toast("Укажите цену, при которой вам сообщить");
         haptic("error");
         return;
       }
@@ -1924,18 +1923,6 @@
       $("#search-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         await requestQuote({ force: true });
-      });
-
-      $$("[data-preset]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          if (!state.quote) return;
-          const key = btn.getAttribute("data-preset");
-          $("#threshold").value = Math.round(
-            state.quote[key === "cheap" ? "cheap_max" : "typical"] || 0
-          );
-          hideLowThresholdWarn();
-          updateDirtyClosingConfirmation();
-        });
       });
 
       $$(".flex-btn").forEach((btn) => {
