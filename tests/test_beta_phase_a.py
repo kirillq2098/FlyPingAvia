@@ -66,10 +66,12 @@ async def _user(session, tg_id: int = 1001) -> User:
 
 def test_parse_beta_invite_code():
     assert parse_beta_invite_code("beta_w1") == "w1"
+    assert parse_beta_invite_code("beta_site1") == "site1"
     assert parse_beta_invite_code("beta_W1") == "w1"
     assert parse_beta_invite_code("share_abc") is None
     assert parse_beta_invite_code(None) is None
     assert is_allowed_beta_code("w1", allowed={"w1"})
+    assert is_allowed_beta_code("site1", allowed={"w1", "site1"})
     assert not is_allowed_beta_code("w2", allowed={"w1"})
 
 

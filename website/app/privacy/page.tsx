@@ -1,127 +1,262 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Container } from "@/components/ui/Container";
-import { Logo } from "@/components/ui/Logo";
+import { LegalDoc } from "@/components/LegalDoc";
 import { siteConfig } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Политика конфиденциальности",
-  description: `Политика конфиденциальности сервиса ${siteConfig.name}.`,
-  alternates: { canonical: siteConfig.links.privacy },
+  description: `Как ${siteConfig.name} обрабатывает персональные данные пользователей.`,
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {
   return (
-    <main id="main" className="min-h-screen py-10 sm:py-14">
-      <Container className="max-w-3xl space-y-8">
-        <Logo />
-        <article className="space-y-8 border border-line bg-bg-elevated p-6 sm:p-10">
-          <header className="space-y-3 border-b border-line pb-6">
-            <p className="mono text-[11px] uppercase tracking-[0.16em] text-mute">
-              legal
-            </p>
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-ink sm:text-4xl">
-              Политика конфиденциальности
-            </h1>
-            <p className="mono text-xs text-mute">
-              Дата вступления в силу: {siteConfig.legalEffectiveDate}
-            </p>
-            <p className="text-sm text-mute">
-              Оператор: {siteConfig.legalEntityName}
-            </p>
-          </header>
-
-          <Section title="1. Общие положения">
-            <p>
-              Настоящая Политика описывает, как {siteConfig.name} обрабатывает
-              персональные и технические данные пользователей Telegram-бота и
-              сайта {siteConfig.url}.
-            </p>
-            <p>
-              {siteConfig.name} является информационным сервисом мониторинга цен
-              на авиабилеты. Сервис не продаёт авиабилеты и не является
-              авиакомпанией.
-            </p>
-          </Section>
-
-          <Section title="2. Какие данные могут обрабатываться">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>Telegram ID;</li>
-              <li>username в Telegram;</li>
-              <li>имя пользователя;</li>
-              <li>выбранные маршруты;</li>
-              <li>даты поездки;</li>
-              <li>настройки уведомлений;</li>
-              <li>технические данные (например, время обращений к сервису);</li>
-              <li>обращения в поддержку.</li>
+    <LegalDoc
+      title="Политика конфиденциальности"
+      description={`Настоящая Политика описывает, какие данные обрабатывает сервис ${siteConfig.name} (${siteConfig.url}), для каких целей и на каких условиях.`}
+      sections={[
+        {
+          id: "operator",
+          title: "1. Оператор данных",
+          content: (
+            <>
+              <p>
+                Оператором персональных данных является{" "}
+                <strong className="font-medium text-ink">
+                  {siteConfig.legalEntityName}
+                </strong>{" "}
+                ({siteConfig.legalEntityType}).
+              </p>
+              <p>
+                Контакты по вопросам персональных данных:{" "}
+                <a
+                  href={`mailto:${siteConfig.supportEmail}`}
+                  className="text-blue underline-offset-2 hover:underline"
+                >
+                  {siteConfig.supportEmail}
+                </a>
+                , Telegram{" "}
+                <a
+                  href={siteConfig.supportTelegramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue underline-offset-2 hover:underline"
+                >
+                  @{siteConfig.supportTelegramUsername}
+                </a>
+                .
+              </p>
+              <p>
+                Сайт сервиса:{" "}
+                <a
+                  href={siteConfig.url}
+                  className="text-blue underline-offset-2 hover:underline"
+                >
+                  {siteConfig.url}
+                </a>
+                . Основной интерфейс сервиса — Telegram-бот{" "}
+                <span className="mono text-ink">@{siteConfig.telegramUsername}</span>.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "scope",
+          title: "2. О чём эта Политика",
+          content: (
+            <>
+              <p>
+                Политика применяется к сайту {siteConfig.name}, Telegram-боту и
+                связанным уведомлениям о цене авиабилетов. Используя сервис, вы
+                подтверждаете, что ознакомились с этой Политикой.
+              </p>
+              <p>
+                Сервис бесплатный. {siteConfig.name} не продаёт авиабилеты и не
+                принимает оплату за билеты на сайте.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "data",
+          title: "3. Какие данные мы обрабатываем",
+          content: (
+            <>
+              <p>
+                В объёме, необходимом для работы бота мониторинга цен, могут
+                обрабатываться:
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  идентификатор пользователя Telegram (Telegram ID), username,
+                  имя и иные данные профиля, которые Telegram передаёт боту;
+                </li>
+                <li>
+                  параметры мониторинга, которые вы задаёте: маршруты, даты,
+                  направления, пороги и настройки уведомлений;
+                </li>
+                <li>
+                  содержание сообщений, которыми вы обмениваетесь с ботом или
+                  поддержкой;
+                </li>
+                <li>
+                  технические данные работы сервиса и серверные журналы
+                  (например, время запросов, служебные ошибки) на хостинге{" "}
+                  {siteConfig.hostingProvider};
+                </li>
+                <li>
+                  при обращении на email или в Telegram поддержки — адрес
+                  почты, username и текст обращения.
+                </li>
+              </ul>
+              <p>
+                На сайте сейчас не подключены сторонние системы аналитики
+                (Google Analytics, Яндекс Метрика и аналоги). Если они будут
+                включены позже, сведения об этом и идентификаторы появятся в
+                настройках сайта и в этой Политике.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "purposes",
+          title: "4. Цели обработки",
+          content: (
+            <ul className="list-disc space-y-1 pl-5">
+              <li>предоставление функций мониторинга цен и уведомлений в Telegram;</li>
+              <li>идентификация пользователя внутри бота и сохранение его настроек;</li>
+              <li>ответ на обращения в поддержку;</li>
+              <li>обеспечение работоспособности, безопасности и устранение сбоев;</li>
+              <li>исполнение требований законодательства Российской Федерации.</li>
             </ul>
-          </Section>
-
-          <Section title="3. Цели обработки">
-            <ul className="list-disc space-y-2 pl-5">
-              <li>работа сервиса мониторинга цен;</li>
-              <li>отправка уведомлений в Telegram;</li>
-              <li>сохранение маршрутов пользователя;</li>
-              <li>техническая поддержка;</li>
-              <li>улучшение качества продукта.</li>
-            </ul>
-          </Section>
-
-          <Section title="4. Переход к покупке билетов">
+          ),
+        },
+        {
+          id: "legal-basis",
+          title: "5. Правовые основания",
+          content: (
             <p>
-              {siteConfig.name} не оформляет покупку авиабилетов. Переход к
-              покупке может выполняться на сторонний сайт партнёра или
-              поставщика. Условия покупки и обработка платёжных данных
-              регулируются правилами соответствующего стороннего сервиса.
+              Обработка осуществляется на основании вашего согласия (начало
+              использования бота / сайта), необходимости исполнения
+              пользовательского соглашения и законных интересов оператора по
+              поддержанию работы сервиса — в пределах, допускаемых применимым
+              правом РФ, включая Федеральный закон № 152-ФЗ «О персональных
+              данных».
             </p>
-          </Section>
-
-          <Section title="5. Хранение и защита">
+          ),
+        },
+        {
+          id: "storage",
+          title: "6. Где хранятся данные",
+          content: (
             <p>
-              Данные хранятся столько, сколько необходимо для предоставления
-              сервиса и исполнения обязательств. Мы применяем разумные
-              организационные и технические меры для защиты данных.
+              Данные обрабатываются и хранятся на сервере оператора:{" "}
+              {siteConfig.hostingProvider}. Передача данных за пределы РФ
+              оператором не организуется намеренно; отдельные элементы
+              инфраструктуры Telegram могут находиться вне контроля оператора.
             </p>
-          </Section>
-
-          <Section title="6. Контакты">
+          ),
+        },
+        {
+          id: "third-parties",
+          title: "7. Передача третьим лицам",
+          content: (
+            <>
+              <p>
+                Оператор <strong className="font-medium text-ink">не продаёт</strong>{" "}
+                персональные данные и не передаёт их третьим лицам для их
+                маркетинга.
+              </p>
+              <p>
+                Для получения сведений о ценах используется{" "}
+                {siteConfig.priceDataSource}. В таких запросах передаются
+                параметры поиска (маршрут, даты и связанные технические
+                параметры), а не продажа вашей персональной анкеты третьим лицам.
+              </p>
+              <p>
+                Сервис работает через платформу Telegram: обработка данных на
+                стороне Telegram регулируется правилами Telegram.
+              </p>
+              <p>
+                Данные могут быть раскрыты по законному требованию суда,
+                уполномоченного органа или в иных случаях, прямо предусмотренных
+                законом РФ.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "retention",
+          title: "8. Срок хранения",
+          content: (
+            <>
+              <p>
+                Данные хранятся, пока вы пользуетесь сервисом и настройки
+                мониторинга актуальны. После прекращения использования,
+                удаления диалога/настроек или по вашему запросу на удаление
+                данные удаляются или обезличиваются в разумный срок, как
+                правило — в течение 30 дней, если более длительное хранение не
+                требуется по закону (например, для разбора обращений или
+                защиты прав оператора).
+              </p>
+              <p>
+                Технические журналы сервера могут храниться ограниченный период,
+                необходимый для диагностики и безопасности.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "rights",
+          title: "9. Ваши права",
+          content: (
+            <>
+              <p>Вы можете запросить:</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>сведения об обработке ваших данных;</li>
+                <li>уточнение или обновление данных;</li>
+                <li>удаление данных (если это не противоречит закону);</li>
+                <li>отзыв согласия на обработку.</li>
+              </ul>
+              <p>
+                Запрос направьте на {siteConfig.supportEmail} или в Telegram{" "}
+                @{siteConfig.supportTelegramUsername}. Для идентификации может
+                потребоваться подтверждение, что обращение исходит от владельца
+                соответствующего Telegram-аккаунта.
+              </p>
+              <p>
+                Ограничение возраста для сервиса оператором не устанавливается;
+                при этом действуют правила Telegram и законные требования к
+                использованию мессенджеров несовершеннолетними.
+              </p>
+            </>
+          ),
+        },
+        {
+          id: "security",
+          title: "10. Безопасность",
+          content: (
             <p>
-              По вопросам обработки данных:{" "}
-              <a
-                className="font-medium text-blue hover:text-blue-deep"
-                href={`mailto:${siteConfig.supportEmail}`}
-              >
-                {siteConfig.supportEmail}
-              </a>
+              Оператор принимает организационные и технические меры,
+              разумные для масштаба сервиса: ограничение доступа к серверу,
+              использование защищённых каналов связи там, где это применимо,
+              и регулярный контроль работоспособности. Абсолютную защиту
+              данных в сети Интернет гарантировать невозможно.
             </p>
-            <p className="mono text-xs text-mute">
-              Telegram: @{siteConfig.telegramUsername}
+          ),
+        },
+        {
+          id: "changes",
+          title: "11. Изменения Политики",
+          content: (
+            <p>
+              Оператор может обновлять Политику. Актуальная версия всегда
+              доступна по адресу {siteConfig.url}/privacy. Дата вступления в
+              силу указана в начале документа. Существенные изменения при
+              возможности дополнительно сообщаются через сайт или бота.
             </p>
-          </Section>
-
-          <Link
-            href="/"
-            className="inline-flex text-sm font-medium text-blue hover:text-blue-deep"
-          >
-            ← На главную
-          </Link>
-        </article>
-      </Container>
-    </main>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold tracking-[-0.03em] text-ink">{title}</h2>
-      <div className="space-y-3 text-sm leading-7 text-mute sm:text-base">{children}</div>
-    </section>
+          ),
+        },
+      ]}
+    />
   );
 }

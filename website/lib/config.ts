@@ -1,14 +1,10 @@
 /**
  * Единая конфигурация сайта FlyPing.
  *
- * Перед публикацией заполните переменные из `.env.example`.
- * Telegram URL можно переопределить через NEXT_PUBLIC_TELEGRAM_BOT_URL.
+ * Перед публикацией при необходимости переопределите переменные из `.env.example`.
  *
- * Актуальная рабочая ссылка на бота (Web Telegram):
- * https://web.telegram.org/k/#@FlyPingAvia_Bot
- *
- * Если понадобится t.me-ссылка, сначала проверьте, что username
- * открывает именно вашего бота (не чужой аккаунт с похожим именем).
+ * Бот (продукт): Web Telegram → @FlyPingAvia_Bot
+ * Поддержка: @Akulov_Kirill / Q2098@yandex.ru
  */
 
 const env = {
@@ -16,6 +12,7 @@ const env = {
   telegramBotUrl: process.env.NEXT_PUBLIC_TELEGRAM_BOT_URL,
   telegramUsername: process.env.NEXT_PUBLIC_TELEGRAM_USERNAME,
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
+  supportTelegram: process.env.NEXT_PUBLIC_SUPPORT_TELEGRAM,
   gaId: process.env.NEXT_PUBLIC_GA_ID,
   yandexMetricaId: process.env.NEXT_PUBLIC_YANDEX_METRICA_ID,
 };
@@ -31,26 +28,34 @@ export const siteConfig = {
     "FlyPing следит за стоимостью выбранных авиабилетов и отправляет уведомление в Telegram, когда цена снижается.",
   seoTitle: "FlyPing — уведомления о снижении цен на авиабилеты",
   locale: "ru_RU",
-  url: trimTrailingSlash(env.siteUrl || "https://flyping.app"),
+  url: trimTrailingSlash(env.siteUrl || "https://flyping.ru"),
   /**
    * Username бота без @.
-   * Замените через NEXT_PUBLIC_TELEGRAM_USERNAME при необходимости.
+   * Переопределение: NEXT_PUBLIC_TELEGRAM_USERNAME
    */
   telegramUsername: env.telegramUsername || "FlyPingAvia_Bot",
   /**
-   * URL Telegram-бота.
-   * По умолчанию — проверенная Web Telegram deep link.
+   * URL Telegram-бота (продукт).
+   * По умолчанию — native t.me deep-link с beta attribution (site1).
    * Переопределение: NEXT_PUBLIC_TELEGRAM_BOT_URL
-   * Placeholder при отсутствии бота: https://t.me/FLYPING_BOT_USERNAME
    */
   telegramBotUrl:
-    env.telegramBotUrl || "https://web.telegram.org/k/#@FlyPingAvia_Bot",
-  /** Placeholder: замените на рабочий email поддержки перед публикацией. */
-  supportEmail: env.supportEmail || "support@flyping.app",
-  /** Placeholder: юридическое имя владельца / организации. */
-  legalEntityName: "[УКАЖИТЕ ЮРИДИЧЕСКОЕ ИМЯ ВЛАДЕЛЬЦА]",
-  /** Placeholder: дата вступления юридических документов в силу. */
-  legalEffectiveDate: "[УКАЖИТЕ ДАТУ]",
+    env.telegramBotUrl || "https://t.me/FlyPingAvia_Bot?start=beta_site1",
+  /** Email для юридических уведомлений и поддержки. */
+  supportEmail: env.supportEmail || "Q2098@yandex.ru",
+  /** Telegram поддержки (не путать с ботом продукта). */
+  supportTelegramUsername: "Akulov_Kirill",
+  supportTelegramUrl:
+    env.supportTelegram || "https://t.me/Akulov_Kirill",
+  /** Оператор сервиса (физическое лицо). */
+  legalEntityName: "Акулов Кирилл Анатольевич",
+  legalEntityType: "физическое лицо",
+  /** Дата вступления Политики и Соглашения в силу. */
+  legalEffectiveDate: "11.08.2026",
+  /** Хостинг и хранение данных. */
+  hostingProvider: "VPS Timeweb (Российская Федерация)",
+  /** Источник данных о ценах. */
+  priceDataSource: "API Aviasales",
   links: {
     privacy: "/privacy",
     terms: "/terms",
