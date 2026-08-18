@@ -37,9 +37,9 @@ def test_ui_has_orientir_not_vilka() -> None:
     assert "Оценка стоимости" in js
     assert "По данным Travelpayouts" in js
     assert "Фактическая цена на Aviasales может отличаться" in js
-    assert "Выгодная цена" in js
-    assert "Средняя цена" in js
-    assert "Высокая цена" in js
+    assert '<div class="band">' not in js
+    assert "Средняя цена</span>" not in js
+    assert "Высокая цена</span>" not in js
     assert "Анализируем стоимость билетов…" in js
     assert "async function requestQuote" in js
     assert "quoteAbort" in js
