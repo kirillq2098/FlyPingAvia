@@ -24,9 +24,15 @@ def test_website_env_example_production_domains() -> None:
     env = (WEBSITE / ".env.example").read_text(encoding="utf-8")
     assert "https://flyping.ru" in env
     assert "FlyPingAvia_Bot" in env
-    assert "t.me/FlyPingAvia_Bot" in env
+    assert "t.me/FlyPingAvia_Bot?start=beta_site1" in env
     assert "localhost" not in env
     assert "trycloudflare" not in env
+
+
+def test_website_cta_uses_beta_site1_deeplink() -> None:
+    cfg = (WEBSITE / "lib" / "config.ts").read_text(encoding="utf-8")
+    assert "https://t.me/FlyPingAvia_Bot?start=beta_site1" in cfg
+    assert "web.telegram.org/k/#@FlyPingAvia_Bot" not in cfg
 
 
 def test_website_does_not_call_flyping_api() -> None:

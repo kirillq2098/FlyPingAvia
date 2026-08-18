@@ -64,9 +64,10 @@ services:
       context: ./website
       args:
         NEXT_PUBLIC_SITE_URL: "https://flyping.ru"
-        NEXT_PUBLIC_TELEGRAM_BOT_URL: "https://t.me/FlyPingAvia_Bot"
+        NEXT_PUBLIC_TELEGRAM_BOT_URL: "https://t.me/FlyPingAvia_Bot?start=beta_site1"
         NEXT_PUBLIC_TELEGRAM_USERNAME: "FlyPingAvia_Bot"
-        NEXT_PUBLIC_SUPPORT_EMAIL: "support@flyping.ru"
+        NEXT_PUBLIC_SUPPORT_EMAIL: "Q2098@yandex.ru"
+        NEXT_PUBLIC_SUPPORT_TELEGRAM: "https://t.me/Akulov_Kirill"
         NEXT_PUBLIC_GA_ID: ""
         NEXT_PUBLIC_YANDEX_METRICA_ID: ""
     image: flyping-site:0.3.1
