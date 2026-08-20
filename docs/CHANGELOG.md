@@ -8,7 +8,7 @@
 
 ### Added
 
--
+- **Admin dashboard:** закрытая Telegram-панель `/admin` (+ `/user @username`) для владельца — users/watches/funnel/sources/alerts/system/bugs, read-only, auth через `ADMIN_TELEGRAM_USER_IDS`, callback `ad:*`.
 
 ### Changed
 
