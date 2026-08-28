@@ -23,6 +23,7 @@ from flypingavia.monitoring.notify import notify_failure, notify_recovery
 from flypingavia.monitoring.telegram_errors import classify_telegram_send_error, SYSTEM
 from flypingavia.services.flexible_dates import search_flexible_trip
 from flypingavia.services.notify_policy import decide_notification
+from flypingavia.services.price_date_guard import quote_departure_matches_watch
 from flypingavia.services.prices import PriceProvider, build_affiliate_url
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,27 @@ class PriceChecker:
             found_return = result.found_return_date
             offset_days = result.offset_days
 
+            candidate_dep = quote.depart_date or found_depart
+            date_ok, date_reason = quote_departure_matches_watch(
+                watch_depart_date=watch.depart_date,
+                candidate_depart_date=candidate_dep,
+                flexibility_days=flex,
+                today=checked_at.date(),
+            )
+            if not date_ok:
+                logger.info(
+                    "Quote date rejected watch_id=%s reason=%s requested=%s candidate=%s route=%s→%s",
+                    watch.id,
+                    date_reason,
+                    watch.depart_date,
+                    candidate_dep,
+                    watch.origin,
+                    watch.destination,
+                )
+                async with session_scope() as session:
+                    await repo.mark_watch_checked(session, watch.id, checked_at)
+                continue
+
             below_threshold = False
             snapshot: Watch | None = None
             decision_allow = False
@@ -115,6 +137,21 @@ class PriceChecker:
                 below_threshold = quote.price <= fresh.max_price
 
                 if below_threshold:
+                    alert_date_ok, alert_date_reason = quote_departure_matches_watch(
+                        watch_depart_date=fresh.depart_date,
+                        candidate_depart_date=candidate_dep,
+                        flexibility_days=flex,
+                        today=checked_at.date(),
+                    )
+                    if not alert_date_ok:
+                        logger.info(
+                            "Alert blocked reason=%s watch_id=%s requested=%s candidate=%s",
+                            alert_date_reason,
+                            fresh.id,
+                            fresh.depart_date,
+                            candidate_dep,
+                        )
+                        below_threshold = False
                     last_event = await repo.get_latest_alert_event(session, fresh.id)
                     decision = decide_notification(
                         new_price=float(quote.price),

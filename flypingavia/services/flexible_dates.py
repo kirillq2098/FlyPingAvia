@@ -263,7 +263,7 @@ async def search_flexible_trip(
         except Exception:
             logger.exception("Flexible search band error primary_depart=%s", depart_date)
             band = _band_from_quotes([quote], currency=currency)
-        found_dep = depart_date
+        found_dep = quote.depart_date if quote.depart_date is not None else depart_date
         found_ret = return_date if return_date is not None else quote.return_date
         if found_ret is not None and quote.return_date is None:
             quote = replace(quote, return_date=found_ret)
@@ -406,6 +406,8 @@ async def search_flexible_trip(
     )
     if found_ret is not None and best_quote.return_date != found_ret:
         best_quote = replace(best_quote, return_date=found_ret)
+    if best_quote.depart_date is None:
+        best_quote = replace(best_quote, depart_date=best_cand.depart_date)
 
     quotes_only = [q for _, q in completed]
     partial = len(completed) < combinations_count

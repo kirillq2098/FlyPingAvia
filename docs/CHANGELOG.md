@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- P0: exact-date price integrity — no month-fallback for `flexibility_days=0`; checker date guard; UI «По данным Aviasales»; cache-buster `0.3.1-exactdate1`.
+
 ### Added
 
 - **Admin dashboard:** закрытая Telegram-панель `/admin` (+ `/user @username`) для владельца — users/watches/funnel/sources/alerts/system/bugs, read-only, auth через `ADMIN_TELEGRAM_USER_IDS`, callback `ad:*`.

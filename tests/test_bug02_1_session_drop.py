@@ -146,7 +146,7 @@ def test_frontend_bug021_contract() -> None:
     assert "/Telegram/i" not in js
     assert "Не удалось получить данные запуска Telegram" in js
     assert "/Telegram/i" not in js
-    assert "0.3.0-thresholdfix1" in html
+    assert "0.3.1-exactdate1" in html
     assert "launch-params.js" in html
     assert "diag-session.js" in html
     assert "FlyPingLaunchParams" in (root / "flypingavia/web/static/launch-params.js").read_text(

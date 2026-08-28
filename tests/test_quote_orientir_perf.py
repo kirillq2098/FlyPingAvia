@@ -35,7 +35,7 @@ def test_ui_has_orientir_not_vilka() -> None:
     assert "вилка" not in blob.lower()
     assert "Ориентир по стоимости" in blob
     assert "Оценка стоимости" in js
-    assert "По данным Travelpayouts" in js
+    assert "По данным Aviasales" in js
     assert "Фактическая цена на Aviasales может отличаться" in js
     assert '<div class="band">' not in js
     assert "Средняя цена</span>" not in js
