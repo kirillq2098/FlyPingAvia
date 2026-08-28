@@ -48,6 +48,7 @@ class PriceQuote:
     return_date: Optional[date] = None
     return_origin_code: Optional[str] = None
     fallback_reason: Optional[str] = None
+    depart_date: Optional[date] = None
 
     @property
     def is_live(self) -> bool:
@@ -197,6 +198,7 @@ class PriceProvider:
                     destination_code=destination,
                     searched_origins=tuple(origin_list),
                     searched_destinations=tuple(dest_list),
+                    depart_date=quote.depart_date,
                 )
 
         results = await asyncio.gather(*[_one(o, d) for o, d in pairs])
@@ -302,6 +304,7 @@ class PriceProvider:
             infants=max(0, infants),
             return_date=return_date,
             return_origin_code=return_origin,
+            depart_date=outbound.depart_date or depart_date,
         )
 
     async def get_trip_band(
@@ -351,6 +354,7 @@ class DemoPriceProvider(PriceProvider):
             source="demo",
             origin_code=origin.upper(),
             destination_code=destination.upper(),
+            depart_date=depart_date,
         )
 
     async def get_price_band(
@@ -519,6 +523,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 return_date=quote.return_date,
                 return_origin_code=quote.return_origin_code,
                 fallback_reason=live_fallback_reason,
+                depart_date=quote.depart_date,
             )
         return quote
 
@@ -571,6 +576,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
         destination: str,
         airline: Optional[str] = None,
         transfers: Optional[int] = None,
+        depart_date: Optional[date] = None,
     ) -> PriceQuote:
         return PriceQuote(
             price=float(price),
@@ -580,7 +586,18 @@ class TravelpayoutsPriceProvider(PriceProvider):
             source="travelpayouts",
             origin_code=origin.upper(),
             destination_code=destination.upper(),
+            depart_date=depart_date,
         )
+
+    @staticmethod
+    def _parse_item_depart_date(item: dict) -> Optional[date]:
+        dep = str(item.get("depart_date") or "").strip()
+        if not dep:
+            return None
+        try:
+            return date.fromisoformat(dep[:10])
+        except ValueError:
+            return None
 
     async def _month_matrix_items(
         self,
@@ -608,7 +625,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
         depart_date: date,
         currency: str,
     ) -> Optional[PriceQuote]:
-        """One-way на конкретную дату — через month-matrix (ближе к Aviasales)."""
+        """One-way на конкретную дату — только exact-date из month-matrix / calendar."""
         target = depart_date.isoformat()
         try:
             items = await self._month_matrix_items(origin, destination, currency, depart_date)
@@ -616,7 +633,6 @@ class TravelpayoutsPriceProvider(PriceProvider):
             items = []
 
         exact: list[dict] = []
-        nearby: list[dict] = []
         for item in items:
             if not item.get("value"):
                 continue
@@ -628,12 +644,9 @@ class TravelpayoutsPriceProvider(PriceProvider):
             dep = str(item.get("depart_date") or "")
             if dep == target:
                 exact.append(item)
-            elif dep.startswith(depart_date.strftime("%Y-%m")):
-                nearby.append(item)
 
-        pool = exact or nearby
-        if pool:
-            best = min(pool, key=lambda x: float(x["value"]))
+        if exact:
+            best = min(exact, key=lambda x: float(x["value"]))
             airline = best.get("airline") or None
             gate = best.get("gate") or ""
             if not airline and gate and "Airlines" in str(gate):
@@ -645,9 +658,10 @@ class TravelpayoutsPriceProvider(PriceProvider):
                 destination=destination,
                 airline=airline,
                 transfers=best.get("number_of_changes"),
+                depart_date=self._parse_item_depart_date(best) or depart_date,
             )
 
-        # Календарь: только one-way (без return_at) — иначе там часто «туда-обратно»
+        # Календарь: только one-way (без return_at) на exact date
         try:
             params = {
                 "origin": origin.upper(),
@@ -669,6 +683,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
                         destination=destination,
                         airline=item.get("airline"),
                         transfers=item.get("transfers"),
+                        depart_date=depart_date,
                     )
         except Exception:
             pass
@@ -683,29 +698,7 @@ class TravelpayoutsPriceProvider(PriceProvider):
         currency: str = "rub",
     ) -> Optional[PriceQuote]:
         if depart_date is not None:
-            quote = await self._cheapest_on_date(origin, destination, depart_date, currency)
-            if quote is not None:
-                return quote
-            # Нет точной даты — берём минимум one-way по month-matrix за месяц
-            try:
-                items = await self._month_matrix_items(origin, destination, currency, depart_date)
-                one_way = [
-                    float(i["value"])
-                    for i in items
-                    if i.get("value") and not i.get("return_date") and i.get("actual") is not False
-                ]
-                if one_way:
-                    return self._quote(
-                        price=min(one_way),
-                        currency=currency,
-                        origin=origin,
-                        destination=destination,
-                    )
-            except Exception:
-                pass
-            # Не используем /v1/prices/cheap: там часто цена туда-обратно
-            # с чужой датой возврата, которой нет в поиске one-way на Aviasales.
-            return None
+            return await self._cheapest_on_date(origin, destination, depart_date, currency)
 
         params: dict[str, str] = {
             "origin": origin.upper(),

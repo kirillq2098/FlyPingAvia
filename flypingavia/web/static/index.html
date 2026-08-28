@@ -9,7 +9,7 @@
   <link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
   <script>
     /* BUG-02.5: asset + session boot (session_id filled by diag-session.js). */
-    window.__FLYPING_BOOT__ = { asset: "0.3.0-thresholdfix1", t: Date.now() };
+    window.__FLYPING_BOOT__ = { asset: "0.3.1-exactdate1", t: Date.now() };
     window.__FLYPING_PRESERVED_INIT__ = "";
     try {
       var tg0 = window.Telegram && window.Telegram.WebApp;
@@ -19,7 +19,7 @@
     } catch (e) {}
   </script>
   <!-- Safe diagnostic tracer (session_id) — before SDK. -->
-  <script src="/assets/diag-session.js?v=0.3.0-thresholdfix1"></script>
+  <script src="/assets/diag-session.js?v=0.3.1-exactdate1"></script>
   <!-- Local official SDK (vendored). CDN is non-critical — Huawei/EMUI often blocks telegram.org. -->
   <script>try { if (window.FlyPingDiag) window.FlyPingDiag.emit("local_sdk_start"); } catch (e) {}</script>
   <script src="/assets/telegram-web-app.js"></script>
@@ -33,9 +33,9 @@
     } catch (e) {}
   </script>
   <!-- Independent launch-param parser (does not rely on SDK initData). -->
-  <script src="/assets/launch-params.js?v=0.3.0-thresholdfix1"></script>
-  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.0-thresholdfix1" />
-  <link rel="stylesheet" href="/assets/app.css?v=0.3.0-thresholdfix1" />
+  <script src="/assets/launch-params.js?v=0.3.1-exactdate1"></script>
+  <link rel="stylesheet" href="/assets/fonts.css?v=0.3.1-exactdate1" />
+  <link rel="stylesheet" href="/assets/app.css?v=0.3.1-exactdate1" />
 </head>
 <body class="auth-locked">
   <div id="auth-gate" class="auth-gate" role="dialog" aria-live="polite" aria-labelledby="auth-title">
@@ -197,6 +197,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script>try { if (window.FlyPingDiag) window.FlyPingDiag.emit("app_script_started"); } catch (e) {}</script>
-  <script src="/assets/app.js?v=0.3.0-thresholdfix1"></script>
+  <script src="/assets/app.js?v=0.3.1-exactdate1"></script>
 </body>
 </html>

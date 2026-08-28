@@ -1236,7 +1236,7 @@
       else if (q.cached) statusBits.push("Ориентир обновлён");
       if (isLive && !isEstimate) statusBits.push("Живой поиск");
       if (isEstimate) {
-        statusBits.push("По данным Travelpayouts");
+        statusBits.push("По данным Aviasales");
         statusBits.push("Фактическая цена на Aviasales может отличаться");
       }
       const computed = formatComputedAt(q.updated_at || q.computed_at);
@@ -1304,6 +1304,33 @@
         hideLowThresholdWarn();
       }
       updateDirtyClosingConfirmation();
+      syncMainButton();
+      const retry = $("#quote-retry");
+      if (retry) {
+        retry.addEventListener("click", function () {
+          requestQuote({ refresh: true, force: true });
+        });
+      }
+    }
+
+    function renderNoExactPriceState(q) {
+      hideQuoteLoading();
+      const box = $("#quote");
+      if (!box) return;
+      state.quote = q || null;
+      box.classList.remove("hidden");
+      box.innerHTML =
+        '<h2 class="quote-title">Пока нет данных о цене на эту дату</h2>' +
+        '<p class="meta">Попробуйте другую дату или повторите позже. Оценка по соседним дням не показывается.</p>' +
+        '<div class="btn-row" style="margin-top:12px">' +
+        '<button type="button" class="btn primary" id="quote-retry">Повторить расчёт</button>' +
+        "</div>";
+      $("#watch-form").classList.remove("hidden");
+      const thr = $("#threshold");
+      if (thr) {
+        if (!thr.value) thr.value = "";
+        if (!thr.placeholder) thr.placeholder = "Введите желаемую цену";
+      }
       syncMainButton();
       const retry = $("#quote-retry");
       if (retry) {
@@ -1823,7 +1850,11 @@
         });
         if (seq !== state.quoteSeq) return;
         if (!q || (q.price == null && q.cheap_max == null)) {
-          renderQuoteTimeoutFallback();
+          if (q && q.status === "no_exact_price") {
+            renderNoExactPriceState(q);
+          } else {
+            renderQuoteTimeoutFallback();
+          }
           haptic("error");
           return;
         }
@@ -2030,7 +2061,7 @@
       syncFlexUi();
     }
 
-    const JS_ASSET_BUILD = "0.3.0-thresholdfix1";
+    const JS_ASSET_BUILD = "0.3.1-exactdate1";
 
     function detectAssetMismatch() {
       try {

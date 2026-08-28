@@ -768,7 +768,10 @@ def create_api(settings: Settings | None = None) -> FastAPI:
 
             status_label = "partial" if partial else ("timeout" if quote is None else "live")
             if result is None:
-                cache.metrics.timeouts += 1
+                if depart_date is not None and flex == 0:
+                    status_label = "no_exact_price"
+                else:
+                    cache.metrics.timeouts += 1
             if partial:
                 cache.metrics.partials += 1
             if combinations_count:
@@ -830,7 +833,13 @@ def create_api(settings: Settings | None = None) -> FastAPI:
                 combinations_count=combinations_count,
                 completed_count=completed_count,
                 title=(
-                    "Предварительный ориентир" if partial else "Оценка стоимости"
+                    "Предварительный ориентир"
+                    if partial
+                    else (
+                        "Пока нет данных о цене на эту дату"
+                        if status_label == "no_exact_price"
+                        else "Оценка стоимости"
+                    )
                 ),
             )
             return out.model_dump(mode="json")

@@ -35,7 +35,7 @@
   var boot = root.__FLYPING_BOOT__ || (root.__FLYPING_BOOT__ = {});
   if (!boot.session_id) boot.session_id = uuid();
   if (!boot.t) boot.t = Date.now();
-  if (!boot.asset) boot.asset = "0.3.0-thresholdfix1";
+  if (!boot.asset) boot.asset = "0.3.1-exactdate1";
   boot.scriptStartedAt = boot.scriptStartedAt || Date.now();
   boot.initialHrefLen = boot.initialHrefLen || 0;
   try {
