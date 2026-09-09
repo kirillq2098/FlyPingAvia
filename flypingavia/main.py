@@ -7,6 +7,8 @@ from pathlib import Path
 import uvicorn
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -37,6 +39,30 @@ def _handle_version_argv(argv: list[str]) -> bool:
     return False
 
 
+def _build_bot(settings) -> Bot:
+    """Создать aiogram Bot с прямым Telegram API или опциональным HTTPS gateway."""
+    session = None
+    if settings.telegram_api_gateway_enabled:
+        base = (
+            f"{settings.telegram_api_gateway_url}/"
+            f"{settings.telegram_api_gateway_secret}/api/{{method}}"
+        )
+        file = (
+            f"{settings.telegram_api_gateway_url}/"
+            f"{settings.telegram_api_gateway_secret}/file/{{path}}"
+        )
+        api_server = TelegramAPIServer(base=base, file=file)
+        session = AiohttpSession(api=api_server)
+
+    kwargs = {
+        "token": settings.bot_token,
+        "default": DefaultBotProperties(parse_mode=ParseMode.HTML),
+    }
+    if session is not None:
+        kwargs["session"] = session
+    return Bot(**kwargs)
+
+
 def _log_startup_summary(settings) -> None:
     price_mode = "demo" if settings.is_demo_prices else "live"
     logger.info("FlyPingAvia version: %s", __version__)
@@ -47,6 +73,10 @@ def _log_startup_summary(settings) -> None:
     )
     logger.info("Display timezone: %s", settings.display_timezone)
     logger.info("Price mode: %s", price_mode)
+    logger.info(
+        "Telegram API transport: %s",
+        "gateway" if settings.telegram_api_gateway_enabled else "direct",
+    )
     logger.info(
         "Bind: %s:%s | Telegram WebApp: %s",
         settings.webapp_host,
@@ -95,10 +125,7 @@ async def _async_main() -> None:
     except Exception:
         logger.exception("Не удалось загрузить справочник городов")
 
-    bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+    bot = _build_bot(settings)
     dp, checker = create_dispatcher(settings, bot)
 
     interval = settings.poll_interval_seconds
