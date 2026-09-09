@@ -34,6 +34,22 @@ class Settings(BaseSettings):
         default="REPLACE_ME",
         validation_alias=AliasChoices("BOT_TOKEN", "TELEGRAM_TOKEN", "bot_token"),
     )
+    telegram_api_gateway_url: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TELEGRAM_API_GATEWAY_URL",
+            "telegram_api_gateway_url",
+        ),
+        description="Опциональный HTTPS gateway только для Telegram Bot API",
+    )
+    telegram_api_gateway_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TELEGRAM_API_GATEWAY_SECRET",
+            "telegram_api_gateway_secret",
+        ),
+        description="Секретный path segment для Telegram API gateway",
+    )
     travelpayouts_token: str = Field(
         default="",
         validation_alias=AliasChoices(
@@ -330,6 +346,21 @@ class Settings(BaseSettings):
             )
         self.app_env = env
 
+        gateway_url = (self.telegram_api_gateway_url or "").strip().rstrip("/")
+        gateway_secret = (self.telegram_api_gateway_secret or "").strip()
+        if gateway_url:
+            from urllib.parse import urlparse
+
+            parsed_gateway = urlparse(gateway_url)
+            if parsed_gateway.scheme != "https" or not parsed_gateway.netloc:
+                raise ValueError("TELEGRAM_API_GATEWAY_URL должен быть абсолютным HTTPS URL")
+            if parsed_gateway.username or parsed_gateway.password or parsed_gateway.query or parsed_gateway.fragment:
+                raise ValueError("TELEGRAM_API_GATEWAY_URL не должен содержать credentials, query или fragment")
+            if not gateway_secret:
+                raise ValueError("TELEGRAM_API_GATEWAY_SECRET обязателен при TELEGRAM_API_GATEWAY_URL")
+        self.telegram_api_gateway_url = gateway_url
+        self.telegram_api_gateway_secret = gateway_secret
+
         if self.db_path:
             path = Path(self.db_path)
             self.database_url = f"sqlite+aiosqlite:///{path.as_posix()}"
@@ -375,7 +406,7 @@ class Settings(BaseSettings):
             if len(secret) < 32:
                 raise ValueError(
                     "В production WATCH_SHARE_CALLBACK_SECRET обязателен "
-                    "(минимум 32 символа). Не используйте BOT_TOKEN."
+                    "(минимум 32 символов). Не используйте BOT_TOKEN."
                 )
             self.watch_share_callback_secret = secret
         else:
@@ -389,6 +420,10 @@ class Settings(BaseSettings):
     @property
     def admin_alerts_active(self) -> bool:
         return bool(self.admin_alerts_enabled and self.admin_telegram_chat_id is not None)
+
+    @property
+    def telegram_api_gateway_enabled(self) -> bool:
+        return bool(self.telegram_api_gateway_url)
 
     @property
     def effective_checker_stale_after_seconds(self) -> int:
